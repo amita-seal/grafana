@@ -1,5 +1,5 @@
 import { css, cx } from '@emotion/css';
-import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAsync, useAsyncFn } from 'react-use';
 
 import {
@@ -115,13 +115,15 @@ interface LogRowContextModalProps {
   open: boolean;
   timeZone: TimeZone;
   onClose: () => void;
-  getRowContext: (row: LogRowModel, options?: LogRowContextOptions) => Promise<DataQueryResponse>;
+  getRowContext: (row: LogRowModel, options: LogRowContextOptions) => Promise<DataQueryResponse>;
 
   getRowContextQuery?: (row: LogRowModel, options?: LogRowContextOptions) => Promise<DataQuery | null>;
   logsSortOrder?: LogsSortOrder | null;
   runContextQuery?: () => void;
   getLogRowContextUi?: DataSourceWithLogsContextSupport['getLogRowContextUi'];
 }
+
+type Source = 'none' | 'top' | 'bottom' | 'center';
 
 export const LogRowContextModal: React.FunctionComponent<LogRowContextModalProps> = ({
   row,
@@ -134,16 +136,25 @@ export const LogRowContextModal: React.FunctionComponent<LogRowContextModalProps
   getRowContext,
 }) => {
   const scrollElement = React.createRef<HTMLDivElement>();
-  const entryElement = React.createRef<HTMLTableRowElement>();
+  const entryElement = useRef<HTMLTableRowElement | null>(null);
   // We can not use `entryElement` to scroll to the right element because it's
   // sticky. That's why we add another row and use this ref to scroll to that
   // first.
-  const preEntryElement = React.createRef<HTMLTableRowElement>();
+  const preEntryElement = useRef<HTMLTableRowElement | null>(null);
+
+  const prevHeightRef = useRef<number | null>(null);
+
+  const topElement = useRef<HTMLButtonElement | null>(null);
+  const bottomElement = useRef<HTMLButtonElement | null>(null);
 
   const dispatch = useDispatch();
   const theme = useTheme2();
   const styles = getStyles(theme);
-  const [context, setContext] = useState<{ after: LogRowModel[]; before: LogRowModel[] }>({ after: [], before: [] });
+  const [context, setContext] = useState<{ after: LogRowModel[]; before: LogRowModel[]; source: Source }>({
+    after: [],
+    before: [],
+    source: 'none',
+  });
   // LoadMoreOptions[2] refers to 50 lines
   const defaultLimit = LoadMoreOptions[2];
   const [limit, setLimit] = useState<number>(defaultLimit.value!);
@@ -229,11 +240,50 @@ export const LogRowContextModal: React.FunctionComponent<LogRowContextModalProps
         before: beforeRows.filter((r) => {
           return r.timeEpochNs !== row.timeEpochNs && r.entry !== row.entry;
         }),
+        source: 'center',
       });
     } else {
-      setContext({ after: [], before: [] });
+      setContext({ after: [], before: [], source: 'none' });
     }
   }, [row, open, limit]);
+
+  const loadMore = async (location: 'top' | 'bottom') => {
+    const { before, after } = context;
+    const refRow = location === 'top' ? after.at(0) : before.at(-1);
+    if (refRow == null) {
+      return;
+    }
+
+    const direction = location === 'top' ? LogRowContextQueryDirection.Forward : LogRowContextQueryDirection.Backward;
+
+    const result = await getRowContext(refRow, { limit: 10, direction });
+    const newRows = dataFrameToLogsModel(result.data).rows;
+
+    if (logsSortOrder === LogsSortOrder.Ascending) {
+      newRows.reverse();
+    }
+
+    if (location === 'top') {
+      const uniqueNewRows = newRows.filter((r) => {
+        return r.timeEpochNs !== refRow.timeEpochNs && r.entry !== refRow.entry;
+      });
+
+      setContext((c) => ({
+        after: [...uniqueNewRows, ...c.after],
+        before: c.before,
+        source: 'top',
+      }));
+    } else {
+      const uniqueNewRows = newRows.filter((r) => {
+        return r.timeEpochNs !== refRow.timeEpochNs && r.entry !== refRow.entry;
+      });
+      setContext((c) => ({
+        after: c.after,
+        before: [...c.before, ...uniqueNewRows],
+        source: 'bottom',
+      }));
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -261,11 +311,34 @@ export const LogRowContextModal: React.FunctionComponent<LogRowContextModalProps
   };
 
   useLayoutEffect(() => {
-    if (!loading && entryElement.current && preEntryElement.current) {
-      preEntryElement.current.scrollIntoView({ block: 'center' });
-      entryElement.current.scrollIntoView({ block: 'center' });
+    const { source } = context;
+    switch (source) {
+      case 'center':
+        preEntryElement.current?.scrollIntoView({ block: 'center' });
+        entryElement.current?.scrollIntoView({ block: 'center' });
+        break;
+      case 'top':
+        const prevHeight = prevHeightRef.current;
+        const scrollE = scrollElement.current;
+        if (scrollE != null) {
+          const currentHeight = scrollE.scrollHeight;
+          prevHeightRef.current = currentHeight;
+          if (prevHeight != null) {
+            const newScrollTop = scrollE.scrollTop + (currentHeight - prevHeight);
+            scrollE.scrollTop = newScrollTop;
+          }
+        }
+        break;
+      case 'bottom':
+        // nothing to do
+        break;
+      case 'none':
+        // nothing to do
+        break;
+      default:
+        throw new Error(`invalid source: ${source}`);
     }
-  }, [entryElement, preEntryElement, context, loading]);
+  }, [context]);
 
   useLayoutEffect(() => {
     const width = scrollElement?.current?.parentElement?.clientWidth;
@@ -309,19 +382,24 @@ export const LogRowContextModal: React.FunctionComponent<LogRowContextModalProps
           <tbody>
             <tr>
               <td className={styles.noMarginBottom}>
-                <LogRows
-                  logRows={context.after}
-                  dedupStrategy={LogsDedupStrategy.none}
-                  showLabels={store.getBool(SETTINGS_KEYS.showLabels, false)}
-                  showTime={store.getBool(SETTINGS_KEYS.showTime, true)}
-                  wrapLogMessage={wrapLines}
-                  prettifyLogMessage={store.getBool(SETTINGS_KEYS.prettifyLogMessage, false)}
-                  enableLogDetails={true}
-                  timeZone={timeZone}
-                  displayedFields={displayedFields}
-                  onClickShowField={showField}
-                  onClickHideField={hideField}
-                />
+                <>
+                  <button ref={topElement} onClick={() => loadMore('top')}>
+                    load more
+                  </button>
+                  <LogRows
+                    logRows={context.after}
+                    dedupStrategy={LogsDedupStrategy.none}
+                    showLabels={store.getBool(SETTINGS_KEYS.showLabels, false)}
+                    showTime={store.getBool(SETTINGS_KEYS.showTime, true)}
+                    wrapLogMessage={wrapLines}
+                    prettifyLogMessage={store.getBool(SETTINGS_KEYS.prettifyLogMessage, false)}
+                    enableLogDetails={true}
+                    timeZone={timeZone}
+                    displayedFields={displayedFields}
+                    onClickShowField={showField}
+                    onClickHideField={hideField}
+                  />
+                </>
               </td>
             </tr>
             <tr ref={preEntryElement}></tr>
@@ -344,19 +422,24 @@ export const LogRowContextModal: React.FunctionComponent<LogRowContextModalProps
             </tr>
             <tr>
               <td>
-                <LogRows
-                  logRows={context.before}
-                  dedupStrategy={LogsDedupStrategy.none}
-                  showLabels={store.getBool(SETTINGS_KEYS.showLabels, false)}
-                  showTime={store.getBool(SETTINGS_KEYS.showTime, true)}
-                  wrapLogMessage={wrapLines}
-                  prettifyLogMessage={store.getBool(SETTINGS_KEYS.prettifyLogMessage, false)}
-                  enableLogDetails={true}
-                  timeZone={timeZone}
-                  displayedFields={displayedFields}
-                  onClickShowField={showField}
-                  onClickHideField={hideField}
-                />
+                <>
+                  <LogRows
+                    logRows={context.before}
+                    dedupStrategy={LogsDedupStrategy.none}
+                    showLabels={store.getBool(SETTINGS_KEYS.showLabels, false)}
+                    showTime={store.getBool(SETTINGS_KEYS.showTime, true)}
+                    wrapLogMessage={wrapLines}
+                    prettifyLogMessage={store.getBool(SETTINGS_KEYS.prettifyLogMessage, false)}
+                    enableLogDetails={true}
+                    timeZone={timeZone}
+                    displayedFields={displayedFields}
+                    onClickShowField={showField}
+                    onClickHideField={hideField}
+                  />
+                  <button ref={bottomElement} onClick={() => loadMore('bottom')}>
+                    load more
+                  </button>
+                </>
               </td>
             </tr>
           </tbody>
