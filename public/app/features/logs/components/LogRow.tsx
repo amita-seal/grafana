@@ -51,6 +51,7 @@ interface Props extends Themeable2 {
   onLogRowHover?: (row?: LogRowModel) => void;
   onOpenContext: (row: LogRowModel, onClose: () => void) => void;
   styles: LogRowStyles;
+  permalinkedRowId?: string;
 }
 
 interface State {
