@@ -18,6 +18,7 @@ interface Props {
   app?: CoreApp;
   showContextToggle?: (row?: LogRowModel) => boolean;
   onOpenContext: (row: LogRowModel) => void;
+  onPermalinkClick?: (row: LogRowModel) => void;
   styles: LogRowStyles;
 }
 
@@ -76,7 +77,7 @@ export class LogRowMessage extends PureComponent<Props> {
   };
 
   render() {
-    const { row, wrapLogMessage, prettifyLogMessage, showContextToggle, styles } = this.props;
+    const { row, wrapLogMessage, prettifyLogMessage, showContextToggle, styles, onPermalinkClick } = this.props;
     const { hasAnsi, raw } = row;
     const restructuredEntry = restructureLog(raw, prettifyLogMessage);
     const shouldShowContextToggle = showContextToggle ? showContextToggle(row) : false;
@@ -106,6 +107,11 @@ export class LogRowMessage extends PureComponent<Props> {
             })}
             onClick={this.onLogRowClick}
           >
+            {onPermalinkClick && row.uid && (
+              <Tooltip placement="top" content={'Link Logline'}>
+                <IconButton size="md" name="link" onClick={() => onPermalinkClick(row)} />
+              </Tooltip>
+            )}
             {shouldShowContextToggle && (
               <Tooltip placement="top" content={'Show context'}>
                 <IconButton size="md" name="gf-show-context" onClick={this.onShowContextClick} />
