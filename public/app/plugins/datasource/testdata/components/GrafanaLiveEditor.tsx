@@ -1,8 +1,6 @@
 import React from 'react';
-
-import { SelectableValue } from '@grafana/data';
 import { InlineField, InlineFieldRow, Select } from '@grafana/ui';
-
+import { SelectableValue } from '@grafana/data';
 import { EditorProps } from '../QueryEditor';
 
 const liveTestDataChannels = [
@@ -15,16 +13,6 @@ const liveTestDataChannels = [
     label: 'random-flakey-stream',
     value: 'random-flakey-stream',
     description: 'Stream that returns data in random intervals',
-  },
-  {
-    label: 'random-labeled-stream',
-    value: 'random-labeled-stream',
-    description: 'Value with moving labels',
-  },
-  {
-    label: 'random-20Hz-stream',
-    value: 'random-20Hz-stream',
-    description: 'Random stream with points in 20Hz',
   },
 ];
 

@@ -6,26 +6,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
-	dashboardstore "github.com/grafana/grafana/pkg/services/dashboards"
-	"github.com/grafana/grafana/pkg/services/org"
 	"github.com/grafana/grafana/pkg/services/provisioning/dashboards"
-	"github.com/grafana/grafana/pkg/services/provisioning/utils"
 	"github.com/grafana/grafana/pkg/setting"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestProvisioningServiceImpl(t *testing.T) {
 	t.Run("Restart dashboard provisioning and stop service", func(t *testing.T) {
 		serviceTest := setup()
-		err := serviceTest.service.ProvisionDashboards(context.Background())
+		err := serviceTest.service.ProvisionDashboards()
 		assert.Nil(t, err)
 		serviceTest.startService()
 		serviceTest.waitForPollChanges()
 
 		assert.Equal(t, 1, len(serviceTest.mock.Calls.PollChanges), "PollChanges should have been called")
 
-		err = serviceTest.service.ProvisionDashboards(context.Background())
+		err = serviceTest.service.ProvisionDashboards()
 		assert.Nil(t, err)
 
 		serviceTest.waitForPollChanges()
@@ -45,16 +41,16 @@ func TestProvisioningServiceImpl(t *testing.T) {
 
 	t.Run("Failed reloading does not stop polling with old provisioned", func(t *testing.T) {
 		serviceTest := setup()
-		err := serviceTest.service.ProvisionDashboards(context.Background())
+		err := serviceTest.service.ProvisionDashboards()
 		assert.Nil(t, err)
 		serviceTest.startService()
 		serviceTest.waitForPollChanges()
 		assert.Equal(t, 1, len(serviceTest.mock.Calls.PollChanges), "PollChanges should have been called")
 
-		serviceTest.mock.ProvisionFunc = func(ctx context.Context) error {
+		serviceTest.mock.ProvisionFunc = func() error {
 			return errors.New("Test error")
 		}
-		err = serviceTest.service.ProvisionDashboards(context.Background())
+		err = serviceTest.service.ProvisionDashboards()
 		assert.NotNil(t, err)
 		serviceTest.waitForPollChanges()
 
@@ -79,7 +75,7 @@ type serviceTestStruct struct {
 	cancel       func()
 
 	mock    *dashboards.ProvisionerMock
-	service *ProvisioningServiceImpl
+	service *provisioningServiceImpl
 }
 
 func setup() *serviceTestStruct {
@@ -94,8 +90,8 @@ func setup() *serviceTestStruct {
 		pollChangesChannel <- ctx
 	}
 
-	serviceTest.service = newProvisioningServiceImpl(
-		func(context.Context, string, dashboardstore.DashboardProvisioningService, org.Service, utils.DashboardStore) (dashboards.DashboardProvisioner, error) {
+	serviceTest.service = NewProvisioningServiceImpl(
+		func(path string) (dashboards.DashboardProvisioner, error) {
 			return serviceTest.mock, nil
 		},
 		nil,

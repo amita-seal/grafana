@@ -1,5 +1,4 @@
 import { PanelModel } from '@grafana/data';
-
 import { gaugePanelMigrationHandler, gaugePanelChangedHandler } from './GaugeMigrations';
 
 describe('Gauge Panel Migrations', () => {
@@ -89,14 +88,14 @@ describe('Gauge Panel Migrations', () => {
     expect(result.reduceOptions.overrides).toBeUndefined();
 
     expect((panel as PanelModel).fieldConfig).toMatchInlineSnapshot(`
-      {
-        "defaults": {
-          "color": {
+      Object {
+        "defaults": Object {
+          "color": Object {
             "mode": "thresholds",
           },
           "decimals": 3,
-          "mappings": [
-            {
+          "mappings": Array [
+            Object {
               "from": "50",
               "id": 1,
               "operator": "",
@@ -108,25 +107,25 @@ describe('Gauge Panel Migrations', () => {
           ],
           "max": "50",
           "min": "-50",
-          "thresholds": {
+          "thresholds": Object {
             "mode": "absolute",
-            "steps": [
-              {
+            "steps": Array [
+              Object {
                 "color": "green",
                 "index": 0,
                 "value": -Infinity,
               },
-              {
+              Object {
                 "color": "#EAB839",
                 "index": 1,
                 "value": -25,
               },
-              {
+              Object {
                 "color": "#6ED0E0",
                 "index": 2,
                 "value": 0,
               },
-              {
+              Object {
                 "color": "red",
                 "index": 3,
                 "value": 25,
@@ -135,13 +134,13 @@ describe('Gauge Panel Migrations', () => {
           },
           "unit": "accMS2",
         },
-        "overrides": [],
+        "overrides": Array [],
       }
     `);
   });
 
   it('change from angular singlestat to gauge', () => {
-    const old = {
+    const old: any = {
       angular: {
         format: 'ms',
         decimals: 7,

@@ -401,8 +401,6 @@ const (
 	TypeSeriesSet
 	// TypeVariantSet is a collection of the same type Number, Series, or Scalar.
 	TypeVariantSet
-	// TypeNoData is a no data response without a known data type.
-	TypeNoData
 )
 
 // String returns a string representation of the ReturnType.
@@ -418,8 +416,6 @@ func (f ReturnType) String() string {
 		return "scalar"
 	case TypeVariantSet:
 		return "variant"
-	case TypeNoData:
-		return "noData"
 	default:
 		return "unknown"
 	}

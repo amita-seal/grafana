@@ -1,11 +1,11 @@
 import React, { FormEvent, ReactElement, useCallback } from 'react';
+import { VerticalGroup } from '@grafana/ui';
 
-import { selectors } from '@grafana/e2e-selectors';
-
-import { VariableLegend } from '../editor/VariableLegend';
-import { VariableTextField } from '../editor/VariableTextField';
-import { VariableEditorProps } from '../editor/types';
 import { TextBoxVariableModel } from '../types';
+import { VariableEditorProps } from '../editor/types';
+import { VariableSectionHeader } from '../editor/VariableSectionHeader';
+import { VariableTextField } from '../editor/VariableTextField';
+import { selectors } from '@grafana/e2e-selectors';
 
 export interface Props extends VariableEditorProps<TextBoxVariableModel> {}
 
@@ -23,17 +23,18 @@ export function TextBoxVariableEditor({ onPropChange, variable: { query } }: Pro
   const onBlur = useCallback((e: FormEvent<HTMLInputElement>) => updateVariable(e, true), [updateVariable]);
 
   return (
-    <>
-      <VariableLegend>Text options</VariableLegend>
+    <VerticalGroup spacing="xs">
+      <VariableSectionHeader name="Text Options" />
       <VariableTextField
         value={query}
         name="Default value"
         placeholder="default value, if any"
         onChange={onChange}
         onBlur={onBlur}
-        width={30}
-        testId={selectors.pages.Dashboard.Settings.Variables.Edit.TextBoxVariable.textBoxOptionsQueryInputV2}
+        labelWidth={20}
+        grow
+        ariaLabel={selectors.pages.Dashboard.Settings.Variables.Edit.TextBoxVariable.textBoxOptionsQueryInput}
       />
-    </>
+    </VerticalGroup>
   );
 }

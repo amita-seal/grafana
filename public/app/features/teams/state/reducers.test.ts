@@ -1,36 +1,29 @@
-import { reducerTester } from '../../../../test/core/redux/reducerTester';
-import { TeamsState, TeamState } from '../../../types';
-import { getMockTeam, getMockTeamGroups, getMockTeamMember } from '../__mocks__/teamMocks';
-
 import {
   initialTeamsState,
   initialTeamState,
   setSearchMemberQuery,
+  setSearchQuery,
   teamGroupsLoaded,
   teamLoaded,
-  queryChanged,
   teamMembersLoaded,
   teamReducer,
   teamsLoaded,
   teamsReducer,
 } from './reducers';
+import { getMockTeam, getMockTeamGroups, getMockTeamMember } from '../__mocks__/teamMocks';
+import { reducerTester } from '../../../../test/core/redux/reducerTester';
+import { TeamsState, TeamState } from '../../../types';
 
 describe('teams reducer', () => {
   describe('when teamsLoaded is dispatched', () => {
     it('then state should be correct', () => {
       reducerTester<TeamsState>()
         .givenReducer(teamsReducer, { ...initialTeamsState })
-        .whenActionIsDispatched(
-          teamsLoaded({ teams: [getMockTeam()], page: 1, perPage: 30, noTeams: false, totalCount: 100 })
-        )
+        .whenActionIsDispatched(teamsLoaded([getMockTeam()]))
         .thenStateShouldEqual({
           ...initialTeamsState,
           hasFetched: true,
           teams: [getMockTeam()],
-          noTeams: false,
-          totalPages: 4,
-          perPage: 30,
-          page: 1,
         });
     });
   });
@@ -39,10 +32,10 @@ describe('teams reducer', () => {
     it('then state should be correct', () => {
       reducerTester<TeamsState>()
         .givenReducer(teamsReducer, { ...initialTeamsState })
-        .whenActionIsDispatched(queryChanged('test'))
+        .whenActionIsDispatched(setSearchQuery('test'))
         .thenStateShouldEqual({
           ...initialTeamsState,
-          query: 'test',
+          searchQuery: 'test',
         });
     });
   });

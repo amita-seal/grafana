@@ -3,19 +3,18 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"strings"
 )
 
 func hello(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return
 	}
 
-	safeBody := strings.ReplaceAll(string(body), "\n", "")
-	line := fmt.Sprintf("webbhook: -> %s", safeBody)
+	line := fmt.Sprintf("webbhook: -> %s", string(body))
 	fmt.Println(line)
 	if _, err := io.WriteString(w, line); err != nil {
 		log.Printf("Failed to write: %v", err)

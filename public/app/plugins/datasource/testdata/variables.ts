@@ -1,15 +1,16 @@
 import { StandardVariableQuery, StandardVariableSupport } from '@grafana/data';
 
-import { TestData, TestDataQueryType } from './dataquery.gen';
 import { TestDataDataSource } from './datasource';
+import { TestDataQuery } from './types';
 
 export class TestDataVariableSupport extends StandardVariableSupport<TestDataDataSource> {
-  toDataQuery(query: StandardVariableQuery): TestData {
+  toDataQuery(query: StandardVariableQuery): TestDataQuery {
     return {
       refId: 'TestDataDataSource-QueryVariable',
       stringInput: query.query,
-      scenarioId: TestDataQueryType.VariablesQuery,
-      csvWave: undefined,
+      scenarioId: 'variables-query',
+      csvWave: null,
+      points: [],
     };
   }
 }

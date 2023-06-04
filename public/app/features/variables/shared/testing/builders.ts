@@ -1,16 +1,15 @@
+import { AdHocVariableBuilder } from './adHocVariableBuilder';
+import { IntervalVariableBuilder } from './intervalVariableBuilder';
+import { DatasourceVariableBuilder } from './datasourceVariableBuilder';
+import { OptionsVariableBuilder } from './optionsVariableBuilder';
+import { initialQueryVariableModelState } from '../../query/reducer';
 import { initialAdHocVariableModelState } from '../../adhoc/reducer';
-import { initialConstantVariableModelState } from '../../constant/reducer';
-import { initialCustomVariableModelState } from '../../custom/reducer';
 import { initialDataSourceVariableModelState } from '../../datasource/reducer';
 import { initialIntervalVariableModelState } from '../../interval/reducer';
-import { initialQueryVariableModelState } from '../../query/reducer';
 import { initialTextBoxVariableModelState } from '../../textbox/reducer';
-
-import { AdHocVariableBuilder } from './adHocVariableBuilder';
-import { DatasourceVariableBuilder } from './datasourceVariableBuilder';
-import { IntervalVariableBuilder } from './intervalVariableBuilder';
+import { initialCustomVariableModelState } from '../../custom/reducer';
 import { MultiVariableBuilder } from './multiVariableBuilder';
-import { OptionsVariableBuilder } from './optionsVariableBuilder';
+import { initialConstantVariableModelState } from '../../constant/reducer';
 import { QueryVariableBuilder } from './queryVariableBuilder';
 import { TextBoxVariableBuilder } from './textboxVariableBuilder';
 

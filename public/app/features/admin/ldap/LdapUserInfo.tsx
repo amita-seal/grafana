@@ -1,18 +1,16 @@
-import React from 'react';
-
-import { LdapUser } from 'app/types';
-
-import { LdapUserGroups } from './LdapUserGroups';
+import React, { FC } from 'react';
 import { LdapUserMappingInfo } from './LdapUserMappingInfo';
 import { LdapUserPermissions } from './LdapUserPermissions';
+import { LdapUserGroups } from './LdapUserGroups';
 import { LdapUserTeams } from './LdapUserTeams';
+import { LdapUser } from 'app/types';
 
 interface Props {
   ldapUser: LdapUser;
   showAttributeMapping?: boolean;
 }
 
-export const LdapUserInfo = ({ ldapUser, showAttributeMapping }: Props) => {
+export const LdapUserInfo: FC<Props> = ({ ldapUser, showAttributeMapping }) => {
   return (
     <>
       <LdapUserMappingInfo info={ldapUser.info} showAttributeMapping={showAttributeMapping} />

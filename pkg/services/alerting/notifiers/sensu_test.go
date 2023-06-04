@@ -3,55 +3,53 @@ package notifiers
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
+	"github.com/grafana/grafana/pkg/models"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestSensuNotifier(t *testing.T) {
-	encryptionService := encryptionservice.SetupTestService(t)
+	Convey("Sensu notifier tests", t, func() {
+		Convey("Parsing alert notification from settings", func() {
+			Convey("empty settings should return error", func() {
+				json := `{ }`
 
-	t.Run("Parsing alert notification from settings", func(t *testing.T) {
-		t.Run("empty settings should return error", func(t *testing.T) {
-			json := `{ }`
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "sensu",
+					Type:     "sensu",
+					Settings: settingsJSON,
+				}
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "sensu",
-				Type:     "sensu",
-				Settings: settingsJSON,
-			}
+				_, err := NewSensuNotifier(model)
+				So(err, ShouldNotBeNil)
+			})
 
-			_, err := NewSensuNotifier(model, encryptionService.GetDecryptedValue, nil)
-			require.Error(t, err)
-		})
-
-		t.Run("from settings", func(t *testing.T) {
-			json := `
+			Convey("from settings", func() {
+				json := `
 				{
 					"url": "http://sensu-api.example.com:4567/results",
 					"source": "grafana_instance_01",
 					"handler": "myhandler"
 				}`
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "sensu",
-				Type:     "sensu",
-				Settings: settingsJSON,
-			}
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "sensu",
+					Type:     "sensu",
+					Settings: settingsJSON,
+				}
 
-			not, err := NewSensuNotifier(model, encryptionService.GetDecryptedValue, nil)
-			sensuNotifier := not.(*SensuNotifier)
+				not, err := NewSensuNotifier(model)
+				sensuNotifier := not.(*SensuNotifier)
 
-			require.Nil(t, err)
-			require.Equal(t, "sensu", sensuNotifier.Name)
-			require.Equal(t, "sensu", sensuNotifier.Type)
-			require.Equal(t, "http://sensu-api.example.com:4567/results", sensuNotifier.URL)
-			require.Equal(t, "grafana_instance_01", sensuNotifier.Source)
-			require.Equal(t, "myhandler", sensuNotifier.Handler)
+				So(err, ShouldBeNil)
+				So(sensuNotifier.Name, ShouldEqual, "sensu")
+				So(sensuNotifier.Type, ShouldEqual, "sensu")
+				So(sensuNotifier.URL, ShouldEqual, "http://sensu-api.example.com:4567/results")
+				So(sensuNotifier.Source, ShouldEqual, "grafana_instance_01")
+				So(sensuNotifier.Handler, ShouldEqual, "myhandler")
+			})
 		})
 	})
 }

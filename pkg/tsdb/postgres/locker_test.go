@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegrationLocker(t *testing.T) {
+func TestLocker(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Tests with Sleep")
 	}

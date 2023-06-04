@@ -1,86 +1,50 @@
-import { FetchError, FetchResponse } from 'src/services';
-
 import { DataQuery, toDataFrameDTO, DataFrame } from '@grafana/data';
+import { toDataQueryResponse } from './queryResponse';
 
-import { BackendDataSourceResponse, cachedResponseNotice, toDataQueryResponse, toTestingStatus } from './queryResponse';
-
+/* eslint-disable */
 const resp = {
   data: {
     results: {
       A: {
-        frames: [
-          {
-            schema: {
-              refId: 'A',
-              fields: [
-                { name: 'time', type: 'time', typeInfo: { frame: 'time.Time', nullable: true } },
-                { name: 'A-series', type: 'number', typeInfo: { frame: 'float64', nullable: true } },
-              ],
-            },
-            data: {
-              values: [
-                [1611767228473, 1611767240473, 1611767252473, 1611767264473, 1611767276473, 1611767288473],
-                [1, 20, 90, 30, 5, 0],
-              ],
-            },
-          },
+        refId: 'A',
+        series: null,
+        tables: null,
+        dataframes: [
+          'QVJST1cxAAD/////cAEAABAAAAAAAAoADgAMAAsABAAKAAAAFAAAAAAAAAEDAAoADAAAAAgABAAKAAAACAAAAFAAAAACAAAAKAAAAAQAAAAg////CAAAAAwAAAABAAAAQQAAAAUAAAByZWZJZAAAAED///8IAAAADAAAAAAAAAAAAAAABAAAAG5hbWUAAAAAAgAAAHwAAAAEAAAAnv///xQAAABAAAAAQAAAAAAAAwFAAAAAAQAAAAQAAACM////CAAAABQAAAAIAAAAQS1zZXJpZXMAAAAABAAAAG5hbWUAAAAAAAAAAIb///8AAAIACAAAAEEtc2VyaWVzAAASABgAFAATABIADAAAAAgABAASAAAAFAAAAEQAAABMAAAAAAAKAUwAAAABAAAADAAAAAgADAAIAAQACAAAAAgAAAAQAAAABAAAAHRpbWUAAAAABAAAAG5hbWUAAAAAAAAAAAAABgAIAAYABgAAAAAAAwAEAAAAdGltZQAAAAAAAAAA/////7gAAAAUAAAAAAAAAAwAFgAUABMADAAEAAwAAABgAAAAAAAAABQAAAAAAAADAwAKABgADAAIAAQACgAAABQAAABYAAAABgAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAMAAAAAAAAAAAAAAAAgAAAAYAAAAAAAAAAAAAAAAAAAAGAAAAAAAAAAAAAAAAAAAAQMC/OcElXhZAOAEFxCVeFkCwQtDGJV4WQCiEm8klXhZAoMVmzCVeFkAYBzLPJV4WAAAAAAAA8D8AAAAAAAA0QAAAAAAAgFZAAAAAAAAAPkAAAAAAAAAUQAAAAAAAAAAAEAAAAAwAFAASAAwACAAEAAwAAAAQAAAALAAAADgAAAAAAAMAAQAAAIABAAAAAAAAwAAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAKAAwAAAAIAAQACgAAAAgAAABQAAAAAgAAACgAAAAEAAAAIP///wgAAAAMAAAAAQAAAEEAAAAFAAAAcmVmSWQAAABA////CAAAAAwAAAAAAAAAAAAAAAQAAABuYW1lAAAAAAIAAAB8AAAABAAAAJ7///8UAAAAQAAAAEAAAAAAAAMBQAAAAAEAAAAEAAAAjP///wgAAAAUAAAACAAAAEEtc2VyaWVzAAAAAAQAAABuYW1lAAAAAAAAAACG////AAACAAgAAABBLXNlcmllcwAAEgAYABQAEwASAAwAAAAIAAQAEgAAABQAAABEAAAATAAAAAAACgFMAAAAAQAAAAwAAAAIAAwACAAEAAgAAAAIAAAAEAAAAAQAAAB0aW1lAAAAAAQAAABuYW1lAAAAAAAAAAAAAAYACAAGAAYAAAAAAAMABAAAAHRpbWUAAAAAmAEAAEFSUk9XMQ==',
         ],
       },
       B: {
-        frames: [
-          {
-            schema: {
-              refId: 'B',
-              fields: [
-                { name: 'time', type: 'time', typeInfo: { frame: 'time.Time', nullable: true } },
-                { name: 'B-series', type: 'number', typeInfo: { frame: 'float64', nullable: true } },
-              ],
-            },
-            data: {
-              values: [
-                [1611767228473, 1611767240473, 1611767252473, 1611767264473, 1611767276473, 1611767288473],
-                [1, 20, 90, 30, 5, 0],
-              ],
-            },
-          },
+        refId: 'B',
+        series: null,
+        tables: null,
+        dataframes: [
+          'QVJST1cxAAD/////cAEAABAAAAAAAAoADgAMAAsABAAKAAAAFAAAAAAAAAEDAAoADAAAAAgABAAKAAAACAAAAFAAAAACAAAAKAAAAAQAAAAg////CAAAAAwAAAABAAAAQgAAAAUAAAByZWZJZAAAAED///8IAAAADAAAAAAAAAAAAAAABAAAAG5hbWUAAAAAAgAAAHwAAAAEAAAAnv///xQAAABAAAAAQAAAAAAAAwFAAAAAAQAAAAQAAACM////CAAAABQAAAAIAAAAQi1zZXJpZXMAAAAABAAAAG5hbWUAAAAAAAAAAIb///8AAAIACAAAAEItc2VyaWVzAAASABgAFAATABIADAAAAAgABAASAAAAFAAAAEQAAABMAAAAAAAKAUwAAAABAAAADAAAAAgADAAIAAQACAAAAAgAAAAQAAAABAAAAHRpbWUAAAAABAAAAG5hbWUAAAAAAAAAAAAABgAIAAYABgAAAAAAAwAEAAAAdGltZQAAAAAAAAAA/////7gAAAAUAAAAAAAAAAwAFgAUABMADAAEAAwAAABgAAAAAAAAABQAAAAAAAADAwAKABgADAAIAAQACgAAABQAAABYAAAABgAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAMAAAAAAAAAAAAAAAAgAAAAYAAAAAAAAAAAAAAAAAAAAGAAAAAAAAAAAAAAAAAAAAQMC/OcElXhZAOAEFxCVeFkCwQtDGJV4WQCiEm8klXhZAoMVmzCVeFkAYBzLPJV4WAAAAAAAA8D8AAAAAAAA0QAAAAAAAgFZAAAAAAAAAPkAAAAAAAAAUQAAAAAAAAAAAEAAAAAwAFAASAAwACAAEAAwAAAAQAAAALAAAADgAAAAAAAMAAQAAAIABAAAAAAAAwAAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAKAAwAAAAIAAQACgAAAAgAAABQAAAAAgAAACgAAAAEAAAAIP///wgAAAAMAAAAAQAAAEIAAAAFAAAAcmVmSWQAAABA////CAAAAAwAAAAAAAAAAAAAAAQAAABuYW1lAAAAAAIAAAB8AAAABAAAAJ7///8UAAAAQAAAAEAAAAAAAAMBQAAAAAEAAAAEAAAAjP///wgAAAAUAAAACAAAAEItc2VyaWVzAAAAAAQAAABuYW1lAAAAAAAAAACG////AAACAAgAAABCLXNlcmllcwAAEgAYABQAEwASAAwAAAAIAAQAEgAAABQAAABEAAAATAAAAAAACgFMAAAAAQAAAAwAAAAIAAwACAAEAAgAAAAIAAAAEAAAAAQAAAB0aW1lAAAAAAQAAABuYW1lAAAAAAAAAAAAAAYACAAGAAYAAAAAAAMABAAAAHRpbWUAAAAAmAEAAEFSUk9XMQ==',
         ],
       },
     },
   },
-} as unknown as FetchResponse<BackendDataSourceResponse>;
+};
 
 const resWithError = {
   data: {
     results: {
       A: {
         error: 'Hello Error',
-        status: 400,
-        frames: [
-          {
-            schema: {
-              fields: [{ name: 'numbers', type: 'number' }],
-              meta: {
-                notices: [
-                  {
-                    severity: 2,
-                    text: 'Text',
-                  },
-                ],
-              },
-            },
-            data: {
-              values: [[1, 3]],
-            },
-          },
+        series: null,
+        tables: null,
+        dataframes: [
+          'QVJST1cxAAD/////WAEAABAAAAAAAAoADgAMAAsABAAKAAAAFAAAAAAAAAEDAAoADAAAAAgABAAKAAAACAAAAJwAAAADAAAATAAAACgAAAAEAAAAPP///wgAAAAMAAAAAAAAAAAAAAAFAAAAcmVmSWQAAABc////CAAAAAwAAAAAAAAAAAAAAAQAAABuYW1lAAAAAHz///8IAAAANAAAACoAAAB7Im5vdGljZXMiOlt7InNldmVyaXR5IjoyLCJ0ZXh0IjoiVGV4dCJ9XX0AAAQAAABtZXRhAAAAAAEAAAAYAAAAAAASABgAFAAAABMADAAAAAgABAASAAAAFAAAAEQAAABMAAAAAAAAA0wAAAABAAAADAAAAAgADAAIAAQACAAAAAgAAAAQAAAABwAAAG51bWJlcnMABAAAAG5hbWUAAAAAAAAAAAAABgAIAAYABgAAAAAAAgAHAAAAbnVtYmVycwAAAAAA/////4gAAAAUAAAAAAAAAAwAFgAUABMADAAEAAwAAAAQAAAAAAAAABQAAAAAAAADAwAKABgADAAIAAQACgAAABQAAAA4AAAAAgAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAEAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAA8D8AAAAAAAAIQBAAAAAMABQAEgAMAAgABAAMAAAAEAAAACwAAAA4AAAAAAADAAEAAABoAQAAAAAAAJAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAACgAMAAAACAAEAAoAAAAIAAAAnAAAAAMAAABMAAAAKAAAAAQAAAA8////CAAAAAwAAAAAAAAAAAAAAAUAAAByZWZJZAAAAFz///8IAAAADAAAAAAAAAAAAAAABAAAAG5hbWUAAAAAfP///wgAAAA0AAAAKgAAAHsibm90aWNlcyI6W3sic2V2ZXJpdHkiOjIsInRleHQiOiJUZXh0In1dfQAABAAAAG1ldGEAAAAAAQAAABgAAAAAABIAGAAUAAAAEwAMAAAACAAEABIAAAAUAAAARAAAAEwAAAAAAAADTAAAAAEAAAAMAAAACAAMAAgABAAIAAAACAAAABAAAAAHAAAAbnVtYmVycwAEAAAAbmFtZQAAAAAAAAAAAAAGAAgABgAGAAAAAAACAAcAAABudW1iZXJzAIABAABBUlJPVzE=',
         ],
       },
     },
   },
-} as unknown as FetchResponse<BackendDataSourceResponse>;
+};
 
 const emptyResults = {
-  data: { results: { '': { refId: '' } } },
+  data: { '': { refId: '', meta: null, series: null, tables: null, dataframes: null } },
 };
+
+/* eslint-enable */
 
 describe('Query Response parser', () => {
   test('should parse output with dataframe', () => {
@@ -92,15 +56,15 @@ describe('Query Response parser', () => {
 
     const norm = frames.map((f) => toDataFrameDTO(f));
     expect(norm).toMatchInlineSnapshot(`
-      [
-        {
-          "fields": [
-            {
-              "config": {},
+      Array [
+        Object {
+          "fields": Array [
+            Object {
+              "config": Object {},
               "labels": undefined,
               "name": "time",
               "type": "time",
-              "values": [
+              "values": Array [
                 1611767228473,
                 1611767240473,
                 1611767252473,
@@ -109,12 +73,12 @@ describe('Query Response parser', () => {
                 1611767288473,
               ],
             },
-            {
-              "config": {},
+            Object {
+              "config": Object {},
               "labels": undefined,
               "name": "A-series",
               "type": "number",
-              "values": [
+              "values": Array [
                 1,
                 20,
                 90,
@@ -128,14 +92,14 @@ describe('Query Response parser', () => {
           "name": undefined,
           "refId": "A",
         },
-        {
-          "fields": [
-            {
-              "config": {},
+        Object {
+          "fields": Array [
+            Object {
+              "config": Object {},
               "labels": undefined,
               "name": "time",
               "type": "time",
-              "values": [
+              "values": Array [
                 1611767228473,
                 1611767240473,
                 1611767252473,
@@ -144,12 +108,12 @@ describe('Query Response parser', () => {
                 1611767288473,
               ],
             },
-            {
-              "config": {},
+            Object {
+              "config": Object {},
               "labels": undefined,
               "name": "B-series",
               "type": "number",
-              "values": [
+              "values": Array [
                 1,
                 20,
                 90,
@@ -177,15 +141,15 @@ describe('Query Response parser', () => {
 
     const norm = frames.map((f) => toDataFrameDTO(f));
     expect(norm).toMatchInlineSnapshot(`
-      [
-        {
-          "fields": [
-            {
-              "config": {},
+      Array [
+        Object {
+          "fields": Array [
+            Object {
+              "config": Object {},
               "labels": undefined,
               "name": "time",
               "type": "time",
-              "values": [
+              "values": Array [
                 1611767228473,
                 1611767240473,
                 1611767252473,
@@ -194,12 +158,12 @@ describe('Query Response parser', () => {
                 1611767288473,
               ],
             },
-            {
-              "config": {},
+            Object {
+              "config": Object {},
               "labels": undefined,
               "name": "B-series",
               "type": "number",
-              "values": [
+              "values": Array [
                 1,
                 20,
                 90,
@@ -213,14 +177,14 @@ describe('Query Response parser', () => {
           "name": undefined,
           "refId": "B",
         },
-        {
-          "fields": [
-            {
-              "config": {},
+        Object {
+          "fields": Array [
+            Object {
+              "config": Object {},
               "labels": undefined,
               "name": "time",
               "type": "time",
-              "values": [
+              "values": Array [
                 1611767228473,
                 1611767240473,
                 1611767252473,
@@ -229,12 +193,12 @@ describe('Query Response parser', () => {
                 1611767288473,
               ],
             },
-            {
-              "config": {},
+            Object {
+              "config": Object {},
               "labels": undefined,
               "name": "A-series",
               "type": "number",
-              "values": [
+              "values": Array [
                 1,
                 20,
                 90,
@@ -262,13 +226,19 @@ describe('Query Response parser', () => {
       data: {
         results: {
           X: {
-            series: [{ name: 'Requests/s', points: [[13.594958983547151, 1611839862951]] }] as any,
+            series: [
+              { name: 'Requests/s', points: [[13.594958983547151, 1611839862951]], tables: null, dataframes: null },
+            ],
           },
           B: {
-            series: [{ name: 'Requests/s', points: [[13.594958983547151, 1611839862951]] }] as any,
+            series: [
+              { name: 'Requests/s', points: [[13.594958983547151, 1611839862951]], tables: null, dataframes: null },
+            ],
           },
           A: {
-            series: [{ name: 'Requests/s', points: [[13.594958983547151, 1611839862951]] }] as any,
+            series: [
+              { name: 'Requests/s', points: [[13.594958983547151, 1611839862951]], tables: null, dataframes: null },
+            ],
           },
         },
       },
@@ -277,135 +247,7 @@ describe('Query Response parser', () => {
     const queries: DataQuery[] = [{ refId: 'A' }, { refId: 'B' }];
 
     const ids = (toDataQueryResponse(resp, queries).data as DataFrame[]).map((f) => f.refId);
-    expect(ids).toEqual(['A', 'B']);
-  });
-
-  test('should handle a success-response without traceIds', () => {
-    const input = {
-      data: {
-        results: {
-          A: {
-            frames: [],
-          },
-        },
-      },
-    } as unknown as FetchResponse<BackendDataSourceResponse>;
-    const res = toDataQueryResponse(input);
-    expect(res.traceIds).toBeUndefined();
-  });
-
-  test('should handle a success-response with traceIds', () => {
-    const input = {
-      data: {
-        results: {
-          A: {
-            frames: [],
-          },
-        },
-      },
-      traceId: 'traceId1',
-    } as unknown as FetchResponse<BackendDataSourceResponse>;
-    const res = toDataQueryResponse(input);
-    expect(res.traceIds).toStrictEqual(['traceId1']);
-  });
-
-  test('should handle an error-response without traceIds', () => {
-    const input = {
-      data: {
-        results: {
-          A: {
-            error: 'error from A',
-            status: 400,
-          },
-          B: {
-            error: 'error from B',
-            status: 400,
-          },
-        },
-      },
-    } as unknown as FetchResponse<BackendDataSourceResponse>;
-    const res = toDataQueryResponse(input);
-    expect(res.traceIds).toBeUndefined();
-    expect(res.error?.traceId).toBeUndefined();
-    expect(res.errors).toHaveLength(2);
-    expect(res.errors?.[0].traceId).toBeUndefined();
-    expect(res.errors?.[1].traceId).toBeUndefined();
-  });
-
-  test('should handle an error-response with traceIds', () => {
-    const input = {
-      data: {
-        results: {
-          A: {
-            error: 'error from A',
-            status: 400,
-          },
-          B: {
-            error: 'error from B',
-            status: 400,
-          },
-        },
-      },
-      traceId: 'traceId1',
-    } as unknown as FetchResponse<BackendDataSourceResponse>;
-    const res = toDataQueryResponse(input);
-    expect(res.traceIds).toStrictEqual(['traceId1']);
-    expect(res.error?.traceId).toBe('traceId1');
-    expect(res.errors).toHaveLength(2);
-    expect(res.errors?.[0].traceId).toBe('traceId1');
-    expect(res.errors?.[1].traceId).toBe('traceId1');
-  });
-
-  describe('Cache notice', () => {
-    let resp: FetchResponse<BackendDataSourceResponse>;
-
-    beforeEach(() => {
-      resp = {
-        url: '',
-        type: 'basic',
-        config: { url: '' },
-        status: 200,
-        statusText: 'OK',
-        ok: true,
-        redirected: false,
-        headers: new Headers(),
-        data: {
-          results: {
-            A: { frames: [{ schema: { fields: [] } }] },
-          },
-        },
-      };
-    });
-
-    test('adds notice and cached boolean for responses with X-Cache: HIT header', () => {
-      const queries: DataQuery[] = [{ refId: 'A' }];
-      resp.headers.set('X-Cache', 'HIT');
-      const meta = toDataQueryResponse(resp, queries).data[0].meta;
-      expect(meta.notices).toStrictEqual([cachedResponseNotice]);
-      expect(meta.isCachedResponse).toBeTruthy();
-    });
-
-    test('does not remove existing notices', () => {
-      const queries: DataQuery[] = [{ refId: 'A' }];
-      resp.headers.set('X-Cache', 'HIT');
-      resp.data.results.A.frames![0].schema!.meta = { notices: [{ severity: 'info', text: 'Example' }] };
-      expect(toDataQueryResponse(resp, queries).data[0].meta.notices).toStrictEqual([
-        { severity: 'info', text: 'Example' },
-        cachedResponseNotice,
-      ]);
-    });
-
-    test('does not add notice or cached response boolean for responses with X-Cache: MISS header', () => {
-      const queries: DataQuery[] = [{ refId: 'A' }];
-      resp.headers.set('X-Cache', 'MISS');
-      expect(toDataQueryResponse(resp, queries).data[0].meta?.notices).toBeUndefined();
-      expect(toDataQueryResponse(resp, queries).data[0].meta?.isCachedResponse).toBeUndefined();
-    });
-
-    test('does not add notice for responses without X-Cache header', () => {
-      const queries: DataQuery[] = [{ refId: 'A' }];
-      expect(toDataQueryResponse(resp, queries).data[0].meta?.notices).toBeUndefined();
-    });
+    expect(ids).toEqual(['A', 'B', 'X']);
   });
 
   test('resultWithError', () => {
@@ -428,39 +270,31 @@ describe('Query Response parser', () => {
     // }
     const res = toDataQueryResponse(resWithError);
     expect(res.error).toMatchInlineSnapshot(`
-      {
+      Object {
         "message": "Hello Error",
         "refId": "A",
-        "status": 400,
       }
     `);
-    expect(res.errors).toEqual([
-      {
-        message: 'Hello Error',
-        refId: 'A',
-        status: 400,
-      },
-    ]);
 
     const norm = res.data.map((f) => toDataFrameDTO(f));
     expect(norm).toMatchInlineSnapshot(`
-      [
-        {
-          "fields": [
-            {
-              "config": {},
+      Array [
+        Object {
+          "fields": Array [
+            Object {
+              "config": Object {},
               "labels": undefined,
               "name": "numbers",
               "type": "number",
-              "values": [
+              "values": Array [
                 1,
                 3,
               ],
             },
           ],
-          "meta": {
-            "notices": [
-              {
+          "meta": Object {
+            "notices": Array [
+              Object {
                 "severity": 2,
                 "text": "Text",
               },
@@ -471,45 +305,5 @@ describe('Query Response parser', () => {
         },
       ]
     `);
-  });
-
-  describe('should convert to TestingStatus', () => {
-    test('from api/ds/query generic errors', () => {
-      const result = toTestingStatus({ status: 500, data: { message: 'message', error: 'error' } } as FetchError);
-      expect(result).toMatchObject({
-        status: 'error',
-        message: 'message',
-        details: { message: 'error' },
-      });
-    });
-    test('from api/ds/query result errors', () => {
-      const result = toTestingStatus({
-        status: 400,
-        data: {
-          results: {
-            A: {
-              error: 'error',
-            },
-          },
-        },
-      } as FetchError);
-      expect(result).toMatchObject({
-        status: 'error',
-        message: 'error',
-      });
-    });
-    test('unknown errors', () => {
-      expect(() => {
-        toTestingStatus({ status: 503, data: 'Fatal Error' } as FetchError);
-      }).toThrow();
-
-      expect(() => {
-        toTestingStatus({ status: 503, data: {} } as FetchError);
-      }).toThrow();
-
-      expect(() => {
-        toTestingStatus({ status: 503 } as FetchError);
-      }).toThrow();
-    });
   });
 });

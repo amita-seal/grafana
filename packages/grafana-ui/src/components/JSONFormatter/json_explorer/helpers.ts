@@ -4,14 +4,14 @@
 /*
  * Escapes `"` characters from string
  */
-export function formatString(str: string): string {
-  return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+function escapeString(str: string): string {
+  return str.replace('"', '"');
 }
 
 /*
  * Determines if a value is an object
  */
-export function isObject(value: unknown): boolean {
+export function isObject(value: any): boolean {
   const type = typeof value;
   return !!value && type === 'object';
 }
@@ -62,7 +62,7 @@ export function getValuePreview(object: object, value: string): string {
   }
 
   if (type === 'string') {
-    value = '"' + formatString(value) + '"';
+    value = '"' + escapeString(value) + '"';
   }
   if (type === 'function') {
     // Remove content of the function

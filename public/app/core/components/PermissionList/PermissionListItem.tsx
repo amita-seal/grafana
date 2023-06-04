@@ -1,9 +1,8 @@
 import React, { PureComponent } from 'react';
-
+import { Select, Icon } from '@grafana/ui';
 import { SelectableValue } from '@grafana/data';
-import { Select, Icon, Button } from '@grafana/ui';
-import { FolderInfo } from 'app/types';
 import { dashboardPermissionLevels, DashboardAcl, PermissionLevel } from 'app/types/acl';
+import { FolderInfo } from 'app/types';
 
 const setClassNameHelper = (inherited: boolean) => {
   return inherited ? 'gf-form-disabled' : '';
@@ -11,10 +10,10 @@ const setClassNameHelper = (inherited: boolean) => {
 
 function ItemAvatar({ item }: { item: DashboardAcl }) {
   if (item.userAvatarUrl) {
-    return <img className="filter-table__avatar" src={item.userAvatarUrl} alt="User avatar" />;
+    return <img className="filter-table__avatar" src={item.userAvatarUrl} />;
   }
   if (item.teamAvatarUrl) {
-    return <img className="filter-table__avatar" src={item.teamAvatarUrl} alt="Team avatar" />;
+    return <img className="filter-table__avatar" src={item.teamAvatarUrl} />;
   }
   if (item.role === 'Editor') {
     return <Icon size="lg" name="edit" />;
@@ -66,13 +65,9 @@ export default class PermissionsListItem extends PureComponent<Props> {
           {item.inherited && folderInfo && (
             <em className="muted no-wrap">
               Inherited from folder{' '}
-              {folderInfo.canViewFolderPermissions ? (
-                <a className="text-link" href={`${folderInfo.url}/permissions`}>
-                  {folderInfo.title}
-                </a>
-              ) : (
-                folderInfo.title
-              )}
+              <a className="text-link" href={`${folderInfo.url}/permissions`}>
+                {folderInfo.title}
+              </a>{' '}
             </em>
           )}
           {inheritedFromRoot && <em className="muted no-wrap">Default Permission</em>}
@@ -80,7 +75,6 @@ export default class PermissionsListItem extends PureComponent<Props> {
         <td className="query-keyword">Can</td>
         <td>
           <Select
-            aria-label={`Permission level for "${item.name}"`}
             isSearchable={false}
             options={dashboardPermissionLevels}
             onChange={this.onPermissionChanged}
@@ -91,15 +85,13 @@ export default class PermissionsListItem extends PureComponent<Props> {
         </td>
         <td>
           {!item.inherited ? (
-            <Button
-              aria-label={`Remove permission for "${item.name}"`}
-              size="sm"
-              variant="destructive"
-              icon="times"
-              onClick={this.onRemoveItem}
-            />
+            <a className="btn btn-danger btn-small" onClick={this.onRemoveItem}>
+              <Icon name="times" style={{ marginBottom: 0 }} />
+            </a>
           ) : (
-            <Button aria-label={`Remove permission for "${item.name}" (Disabled)`} size="sm" disabled icon="times" />
+            <button className="btn btn-inverse btn-small">
+              <Icon name="lock" style={{ marginBottom: '3px' }} />
+            </button>
           )}
         </td>
       </tr>

@@ -1,14 +1,5 @@
-import {
-  DataFrame,
-  FieldConfig,
-  FieldSparkline,
-  FieldType,
-  isLikelyAscendingVector,
-  sortDataFrame,
-} from '@grafana/data';
-import { GraphFieldConfig } from '@grafana/schema';
-
-import { applyNullInsertThreshold } from '../GraphNG/nullInsertThreshold';
+import { DataFrame, FieldConfig, FieldSparkline, IndexVector } from '@grafana/data';
+import { GraphFieldConfig } from '../uPlot/config';
 
 /** @internal
  * Given a sparkline config returns a DataFrame ready to be turned into Plot data set
@@ -20,17 +11,10 @@ export function preparePlotFrame(sparkline: FieldSparkline, config?: FieldConfig
     ...config,
   };
 
-  const xField = sparkline.x ?? {
-    name: '',
-    values: [...Array(length).keys()],
-    type: FieldType.number,
-    config: {},
-  };
-
-  let frame: DataFrame = {
+  return {
     refId: 'sparkline',
     fields: [
-      xField,
+      sparkline.x ?? IndexVector.newField(length),
       {
         ...sparkline.y,
         config: yFieldConfig,
@@ -38,10 +22,4 @@ export function preparePlotFrame(sparkline: FieldSparkline, config?: FieldConfig
     ],
     length,
   };
-
-  if (!isLikelyAscendingVector(xField.values)) {
-    frame = sortDataFrame(frame, 0);
-  }
-
-  return applyNullInsertThreshold({ frame });
 }

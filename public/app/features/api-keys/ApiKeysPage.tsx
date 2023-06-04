@@ -1,47 +1,44 @@
 import React, { PureComponent } from 'react';
+import ReactDOMServer from 'react-dom/server';
 import { connect, ConnectedProps } from 'react-redux';
-
+import { hot } from 'react-hot-loader';
 // Utils
-import { locationService } from '@grafana/runtime';
-import { InlineField, InlineSwitch, VerticalGroup } from '@grafana/ui';
-import { Page } from 'app/core/components/Page/Page';
-import { contextSrv } from 'app/core/core';
+import { ApiKey, CoreEvents, NewApiKey, StoreState } from 'app/types';
+import { getNavModel } from 'app/core/selectors/navModel';
+import { getApiKeys, getApiKeysCount } from './state/selectors';
+import { addApiKey, deleteApiKey, loadApiKeys } from './state/actions';
+import Page from 'app/core/components/Page/Page';
+import ApiKeysAddedModal from './ApiKeysAddedModal';
+import config from 'app/core/config';
+import appEvents from 'app/core/app_events';
+import EmptyListCTA from 'app/core/components/EmptyListCTA/EmptyListCTA';
+import { LegacyForms } from '@grafana/ui';
+import { rangeUtil } from '@grafana/data';
 import { getTimeZone } from 'app/features/profile/state/selectors';
-import { AccessControlAction, ApiKey, StoreState } from 'app/types';
-
+import { setSearchQuery } from './state/reducers';
+import { ApiKeysForm } from './ApiKeysForm';
 import { ApiKeysActionBar } from './ApiKeysActionBar';
 import { ApiKeysTable } from './ApiKeysTable';
-import { MigrateToServiceAccountsCard } from './MigrateToServiceAccountsCard';
-import { deleteApiKey, migrateApiKey, migrateAll, loadApiKeys, toggleIncludeExpired } from './state/actions';
-import { setSearchQuery } from './state/reducers';
-import { getApiKeys, getApiKeysCount, getIncludeExpired, getIncludeExpiredDisabled } from './state/selectors';
+import { ApiKeysController } from './ApiKeysController';
+
+const { Switch } = LegacyForms;
 
 function mapStateToProps(state: StoreState) {
-  const canCreate = contextSrv.hasAccess(AccessControlAction.ActionAPIKeysCreate, true);
-
   return {
+    navModel: getNavModel(state.navIndex, 'apikeys'),
     apiKeys: getApiKeys(state.apiKeys),
     searchQuery: state.apiKeys.searchQuery,
     apiKeysCount: getApiKeysCount(state.apiKeys),
     hasFetched: state.apiKeys.hasFetched,
     timeZone: getTimeZone(state.user),
-    includeExpired: getIncludeExpired(state.apiKeys),
-    includeExpiredDisabled: getIncludeExpiredDisabled(state.apiKeys),
-    canCreate: canCreate,
   };
 }
-
-const defaultPageProps = {
-  navId: 'apikeys',
-};
 
 const mapDispatchToProps = {
   loadApiKeys,
   deleteApiKey,
-  migrateApiKey,
-  migrateAll,
   setSearchQuery,
-  toggleIncludeExpired,
+  addApiKey,
 };
 
 const connector = connect(mapStateToProps, mapDispatchToProps);
@@ -51,12 +48,14 @@ interface OwnProps {}
 export type Props = OwnProps & ConnectedProps<typeof connector>;
 
 interface State {
-  isAdding: boolean;
+  includeExpired: boolean;
+  hasFetched: boolean;
 }
 
 export class ApiKeysPageUnconnected extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props);
+    this.state = { includeExpired: false, hasFetched: false };
   }
 
   componentDidMount() {
@@ -64,19 +63,11 @@ export class ApiKeysPageUnconnected extends PureComponent<Props, State> {
   }
 
   async fetchApiKeys() {
-    await this.props.loadApiKeys();
+    await this.props.loadApiKeys(this.state.includeExpired);
   }
 
   onDeleteApiKey = (key: ApiKey) => {
-    this.props.deleteApiKey(key.id!);
-  };
-
-  onMigrateAll = () => {
-    this.props.migrateAll();
-  };
-
-  onMigrateApiKey = (key: ApiKey) => {
-    this.props.migrateApiKey(key.id!);
+    this.props.deleteApiKey(key.id!, this.state.includeExpired);
   };
 
   onSearchQueryChange = (value: string) => {
@@ -84,67 +75,89 @@ export class ApiKeysPageUnconnected extends PureComponent<Props, State> {
   };
 
   onIncludeExpiredChange = (event: React.SyntheticEvent<HTMLInputElement>) => {
-    this.props.toggleIncludeExpired();
+    this.setState({ hasFetched: false, includeExpired: event.currentTarget.checked }, this.fetchApiKeys);
   };
 
-  onMigrateApiKeys = async () => {
+  onAddApiKey = (newApiKey: NewApiKey) => {
+    const openModal = (apiKey: string) => {
+      const rootPath = window.location.origin + config.appSubUrl;
+      const modalTemplate = ReactDOMServer.renderToString(<ApiKeysAddedModal apiKey={apiKey} rootPath={rootPath} />);
+
+      appEvents.emit(CoreEvents.showModal, {
+        templateHtml: modalTemplate,
+      });
+    };
+
+    const secondsToLive = newApiKey.secondsToLive;
     try {
-      this.onMigrateAll();
-      let serviceAccountsUrl = '/org/serviceaccounts';
-      locationService.push(serviceAccountsUrl);
-      window.location.reload();
+      const secondsToLiveAsNumber = secondsToLive ? rangeUtil.intervalToSeconds(secondsToLive) : null;
+      const apiKey: ApiKey = {
+        ...newApiKey,
+        secondsToLive: secondsToLiveAsNumber,
+      };
+      this.props.addApiKey(apiKey, openModal, this.state.includeExpired);
+      this.setState((prevState: State) => {
+        return {
+          ...prevState,
+          isAdding: false,
+        };
+      });
     } catch (err) {
       console.error(err);
     }
   };
 
   render() {
-    const {
-      hasFetched,
-      apiKeysCount,
-      apiKeys,
-      searchQuery,
-      timeZone,
-      includeExpired,
-      includeExpiredDisabled,
-      canCreate,
-    } = this.props;
+    const { hasFetched, navModel, apiKeysCount, apiKeys, searchQuery, timeZone } = this.props;
+    const { includeExpired } = this.state;
 
     if (!hasFetched) {
       return (
-        <Page {...defaultPageProps}>
+        <Page navModel={navModel}>
           <Page.Contents isLoading={true}>{}</Page.Contents>
         </Page>
       );
     }
 
-    const showTable = apiKeysCount > 0;
     return (
-      <Page {...defaultPageProps}>
+      <Page navModel={navModel}>
         <Page.Contents isLoading={false}>
-          <>
-            <MigrateToServiceAccountsCard onMigrate={this.onMigrateApiKeys} apikeysCount={apiKeysCount} />
-            {showTable ? (
-              <ApiKeysActionBar
-                searchQuery={searchQuery}
-                disabled={!canCreate}
-                onSearchChange={this.onSearchQueryChange}
-              />
-            ) : null}
-            {showTable ? (
-              <VerticalGroup>
-                <InlineField disabled={includeExpiredDisabled} label="Include expired keys">
-                  <InlineSwitch id="showExpired" value={includeExpired} onChange={this.onIncludeExpiredChange} />
-                </InlineField>
-                <ApiKeysTable
-                  apiKeys={apiKeys}
-                  timeZone={timeZone}
-                  onMigrate={this.onMigrateApiKey}
-                  onDelete={this.onDeleteApiKey}
-                />
-              </VerticalGroup>
-            ) : null}
-          </>
+          <ApiKeysController>
+            {({ isAdding, toggleIsAdding }) => {
+              const showCTA = !isAdding && apiKeysCount === 0;
+              const showTable = apiKeysCount > 0;
+              return (
+                <>
+                  {showCTA ? (
+                    <EmptyListCTA
+                      title="You haven't added any API Keys yet."
+                      buttonIcon="key-skeleton-alt"
+                      buttonLink="#"
+                      onClick={toggleIsAdding}
+                      buttonTitle="New API Key"
+                      proTip="Remember you can provide view-only API access to other applications."
+                    />
+                  ) : null}
+                  {showTable ? (
+                    <ApiKeysActionBar
+                      searchQuery={searchQuery}
+                      disabled={isAdding}
+                      onAddClick={toggleIsAdding}
+                      onSearchChange={this.onSearchQueryChange}
+                    />
+                  ) : null}
+                  <ApiKeysForm show={isAdding} onClose={toggleIsAdding} onKeyAdded={this.onAddApiKey} />
+                  {showTable ? (
+                    <>
+                      <h3 className="page-heading">Existing Keys</h3>
+                      <Switch label="Show expired" checked={includeExpired} onChange={this.onIncludeExpiredChange} />
+                      <ApiKeysTable apiKeys={apiKeys} timeZone={timeZone} onDelete={this.onDeleteApiKey} />
+                    </>
+                  ) : null}
+                </>
+              );
+            }}
+          </ApiKeysController>
         </Page.Contents>
       </Page>
     );
@@ -152,4 +165,4 @@ export class ApiKeysPageUnconnected extends PureComponent<Props, State> {
 }
 
 const ApiKeysPage = connector(ApiKeysPageUnconnected);
-export default ApiKeysPage;
+export default hot(module)(ApiKeysPage);

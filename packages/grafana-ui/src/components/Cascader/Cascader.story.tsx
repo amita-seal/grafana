@@ -1,12 +1,10 @@
-import { StoryFn, Meta } from '@storybook/react';
-import React from 'react';
-
-import { Cascader } from '@grafana/ui';
-
+import { Story } from '@storybook/react';
 import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
-import { CascaderOption } from './Cascader';
+import { NOOP_CONTROL } from '../../utils/storybook/noopControl';
+import { Cascader } from '@grafana/ui';
+import { CascaderOption, CascaderProps } from './Cascader';
 import mdx from './Cascader.mdx';
+import React from 'react';
 
 const onSelect = (val: string) => console.log(val);
 const options = [
@@ -34,7 +32,7 @@ const options = [
   },
 ];
 
-const meta: Meta<typeof Cascader> = {
+export default {
   title: 'Forms/Cascader',
   component: Cascader,
   decorators: [withCenteredStory],
@@ -42,17 +40,8 @@ const meta: Meta<typeof Cascader> = {
     docs: {
       page: mdx,
     },
-    controls: {
-      exclude: [
-        'placeholder',
-        'initialValue',
-        'changeOnSelect',
-        'onSelect',
-        'loadData',
-        'onChange',
-        'onPopupVisibleChange',
-        'formatCreateLabel',
-      ],
+    knobs: {
+      disable: true,
     },
   },
   args: {
@@ -61,10 +50,13 @@ const meta: Meta<typeof Cascader> = {
   },
   argTypes: {
     width: { control: { type: 'range', min: 0, max: 70 } },
+    placeholder: NOOP_CONTROL,
+    initialValue: NOOP_CONTROL,
+    changeOnSelect: NOOP_CONTROL,
   },
 };
 
-const Template: StoryFn<typeof Cascader> = (args) => <Cascader {...args} />;
+const Template: Story<CascaderProps> = (args) => <Cascader {...args} />;
 
 export const Simple = Template.bind({});
 Simple.args = {
@@ -101,5 +93,3 @@ export const WithOptionsStateUpdate = () => {
 
   return <Cascader options={updatedOptions} onSelect={onSelect} />;
 };
-
-export default meta;

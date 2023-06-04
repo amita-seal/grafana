@@ -3,10 +3,10 @@ package notifiers
 import (
 	"encoding/json"
 
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/notifications"
 )
 
 func init() {
@@ -30,14 +30,14 @@ func init() {
 }
 
 // NewTeamsNotifier is the constructor for Teams notifier.
-func NewTeamsNotifier(model *models.AlertNotification, _ alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+func NewTeamsNotifier(model *models.AlertNotification) (alerting.Notifier, error) {
 	url := model.Settings.Get("url").MustString()
 	if url == "" {
 		return nil, alerting.ValidationError{Reason: "Could not find url property in settings"}
 	}
 
 	return &TeamsNotifier{
-		NotifierBase: NewNotifierBase(model, ns),
+		NotifierBase: NewNotifierBase(model),
 		URL:          url,
 		log:          log.New("alerting.notifier.teams"),
 	}, nil
@@ -133,9 +133,9 @@ func (tn *TeamsNotifier) Notify(evalContext *alerting.EvalContext) error {
 	}
 
 	data, _ := json.Marshal(&body)
-	cmd := &notifications.SendWebhookSync{Url: tn.URL, Body: string(data)}
+	cmd := &models.SendWebhookSync{Url: tn.URL, Body: string(data)}
 
-	if err := tn.NotificationService.SendWebhookSync(evalContext.Ctx, cmd); err != nil {
+	if err := bus.DispatchCtx(evalContext.Ctx, cmd); err != nil {
 		tn.log.Error("Failed to send teams notification", "error", err, "webhook", tn.Name)
 		return err
 	}

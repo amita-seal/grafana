@@ -35,7 +35,7 @@ export class FetchQueue {
       const { id, state, options } = entry;
 
       if (!this.state[id]) {
-        this.state[id] = { state: FetchStatus.Pending, options: { url: '' } };
+        this.state[id] = { state: FetchStatus.Pending, options: {} as BackendSrvRequest };
       }
 
       if (state === FetchStatus.Done) {
@@ -81,14 +81,11 @@ export class FetchQueue {
       return;
     }
 
-    const entriesWithoutOptions = Object.keys(update.state).reduce<Array<{ id: string; state: FetchStatus }>>(
-      (all, key) => {
-        const entry = { id: key, state: update.state[key].state };
-        all.push(entry);
-        return all;
-      },
-      []
-    );
+    const entriesWithoutOptions = Object.keys(update.state).reduce((all, key) => {
+      const entry = { id: key, state: update.state[key].state };
+      all.push(entry);
+      return all;
+    }, [] as Array<{ id: string; state: FetchStatus }>);
 
     console.log('FetchQueue noOfStarted', update.noOfInProgress);
     console.log('FetchQueue noOfNotStarted', update.noOfPending);

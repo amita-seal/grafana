@@ -7,12 +7,12 @@ export {
   getFieldColorModeForField,
   getFieldColorMode,
   fieldColorModeRegistry,
-  type FieldColorMode,
+  FieldColorMode,
   getFieldSeriesColor,
 } from './fieldColor';
 export { FieldConfigOptionsRegistry } from './FieldConfigOptionsRegistry';
 export { sortThresholds, getActiveThreshold } from './thresholds';
-export { applyFieldOverrides, validateFieldConfig, applyRawFieldOverrides, useFieldOverrides } from './fieldOverrides';
+export { applyFieldOverrides, validateFieldConfig, applyRawFieldOverrides } from './fieldOverrides';
 export { getFieldDisplayValuesProxy } from './getFieldDisplayValuesProxy';
 export { getFieldDisplayName, getFrameDisplayName } from './fieldState';
-export { getScaleCalculator, getFieldConfigWithMinMax, getMinMaxAndDelta } from './scale';
+export { getScaleCalculator, getFieldConfigWithMinMax } from './scale';

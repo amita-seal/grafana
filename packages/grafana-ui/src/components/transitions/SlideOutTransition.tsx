@@ -1,7 +1,6 @@
-import { css } from '@emotion/css';
 import React from 'react';
+import { css } from 'emotion';
 import { CSSTransition } from 'react-transition-group';
-
 import { stylesFactory } from '../../themes';
 
 const getStyles = stylesFactory((duration: number, measurement: 'width' | 'height', size: number) => {

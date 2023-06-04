@@ -1,12 +1,12 @@
 import { map } from 'rxjs/operators';
 
-import { getFieldDisplayName } from '../../field/fieldState';
-import { DataFrame, Field } from '../../types/dataFrame';
-import { DataTransformerInfo, MatcherConfig } from '../../types/transformations';
-import { getValueMatcher } from '../matchers';
-
-import { DataTransformerID } from './ids';
 import { noopTransformer } from './noop';
+import { DataTransformerID } from './ids';
+import { DataTransformerInfo, MatcherConfig } from '../../types/transformations';
+import { DataFrame, Field } from '../../types/dataFrame';
+import { getFieldDisplayName } from '../../field/fieldState';
+import { getValueMatcher } from '../matchers';
+import { ArrayVector } from '../../vector/ArrayVector';
 
 export enum FilterByValueType {
   exclude = 'exclude',
@@ -39,13 +39,13 @@ export const filterByValueTransformer: DataTransformerInfo<FilterByValueTransfor
     match: FilterByValueMatch.any,
   },
 
-  operator: (options, ctx) => (source) => {
+  operator: (options) => (source) => {
     const filters = options.filters;
     const matchAll = options.match === FilterByValueMatch.all;
     const include = options.type === FilterByValueType.include;
 
     if (!Array.isArray(filters) || filters.length === 0) {
-      return source.pipe(noopTransformer.operator({}, ctx));
+      return source.pipe(noopTransformer.operator({}));
     }
 
     return source.pipe(
@@ -100,21 +100,21 @@ export const filterByValueTransformer: DataTransformerInfo<FilterByValueTransfor
 
             for (let index = 0; index < frame.length; index++) {
               if (include && rows.has(index)) {
-                buffer.push(field.values[index]);
+                buffer.push(field.values.get(index));
                 continue;
               }
 
               if (!include && !rows.has(index)) {
-                buffer.push(field.values[index]);
+                buffer.push(field.values.get(index));
                 continue;
               }
             }
 
-            // We keep field config, but clean the state as it's being recalculated when the field overrides are applied
+            // TODO: what parts needs to be excluded from field.
             fields.push({
               ...field,
-              values: buffer,
-              state: {},
+              values: new ArrayVector(buffer),
+              config: {},
             });
           }
 

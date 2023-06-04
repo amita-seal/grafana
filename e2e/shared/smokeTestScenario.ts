@@ -6,28 +6,28 @@ export const smokeTestScenario = {
   addScenarioDataSource: true,
   addScenarioDashBoard: true,
   skipScenario: false,
-  loginViaApi: false,
   scenario: () => {
-    // wait for time to be set to account for any layout shift
-    e2e().contains('2020-01-01 00:00:00 to 2020-01-01 06:00:00').should('be.visible');
-    e2e.components.PageToolbar.itemButton('Add panel button').click();
-    e2e.components.PageToolbar.itemButton('Add new visualization menu item').click();
+    e2e.flows.openDashboard();
+    e2e.components.PageToolbar.item('Add panel').click();
+    e2e.pages.AddDashboard.addNewPanel().click();
 
     e2e.components.DataSource.TestData.QueryTab.scenarioSelectContainer()
       .should('be.visible')
       .within(() => {
-        e2e().get('input[id*="test-data-scenario-select-"]').should('be.visible').click();
+        e2e.components.Select.input().should('be.visible').click();
+
+        cy.contains('CSV Metric Values').scrollIntoView().should('be.visible').click();
       });
 
-    cy.contains('CSV Metric Values').scrollIntoView().should('be.visible').click();
-
     // Make sure the graph renders via checking legend
-    e2e.components.VizLegend.seriesName('A-series').should('be.visible');
+    e2e.components.Panels.Visualization.Graph.Legend.legendItemAlias('A-series').should('be.visible');
 
     // Expand options section
-    e2e.components.PanelEditor.applyButton();
+    e2e.components.Panels.Visualization.Graph.VisualizationTab.legendSection().click();
 
-    // Make sure panel is & visualization is added to dashboard
-    e2e.components.VizLegend.seriesName('A-series').should('be.visible');
+    // Disable legend
+    e2e.components.Panels.Visualization.Graph.Legend.showLegendSwitch().click();
+
+    e2e.components.Panels.Visualization.Graph.Legend.legendItemAlias('A-series').should('not.exist');
   },
 };

@@ -14,14 +14,14 @@
 'use strict';
 
 // accessible variables in this scope
-let window, document, $, jQuery, moment, kbn;
+var window, document, ARGS, $, jQuery, moment, kbn;
 
 // Setup some variables
-let dashboard;
+var dashboard;
 
 // All url parameters are available via the ARGS object
 // eslint-disable-next-line no-redeclare
-let ARGS;
+var ARGS;
 
 // Initialize a skeleton with nothing but a rows array and service object
 dashboard = {
@@ -61,8 +61,8 @@ dashboard.templating = {
   ],
 };
 
-let rows = 1;
-let seriesName = 'argName';
+var rows = 1;
+var seriesName = 'argName';
 
 if (!_.isUndefined(ARGS.rows)) {
   rows = parseInt(ARGS.rows, 10);
@@ -72,7 +72,7 @@ if (!_.isUndefined(ARGS.name)) {
   seriesName = ARGS.name;
 }
 
-for (let i = 0; i < rows; i++) {
+for (var i = 0; i < rows; i++) {
   dashboard.rows.push({
     title: 'Chart',
     height: '300px',

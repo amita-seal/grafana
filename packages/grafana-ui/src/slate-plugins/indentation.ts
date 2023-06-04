@@ -1,7 +1,6 @@
 import { isKeyHotkey } from 'is-hotkey';
 import React from 'react';
 import { RangeJSON, Range as SlateRange } from 'slate';
-import Plain from 'slate-plain-serializer';
 import { Editor, Plugin } from 'slate-react';
 
 const isIndentLeftHotkey = isKeyHotkey('mod+[');
@@ -19,10 +18,7 @@ const handleTabKey = (event: React.KeyboardEvent<Element>, editor: Editor, next:
       end: { offset: endOffset, key: endKey },
     },
   } = editor.value;
-  if (Plain.serialize(editor.value) === '') {
-    return;
-  }
-  event.preventDefault();
+
   const first = startBlock.getFirstText();
 
   const startBlockIsSelected =
@@ -79,13 +75,14 @@ const handleIndent = (editor: Editor, indentDirection: 'left' | 'right') => {
 export function IndentationPlugin(): Plugin {
   return {
     onKeyDown(event, editor, next) {
-      if (isIndentLeftHotkey(event) || isShiftTabHotkey(event)) {
+      if (isIndentLeftHotkey(event.nativeEvent) || isShiftTabHotkey(event.nativeEvent)) {
         event.preventDefault();
         handleIndent(editor, 'left');
-      } else if (isIndentRightHotkey(event)) {
+      } else if (isIndentRightHotkey(event.nativeEvent)) {
         event.preventDefault();
         handleIndent(editor, 'right');
       } else if (event.key === 'Tab') {
+        event.preventDefault();
         handleTabKey(event, editor, next);
       } else {
         return next();

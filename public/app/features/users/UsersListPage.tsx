@@ -1,99 +1,105 @@
-import React, { useEffect, useState } from 'react';
-import { connect, ConnectedProps } from 'react-redux';
-
-import { renderMarkdown } from '@grafana/data';
-import { selectors as e2eSelectors } from '@grafana/e2e-selectors/src';
+import React, { PureComponent } from 'react';
+import { hot } from 'react-hot-loader';
+import { connect } from 'react-redux';
+import { NavModel, renderMarkdown } from '@grafana/data';
 import { HorizontalGroup, Pagination, VerticalGroup } from '@grafana/ui';
-import { Page } from 'app/core/components/Page/Page';
-import { contextSrv } from 'app/core/core';
-import { OrgUser, OrgRole, StoreState } from 'app/types';
 
-import InviteesTable from '../invites/InviteesTable';
-import { fetchInvitees } from '../invites/state/actions';
-import { selectInvitesMatchingQuery } from '../invites/state/selectors';
+import Page from 'app/core/components/Page/Page';
+import UsersActionBar from './UsersActionBar';
+import UsersTable from './UsersTable';
+import InviteesTable from './InviteesTable';
+import { Invitee, OrgUser, OrgRole } from 'app/types';
+import { loadInvitees, loadUsers, removeUser, updateUser } from './state/actions';
+import { getNavModel } from 'app/core/selectors/navModel';
+import { getInvitees, getUsers, getUsersSearchQuery, getUsersSearchPage } from './state/selectors';
+import { setUsersSearchQuery, setUsersSearchPage } from './state/reducers';
 
-import { UsersActionBar } from './UsersActionBar';
-import { UsersTable } from './UsersTable';
-import { loadUsers, removeUser, updateUser, changePage } from './state/actions';
-import { getUsers, getUsersSearchQuery } from './state/selectors';
-
-function mapStateToProps(state: StoreState) {
-  const searchQuery = getUsersSearchQuery(state.users);
-  return {
-    users: getUsers(state.users),
-    searchQuery: getUsersSearchQuery(state.users),
-    page: state.users.page,
-    totalPages: state.users.totalPages,
-    perPage: state.users.perPage,
-    invitees: selectInvitesMatchingQuery(state.invites, searchQuery),
-    externalUserMngInfo: state.users.externalUserMngInfo,
-    isLoading: state.users.isLoading,
-  };
+export interface Props {
+  navModel: NavModel;
+  invitees: Invitee[];
+  users: OrgUser[];
+  searchQuery: string;
+  searchPage: number;
+  externalUserMngInfo: string;
+  hasFetched: boolean;
+  loadUsers: typeof loadUsers;
+  loadInvitees: typeof loadInvitees;
+  setUsersSearchQuery: typeof setUsersSearchQuery;
+  setUsersSearchPage: typeof setUsersSearchPage;
+  updateUser: typeof updateUser;
+  removeUser: typeof removeUser;
 }
-
-const mapDispatchToProps = {
-  loadUsers,
-  fetchInvitees,
-  changePage,
-  updateUser,
-  removeUser,
-};
-
-const connector = connect(mapStateToProps, mapDispatchToProps);
-
-export type Props = ConnectedProps<typeof connector>;
 
 export interface State {
   showInvites: boolean;
 }
 
-const selectors = e2eSelectors.pages.UserListPage.UsersListPage;
+const pageLimit = 30;
 
-export const UsersListPageUnconnected = ({
-  users,
-  page,
-  totalPages,
-  invitees,
-  externalUserMngInfo,
-  isLoading,
-  loadUsers,
-  fetchInvitees,
-  changePage,
-  updateUser,
-  removeUser,
-}: Props): JSX.Element => {
-  const [showInvites, setShowInvites] = useState(false);
-  const externalUserMngInfoHtml = externalUserMngInfo ? renderMarkdown(externalUserMngInfo) : '';
+export class UsersListPage extends PureComponent<Props, State> {
+  externalUserMngInfoHtml: string;
 
-  useEffect(() => {
-    loadUsers();
-    fetchInvitees();
-  }, [fetchInvitees, loadUsers]);
+  constructor(props: Props) {
+    super(props);
 
-  const onRoleChange = (role: OrgRole, user: OrgUser) => {
-    updateUser({ ...user, role: role });
+    if (this.props.externalUserMngInfo) {
+      this.externalUserMngInfoHtml = renderMarkdown(this.props.externalUserMngInfo);
+    }
+
+    this.state = {
+      showInvites: false,
+    };
+  }
+
+  componentDidMount() {
+    this.fetchUsers();
+    this.fetchInvitees();
+  }
+
+  async fetchUsers() {
+    return await this.props.loadUsers();
+  }
+
+  async fetchInvitees() {
+    return await this.props.loadInvitees();
+  }
+
+  onRoleChange = (role: OrgRole, user: OrgUser) => {
+    const updatedUser = { ...user, role: role };
+
+    this.props.updateUser(updatedUser);
   };
 
-  const onShowInvites = () => {
-    setShowInvites(!showInvites);
+  onShowInvites = () => {
+    this.setState((prevState) => ({
+      showInvites: !prevState.showInvites,
+    }));
   };
 
-  const renderTable = () => {
-    if (showInvites) {
+  getPaginatedUsers = (users: OrgUser[]) => {
+    const offset = (this.props.searchPage - 1) * pageLimit;
+    return users.slice(offset, offset + pageLimit);
+  };
+
+  renderTable() {
+    const { invitees, users, setUsersSearchPage } = this.props;
+    const paginatedUsers = this.getPaginatedUsers(users);
+    const totalPages = Math.ceil(users.length / pageLimit);
+
+    if (this.state.showInvites) {
       return <InviteesTable invitees={invitees} />;
     } else {
       return (
-        <VerticalGroup spacing="md" data-testid={selectors.container}>
+        <VerticalGroup spacing="md">
           <UsersTable
-            users={users}
-            orgId={contextSrv.user.orgId}
-            onRoleChange={(role, user) => onRoleChange(role, user)}
-            onRemoveUser={(user) => removeUser(user.userId)}
+            users={paginatedUsers}
+            onRoleChange={(role, user) => this.onRoleChange(role, user)}
+            onRemoveUser={(user) => this.props.removeUser(user.userId)}
           />
           <HorizontalGroup justify="flex-end">
             <Pagination
-              onNavigate={changePage}
-              currentPage={page}
+              onNavigate={setUsersSearchPage}
+              currentPage={this.props.searchPage}
               numberOfPages={totalPages}
               hideWhenSinglePage={true}
             />
@@ -101,25 +107,47 @@ export const UsersListPageUnconnected = ({
         </VerticalGroup>
       );
     }
-  };
+  }
 
-  return (
-    <Page.Contents isLoading={!isLoading}>
-      <UsersActionBar onShowInvites={onShowInvites} showInvites={showInvites} />
-      {externalUserMngInfoHtml && (
-        <div className="grafana-info-box" dangerouslySetInnerHTML={{ __html: externalUserMngInfoHtml }} />
-      )}
-      {isLoading && renderTable()}
-    </Page.Contents>
-  );
+  render() {
+    const { navModel, hasFetched } = this.props;
+    const externalUserMngInfoHtml = this.externalUserMngInfoHtml;
+
+    return (
+      <Page navModel={navModel}>
+        <Page.Contents isLoading={!hasFetched}>
+          <>
+            <UsersActionBar onShowInvites={this.onShowInvites} showInvites={this.state.showInvites} />
+            {externalUserMngInfoHtml && (
+              <div className="grafana-info-box" dangerouslySetInnerHTML={{ __html: externalUserMngInfoHtml }} />
+            )}
+            {hasFetched && this.renderTable()}
+          </>
+        </Page.Contents>
+      </Page>
+    );
+  }
+}
+
+function mapStateToProps(state: any) {
+  return {
+    navModel: getNavModel(state.navIndex, 'users'),
+    users: getUsers(state.users),
+    searchQuery: getUsersSearchQuery(state.users),
+    searchPage: getUsersSearchPage(state.users),
+    invitees: getInvitees(state.users),
+    externalUserMngInfo: state.users.externalUserMngInfo,
+    hasFetched: state.users.hasFetched,
+  };
+}
+
+const mapDispatchToProps = {
+  loadUsers,
+  loadInvitees,
+  setUsersSearchQuery,
+  setUsersSearchPage,
+  updateUser,
+  removeUser,
 };
 
-export const UsersListPageContent = connector(UsersListPageUnconnected);
-
-export default function UsersListPage() {
-  return (
-    <Page navId="users">
-      <UsersListPageContent />
-    </Page>
-  );
-}
+export default hot(module)(connect(mapStateToProps, mapDispatchToProps)(UsersListPage));

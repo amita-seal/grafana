@@ -1,15 +1,15 @@
-import { css } from '@emotion/css';
 import React from 'react';
-
 import {
   FieldType,
   formattedValueToString,
   getDisplayProcessor,
-  GrafanaTheme2,
+  GrafanaTheme,
   QueryResultMetaStat,
   TimeZone,
 } from '@grafana/data';
-import { stylesFactory, useTheme2 } from '@grafana/ui';
+import { config } from 'app/core/config';
+import { stylesFactory, useTheme } from '@grafana/ui';
+import { css } from 'emotion';
 
 interface InspectStatsTableProps {
   timeZone: TimeZone;
@@ -17,8 +17,8 @@ interface InspectStatsTableProps {
   stats: QueryResultMetaStat[];
 }
 
-export const InspectStatsTable = ({ timeZone, name, stats }: InspectStatsTableProps) => {
-  const theme = useTheme2();
+export const InspectStatsTable: React.FC<InspectStatsTableProps> = ({ timeZone, name, stats }) => {
+  const theme = useTheme();
   const styles = getStyles(theme);
 
   if (!stats || !stats.length) {
@@ -34,7 +34,7 @@ export const InspectStatsTable = ({ timeZone, name, stats }: InspectStatsTablePr
             return (
               <tr key={`${stat.displayName}-${index}`}>
                 <td>{stat.displayName}</td>
-                <td className={styles.cell}>{formatStat(stat, timeZone, theme)}</td>
+                <td className={styles.cell}>{formatStat(stat, timeZone)}</td>
               </tr>
             );
           })}
@@ -44,22 +44,22 @@ export const InspectStatsTable = ({ timeZone, name, stats }: InspectStatsTablePr
   );
 };
 
-function formatStat(stat: QueryResultMetaStat, timeZone: TimeZone, theme: GrafanaTheme2): string {
+function formatStat(stat: QueryResultMetaStat, timeZone?: TimeZone): string {
   const display = getDisplayProcessor({
     field: {
       type: FieldType.number,
       config: stat,
     },
-    theme,
+    theme: config.theme,
     timeZone,
   });
   return formattedValueToString(display(stat.value));
 }
 
-const getStyles = stylesFactory((theme: GrafanaTheme2) => {
+const getStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
     wrapper: css`
-      padding-bottom: ${theme.spacing(2)};
+      padding-bottom: ${theme.spacing.md};
     `,
     cell: css`
       text-align: right;

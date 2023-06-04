@@ -17,27 +17,23 @@ export const selectOption = (config: SelectOptionConfig): any => {
 
   const { clickToOpen, container, forceClickOption, optionText } = fullConfig;
 
-  container.within(() => {
+  return container.within(() => {
     if (clickToOpen) {
-      e2e()
-        .get('[class$="-input-suffix"]', { timeout: 1000 })
-        .then((element) => {
-          expect(Cypress.dom.isAttached(element)).to.eq(true);
-          e2e().get('[class$="-input-suffix"]', { timeout: 1000 }).click({ force: true });
-        });
+      e2e().get('[class$="-input-suffix"]').click();
     }
-  });
 
-  return e2e.components.Select.option()
-    .filter((_, { textContent }) => {
-      if (textContent === null) {
-        return false;
-      } else if (typeof optionText === 'string') {
-        return textContent.includes(optionText);
-      } else {
-        return optionText.test(textContent);
-      }
-    })
-    .scrollIntoView()
-    .click({ force: forceClickOption });
+    e2e.components.Select.option()
+      .filter((_, { textContent }) => {
+        if (textContent === null) {
+          return false;
+        } else if (typeof optionText === 'string') {
+          return textContent.includes(optionText);
+        } else {
+          return optionText.test(textContent);
+        }
+      })
+      .scrollIntoView()
+      .click({ force: forceClickOption });
+    e2e().root().scrollIntoView();
+  });
 };

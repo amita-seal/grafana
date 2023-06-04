@@ -1,7 +1,5 @@
-import React from 'react';
-
+import React, { FC } from 'react';
 import { FormAPI, Input, InputControl, Select, TextArea } from '@grafana/ui';
-
 import { NotificationChannelOption } from '../../../types';
 
 interface Props extends Pick<FormAPI<any>, 'register' | 'control'> {
@@ -9,18 +7,19 @@ interface Props extends Pick<FormAPI<any>, 'register' | 'control'> {
   invalid?: boolean;
 }
 
-export const OptionElement = ({ control, option, register, invalid }: Props) => {
+export const OptionElement: FC<Props> = ({ control, option, register, invalid }) => {
   const modelValue = option.secure ? `secureSettings.${option.propertyName}` : `settings.${option.propertyName}`;
   switch (option.element) {
     case 'input':
       return (
         <Input
-          {...register(`${modelValue}`, {
+          invalid={invalid}
+          type={option.inputType}
+          name={`${modelValue}`}
+          ref={register({
             required: option.required ? 'Required' : false,
             validate: (v) => (option.validationRule !== '' ? validateOption(v, option.validationRule) : true),
           })}
-          invalid={invalid}
-          type={option.inputType}
           placeholder={option.placeholder}
         />
       );
@@ -28,11 +27,11 @@ export const OptionElement = ({ control, option, register, invalid }: Props) => 
     case 'select':
       return (
         <InputControl
+          as={Select}
+          options={option.selectOptions}
           control={control}
           name={`${modelValue}`}
-          render={({ field: { ref, ...field } }) => (
-            <Select {...field} options={option.selectOptions ?? undefined} invalid={invalid} />
-          )}
+          invalid={invalid}
         />
       );
 
@@ -40,7 +39,8 @@ export const OptionElement = ({ control, option, register, invalid }: Props) => 
       return (
         <TextArea
           invalid={invalid}
-          {...register(`${modelValue}`, {
+          name={`${modelValue}`}
+          ref={register({
             required: option.required ? 'Required' : false,
             validate: (v) => (option.validationRule !== '' ? validateOption(v, option.validationRule) : true),
           })}

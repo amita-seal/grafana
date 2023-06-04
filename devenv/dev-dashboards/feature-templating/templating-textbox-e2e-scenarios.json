@@ -5,7 +5,8 @@
       "label": "gdev-testdata",
       "description": "",
       "type": "datasource",
-      "pluginId": "testdata"
+      "pluginId": "testdata",
+      "pluginName": "TestData DB"
     }
   ],
   "__requires": [
@@ -18,7 +19,7 @@
     {
       "type": "datasource",
       "id": "testdata",
-      "name": "TestData",
+      "name": "TestData DB",
       "version": "1.0.0"
     },
     {

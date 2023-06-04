@@ -1,23 +1,21 @@
 import React, { FC, useEffect, useMemo, useReducer } from 'react';
-
+import { Button, HorizontalGroup, Modal, useStyles } from '@grafana/ui';
 import { LoadingState } from '@grafana/data';
-import { Button, Modal, useStyles2 } from '@grafana/ui';
 
-import { getModalStyles } from '../../styles';
-import { LibraryElementDTO } from '../../types';
+import { LibraryPanelDTO } from '../../types';
 import { asyncDispatcher } from '../LibraryPanelsView/actions';
-
-import { getConnectedDashboards } from './actions';
 import { deleteLibraryPanelModalReducer, initialDeleteLibraryPanelModalState } from './reducer';
+import { getConnectedDashboards } from './actions';
+import { getModalStyles } from '../../styles';
 
 interface Props {
-  libraryPanel: LibraryElementDTO;
+  libraryPanel: LibraryPanelDTO;
   onConfirm: () => void;
   onDismiss: () => void;
 }
 
 export const DeleteLibraryPanelModal: FC<Props> = ({ libraryPanel, onDismiss, onConfirm }) => {
-  const styles = useStyles2(getModalStyles);
+  const styles = useStyles(getModalStyles);
   const [{ dashboardTitles, loadingState }, dispatch] = useReducer(
     deleteLibraryPanelModalReducer,
     initialDeleteLibraryPanelModalState
@@ -25,7 +23,7 @@ export const DeleteLibraryPanelModal: FC<Props> = ({ libraryPanel, onDismiss, on
   const asyncDispatch = useMemo(() => asyncDispatcher(dispatch), [dispatch]);
   useEffect(() => {
     asyncDispatch(getConnectedDashboards(libraryPanel));
-  }, [asyncDispatch, libraryPanel]);
+  }, []);
   const connected = Boolean(dashboardTitles.length);
   const done = loadingState === LoadingState.Done;
 
@@ -37,30 +35,30 @@ export const DeleteLibraryPanelModal: FC<Props> = ({ libraryPanel, onDismiss, on
           {connected ? <HasConnectedDashboards dashboardTitles={dashboardTitles} /> : null}
           {!connected ? <Confirm /> : null}
 
-          <Modal.ButtonRow>
-            <Button variant="secondary" onClick={onDismiss} fill="outline">
-              Cancel
-            </Button>
+          <HorizontalGroup>
             <Button variant="destructive" onClick={onConfirm} disabled={connected}>
               Delete
             </Button>
-          </Modal.ButtonRow>
+            <Button variant="secondary" onClick={onDismiss}>
+              Cancel
+            </Button>
+          </HorizontalGroup>
         </div>
       ) : null}
     </Modal>
   );
 };
 
-const LoadingIndicator = () => <span>Loading library panel...</span>;
+const LoadingIndicator: FC = () => <span>Loading library panel...</span>;
 
-const Confirm = () => {
-  const styles = useStyles2(getModalStyles);
+const Confirm: FC = () => {
+  const styles = useStyles(getModalStyles);
 
   return <div className={styles.modalText}>Do you want to delete this panel?</div>;
 };
 
 const HasConnectedDashboards: FC<{ dashboardTitles: string[] }> = ({ dashboardTitles }) => {
-  const styles = useStyles2(getModalStyles);
+  const styles = useStyles(getModalStyles);
   const suffix = dashboardTitles.length === 1 ? 'dashboard.' : 'dashboards.';
   const message = `${dashboardTitles.length} ${suffix}`;
   if (dashboardTitles.length === 0) {

@@ -1,24 +1,14 @@
 'use strict';
 
-const browserslist = require('browserslist');
-const { resolveToEsbuildTarget } = require('esbuild-plugin-browserslist');
-const ESLintPlugin = require('eslint-webpack-plugin');
-const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
-const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const path = require('path');
-const { DefinePlugin } = require('webpack');
-const { merge } = require('webpack-merge');
-
-const HTMLWebpackCSSChunks = require('./plugins/HTMLWebpackCSSChunks');
+const merge = require('webpack-merge');
 const common = require('./webpack.common.js');
-const esbuildTargets = resolveToEsbuildTarget(browserslist(), { printUnknownTargets: false });
-// esbuild-loader 3.0.0+ requires format to be set to prevent it
-// from defaulting to 'iife' which breaks monaco/loader once minified.
-const esbuildOptions = {
-  target: esbuildTargets,
-  format: undefined,
-};
+const path = require('path');
+const webpack = require('webpack');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+// const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
 module.exports = (env = {}) =>
   merge(common, {
@@ -42,10 +32,48 @@ module.exports = (env = {}) =>
         {
           test: /\.tsx?$/,
           exclude: /node_modules/,
-          use: {
-            loader: 'esbuild-loader',
-            options: esbuildOptions,
-          },
+          use: [
+            {
+              loader: 'babel-loader',
+              options: {
+                cacheDirectory: true,
+                babelrc: false,
+                // Note: order is top-to-bottom and/or left-to-right
+                plugins: [
+                  [
+                    require('@rtsao/plugin-proposal-class-properties'),
+                    {
+                      loose: true,
+                    },
+                  ],
+                  '@babel/plugin-proposal-nullish-coalescing-operator',
+                  '@babel/plugin-proposal-optional-chaining',
+                  'angularjs-annotate',
+                ],
+                // Note: order is bottom-to-top and/or right-to-left
+                presets: [
+                  [
+                    '@babel/preset-env',
+                    {
+                      targets: {
+                        browsers: 'last 3 versions',
+                      },
+                      useBuiltIns: 'entry',
+                      corejs: 3,
+                      modules: false,
+                    },
+                  ],
+                  [
+                    '@babel/preset-typescript',
+                    {
+                      allowNamespaces: true,
+                    },
+                  ],
+                  '@babel/preset-react',
+                ],
+              },
+            },
+          ],
         },
         require('./sass.rule.js')({
           sourceMap: false,
@@ -54,50 +82,28 @@ module.exports = (env = {}) =>
       ],
     },
 
-    // https://webpack.js.org/guides/build-performance/#output-without-path-info
-    output: {
-      pathinfo: false,
-    },
-
-    // https://webpack.js.org/guides/build-performance/#avoid-extra-optimization-steps
-    optimization: {
-      moduleIds: 'named',
-      runtimeChunk: true,
-      removeAvailableModules: false,
-      removeEmptyChunks: false,
-      splitChunks: false,
-    },
-
-    // enable persistent cache for faster cold starts
-    cache: {
-      type: 'filesystem',
-      name: 'grafana-default-development',
-      buildDependencies: {
-        config: [__filename],
-      },
-    },
-
     plugins: [
-      parseInt(env.noTsCheck, 10)
-        ? new DefinePlugin({}) // bogus plugin to satisfy webpack API
+      new CleanWebpackPlugin(),
+      env.noTsCheck
+        ? new webpack.DefinePlugin({}) // bogus plugin to satisfy webpack API
         : new ForkTsCheckerWebpackPlugin({
-            async: true, // don't block webpack emit
+            eslint: {
+              enabled: true,
+              files: ['public/app/**/*.{ts,tsx}', 'packages/*/src/**/*.{ts,tsx}'],
+              options: {
+                cache: true,
+              },
+            },
             typescript: {
               mode: 'write-references',
-              memoryLimit: 4096,
               diagnosticOptions: {
                 semantic: true,
                 syntactic: true,
               },
             },
           }),
-      new ESLintPlugin({
-        cache: true,
-        lintDirtyModulesOnly: true, // don't lint on start, only lint changed files
-        extensions: ['.ts', '.tsx'],
-      }),
       new MiniCssExtractPlugin({
-        filename: 'grafana.[name].[contenthash].css',
+        filename: 'grafana.[name].[hash].css',
       }),
       new HtmlWebpackPlugin({
         filename: path.resolve(__dirname, '../../public/views/error.html'),
@@ -113,11 +119,15 @@ module.exports = (env = {}) =>
         chunksSortMode: 'none',
         excludeChunks: ['dark', 'light'],
       }),
-      new HTMLWebpackCSSChunks(),
-      new DefinePlugin({
+      new webpack.NamedModulesPlugin(),
+      new webpack.HotModuleReplacementPlugin(),
+      new webpack.DefinePlugin({
         'process.env': {
           NODE_ENV: JSON.stringify('development'),
         },
       }),
+      // new BundleAnalyzerPlugin({
+      //   analyzerPort: 8889
+      // })
     ],
   });

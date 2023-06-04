@@ -1,58 +1,54 @@
-import { css } from '@emotion/css';
 import React, { useState } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-import { Button, CodeEditor, useStyles2 } from '@grafana/ui';
-import { Page } from 'app/core/components/Page/Page';
+import AutoSizer from 'react-virtualized-auto-sizer';
+import { Button, CodeEditor } from '@grafana/ui';
 import { dashboardWatcher } from 'app/features/live/dashboard/dashboardWatcher';
-
 import { getDashboardSrv } from '../../services/DashboardSrv';
+import { DashboardModel } from '../../state/DashboardModel';
 
-import { SettingsPageProps } from './types';
-
-export function JsonEditorSettings({ dashboard, sectionNav }: SettingsPageProps) {
-  const [dashboardJson, setDashboardJson] = useState<string>(JSON.stringify(dashboard.getSaveModelClone(), null, 2));
-
-  const onClick = async () => {
-    await getDashboardSrv().saveJSONDashboard(dashboardJson);
-    dashboardWatcher.reloadPage();
-  };
-
-  const styles = useStyles2(getStyles);
-  const subTitle =
-    'The JSON model below is the data structure that defines the dashboard. This includes dashboard settings, panel settings, layout, queries, and so on';
-
-  return (
-    <Page navModel={sectionNav} subTitle={subTitle}>
-      <div className={styles.wrapper}>
-        <CodeEditor
-          value={dashboardJson}
-          language="json"
-          showMiniMap={true}
-          showLineNumbers={true}
-          onBlur={setDashboardJson}
-          containerStyles={styles.codeEditor}
-        />
-        {dashboard.meta.canSave && (
-          <div>
-            <Button type="submit" onClick={onClick}>
-              Save changes
-            </Button>
-          </div>
-        )}
-      </div>
-    </Page>
-  );
+interface Props {
+  dashboard: DashboardModel;
 }
 
-const getStyles = (theme: GrafanaTheme2) => ({
-  wrapper: css({
-    display: 'flex',
-    height: '100%',
-    flexDirection: 'column',
-    gap: theme.spacing(2),
-  }),
-  codeEditor: css({
-    flexGrow: 1,
-  }),
-});
+export const JsonEditorSettings: React.FC<Props> = ({ dashboard }) => {
+  const [dashboardJson, setDashboardJson] = useState<string>(JSON.stringify(dashboard.getSaveModelClone(), null, 2));
+  const onBlur = (value: string) => {
+    setDashboardJson(value);
+  };
+  const onClick = () => {
+    getDashboardSrv()
+      .saveJSONDashboard(dashboardJson)
+      .then(() => {
+        dashboardWatcher.reloadPage();
+      });
+  };
+
+  return (
+    <>
+      <h3 className="dashboard-settings__header">JSON Model</h3>
+      <div className="dashboard-settings__subheader">
+        The JSON Model below is data structure that defines the dashboard. Including settings, panel settings & layout,
+        queries etc.
+      </div>
+
+      <div>
+        <AutoSizer disableHeight>
+          {({ width }) => (
+            <CodeEditor
+              value={dashboardJson}
+              language="json"
+              width={width}
+              height="500px"
+              showMiniMap={false}
+              onBlur={onBlur}
+            />
+          )}
+        </AutoSizer>
+      </div>
+      {dashboard.meta.canSave && (
+        <Button className="m-t-3" onClick={onClick}>
+          Save Changes
+        </Button>
+      )}
+    </>
+  );
+};

@@ -1,8 +1,5 @@
-import React from 'react';
-
+import React, { FC } from 'react';
 import { Input, Field, FieldSet, Button, Form } from '@grafana/ui';
-import { contextSrv } from 'app/core/core';
-import { AccessControlAction } from 'app/types';
 
 export interface Props {
   orgName: string;
@@ -13,15 +10,13 @@ interface FormDTO {
   orgName: string;
 }
 
-const OrgProfile = ({ onSubmit, orgName }: Props) => {
-  const canWriteOrg = contextSrv.hasPermission(AccessControlAction.OrgsWrite);
-
+const OrgProfile: FC<Props> = ({ onSubmit, orgName }) => {
   return (
     <Form defaultValues={{ orgName }} onSubmit={({ orgName }: FormDTO) => onSubmit(orgName)}>
       {({ register }) => (
-        <FieldSet label="Organization profile" disabled={!canWriteOrg}>
+        <FieldSet label="Organization profile">
           <Field label="Organization name">
-            <Input id="org-name-input" type="text" {...register('orgName', { required: true })} />
+            <Input name="orgName" type="text" ref={register({ required: true })} />
           </Field>
 
           <Button type="submit">Update organization name</Button>

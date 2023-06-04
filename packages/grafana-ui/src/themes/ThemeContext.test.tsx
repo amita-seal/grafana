@@ -1,13 +1,14 @@
-import { css } from '@emotion/css';
-import { render, renderHook } from '@testing-library/react';
 import React from 'react';
-
-import { mockThemeContext, useStyles2 } from './ThemeContext';
+import { config } from '@grafana/runtime';
+import { renderHook } from '@testing-library/react-hooks';
+import { css } from 'emotion';
+import { mount } from 'enzyme';
+import { memoizedStyleCreators, mockThemeContext, useStyles } from './ThemeContext';
 
 describe('useStyles', () => {
   it('memoizes the passed in function correctly', () => {
     const stylesCreator = () => ({});
-    const { rerender, result } = renderHook(() => useStyles2(stylesCreator));
+    const { rerender, result } = renderHook(() => useStyles(stylesCreator));
     const storedReference = result.current;
 
     rerender();
@@ -15,7 +16,7 @@ describe('useStyles', () => {
   });
 
   it('does not memoize if the passed in function changes every time', () => {
-    const { rerender, result } = renderHook(() => useStyles2(() => ({})));
+    const { rerender, result } = renderHook(() => useStyles(() => ({})));
     const storedReference = result.current;
     rerender();
     expect(storedReference).not.toBe(result.current);
@@ -23,7 +24,7 @@ describe('useStyles', () => {
 
   it('updates the memoized function when the theme changes', () => {
     const stylesCreator = () => ({});
-    const { rerender, result } = renderHook(() => useStyles2(stylesCreator));
+    const { rerender, result } = renderHook(() => useStyles(stylesCreator));
     const storedReference = result.current;
 
     const restoreThemeContext = mockThemeContext({});
@@ -32,12 +33,31 @@ describe('useStyles', () => {
     restoreThemeContext();
   });
 
+  it('cleans up memoized functions whenever a new one comes along or the component unmounts', () => {
+    const styleCreators: Function[] = [];
+    const { rerender, unmount } = renderHook(() => {
+      const styleCreator = () => ({});
+      styleCreators.push(styleCreator);
+      return useStyles(styleCreator);
+    });
+
+    expect(typeof memoizedStyleCreators.get(styleCreators[0])).toBe('function');
+    rerender();
+    expect(memoizedStyleCreators.get(styleCreators[0])).toBeUndefined();
+    expect(typeof memoizedStyleCreators.get(styleCreators[1])).toBe('function');
+    unmount();
+    expect(memoizedStyleCreators.get(styleCreators[0])).toBeUndefined();
+    expect(memoizedStyleCreators.get(styleCreators[1])).toBeUndefined();
+  });
+
   it('passes in theme and returns style object', (done) => {
-    const Dummy = function () {
-      const styles = useStyles2((theme) => {
+    const Dummy: React.FC = function () {
+      const styles = useStyles((theme) => {
+        expect(theme).toEqual(config.theme);
+
         return {
           someStyle: css`
-            color: ${theme.colors.success.main};
+            color: ${theme.palette.critical};
           `,
         };
       });
@@ -48,6 +68,6 @@ describe('useStyles', () => {
       return <div>dummy</div>;
     };
 
-    render(<Dummy />);
+    mount(<Dummy />);
   });
 });

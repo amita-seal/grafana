@@ -1,9 +1,7 @@
-import { css, cx } from '@emotion/css';
 import React, { HTMLProps } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { stylesFactory, useTheme2 } from '../../themes';
+import { GrafanaTheme } from '@grafana/data';
+import { css, cx } from 'emotion';
+import { stylesFactory, useTheme } from '../../themes';
 import { getFocusStyle, sharedInputStyle } from '../Forms/commonStyles';
 
 export interface Props extends Omit<HTMLProps<HTMLTextAreaElement>, 'size'> {
@@ -12,23 +10,22 @@ export interface Props extends Omit<HTMLProps<HTMLTextAreaElement>, 'size'> {
 }
 
 export const TextArea = React.forwardRef<HTMLTextAreaElement, Props>(({ invalid, className, ...props }, ref) => {
-  const theme = useTheme2();
+  const theme = useTheme();
   const styles = getTextAreaStyle(theme, invalid);
 
   return <textarea {...props} className={cx(styles.textarea, className)} ref={ref} />;
 });
 
-const getTextAreaStyle = stylesFactory((theme: GrafanaTheme2, invalid = false) => {
+const getTextAreaStyle = stylesFactory((theme: GrafanaTheme, invalid = false) => {
   return {
     textarea: cx(
       sharedInputStyle(theme),
       getFocusStyle(theme),
       css`
-        display: block;
-        border-radius: ${theme.shape.borderRadius()};
-        padding: ${theme.spacing.gridSize / 4}px ${theme.spacing.gridSize}px;
+        border-radius: ${theme.border.radius.sm};
+        padding: ${theme.spacing.formSpacingBase / 4}px ${theme.spacing.formSpacingBase}px;
         width: 100%;
-        border-color: ${invalid ? theme.colors.error.border : theme.components.input.borderColor};
+        border-color: ${invalid ? theme.palette.redBase : theme.colors.formInputBorder};
       `
     ),
   };

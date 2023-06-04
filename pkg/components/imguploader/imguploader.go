@@ -16,7 +16,6 @@ const (
 	defaultGCSSignedURLExpiration = 7 * 24 * time.Hour // 7 days
 )
 
-//go:generate mockgen -destination=mock.go -package=imguploader github.com/grafana/grafana/pkg/components/imguploader ImageUploader
 type ImageUploader interface {
 	Upload(ctx context.Context, path string) (string, error)
 }
@@ -110,10 +109,8 @@ func NewImageUploader() (ImageUploader, error) {
 		account_name := azureBlobSec.Key("account_name").MustString("")
 		account_key := azureBlobSec.Key("account_key").MustString("")
 		container_name := azureBlobSec.Key("container_name").MustString("")
-		sas_token_expiration_days := azureBlobSec.Key("sas_token_expiration_days").MustInt(-1)
 
-		return NewAzureBlobUploader(account_name, account_key, container_name, sas_token_expiration_days), nil
-
+		return NewAzureBlobUploader(account_name, account_key, container_name), nil
 	case "local":
 		return NewLocalImageUploader()
 	}

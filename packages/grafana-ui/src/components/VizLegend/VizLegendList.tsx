@@ -1,50 +1,39 @@
-import { css, cx } from '@emotion/css';
 import React from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { useStyles2 } from '../../themes';
+import { VizLegendBaseProps, VizLegendItem } from './types';
 import { InlineList } from '../List/InlineList';
 import { List } from '../List/List';
-
+import { css, cx } from 'emotion';
+import { useStyles } from '../../themes';
+import { GrafanaTheme } from '@grafana/data';
 import { VizLegendListItem } from './VizLegendListItem';
-import { VizLegendBaseProps, VizLegendItem } from './types';
 
-export interface Props<T> extends VizLegendBaseProps<T> {}
+export interface Props extends VizLegendBaseProps {}
 
 /**
  * @internal
  */
-export const VizLegendList = <T extends unknown>({
+export const VizLegendList: React.FunctionComponent<Props> = ({
   items,
   itemRenderer,
-  onLabelMouseOver,
-  onLabelMouseOut,
+  onSeriesColorChange,
   onLabelClick,
   placement,
   className,
-  readonly,
-}: Props<T>) => {
-  const styles = useStyles2(getStyles);
+}) => {
+  const styles = useStyles(getStyles);
 
   if (!itemRenderer) {
     /* eslint-disable-next-line react/display-name */
     itemRenderer = (item) => (
-      <VizLegendListItem
-        item={item}
-        onLabelClick={onLabelClick}
-        onLabelMouseOver={onLabelMouseOver}
-        onLabelMouseOut={onLabelMouseOut}
-        readonly={readonly}
-      />
+      <VizLegendListItem item={item} onLabelClick={onLabelClick} onSeriesColorChange={onSeriesColorChange} />
     );
   }
 
-  const getItemKey = (item: VizLegendItem<T>) => `${item.getItemKey ? item.getItemKey() : item.label}`;
+  const getItemKey = (item: VizLegendItem) => `${item.label}`;
 
   switch (placement) {
     case 'right': {
-      const renderItem = (item: VizLegendItem<T>, index: number) => {
+      const renderItem = (item: VizLegendItem, index: number) => {
         return <span className={styles.itemRight}>{itemRenderer!(item, index)}</span>;
       };
 
@@ -56,7 +45,7 @@ export const VizLegendList = <T extends unknown>({
     }
     case 'bottom':
     default: {
-      const renderItem = (item: VizLegendItem<T>, index: number) => {
+      const renderItem = (item: VizLegendItem, index: number) => {
         return <span className={styles.itemBottom}>{itemRenderer!(item, index)}</span>;
       };
 
@@ -84,11 +73,11 @@ export const VizLegendList = <T extends unknown>({
 
 VizLegendList.displayName = 'VizLegendList';
 
-const getStyles = (theme: GrafanaTheme2) => {
+const getStyles = (theme: GrafanaTheme) => {
   const itemStyles = css`
     padding-right: 10px;
     display: flex;
-    font-size: ${theme.typography.bodySmall.fontSize};
+    font-size: ${theme.typography.size.sm};
     white-space: nowrap;
   `;
 
@@ -97,18 +86,18 @@ const getStyles = (theme: GrafanaTheme2) => {
     itemRight: cx(
       itemStyles,
       css`
-        margin-bottom: ${theme.spacing(0.5)};
+        margin-bottom: ${theme.spacing.xs};
       `
     ),
     rightWrapper: css`
-      padding-left: ${theme.spacing(0.5)};
+      padding-left: ${theme.spacing.sm};
     `,
     bottomWrapper: css`
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       width: 100%;
-      padding-left: ${theme.spacing(0.5)};
+      padding-left: ${theme.spacing.md};
     `,
     section: css`
       display: flex;

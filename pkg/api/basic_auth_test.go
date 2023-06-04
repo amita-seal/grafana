@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/macaron.v1"
 )
 
 func TestBasicAuthenticatedRequest(t *testing.T) {
@@ -15,8 +16,11 @@ func TestBasicAuthenticatedRequest(t *testing.T) {
 	const expectedPass = "password"
 
 	t.Run("Given a valid set of basic auth credentials", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "http://localhost:3000/metrics", nil)
+		httpReq, err := http.NewRequest("GET", "http://localhost:3000/metrics", nil)
 		require.NoError(t, err)
+		req := macaron.Request{
+			Request: httpReq,
+		}
 		encodedCreds := encodeBasicAuthCredentials(expectedUser, expectedPass)
 		req.Header.Set("Authorization", fmt.Sprintf("Basic %s", encodedCreds))
 		authenticated := BasicAuthenticatedRequest(req, expectedUser, expectedPass)
@@ -25,8 +29,11 @@ func TestBasicAuthenticatedRequest(t *testing.T) {
 	})
 
 	t.Run("Given an invalid set of basic auth credentials", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "http://localhost:3000/metrics", nil)
+		httpReq, err := http.NewRequest("GET", "http://localhost:3000/metrics", nil)
 		require.NoError(t, err)
+		req := macaron.Request{
+			Request: httpReq,
+		}
 		encodedCreds := encodeBasicAuthCredentials("invaliduser", "invalidpass")
 		req.Header.Set("Authorization", fmt.Sprintf("Basic %s", encodedCreds))
 		authenticated := BasicAuthenticatedRequest(req, expectedUser, expectedPass)

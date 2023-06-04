@@ -1,19 +1,16 @@
-import { useMemo } from 'react';
-import useAsync from 'react-use/lib/useAsync';
-
 import { DataQueryError, DataSourceApi, PanelData, PanelPlugin } from '@grafana/data';
+import useAsync from 'react-use/lib/useAsync';
 import { getDataSourceSrv } from '@grafana/runtime';
-import { t } from 'app/core/internationalization';
-import { DashboardModel, PanelModel } from 'app/features/dashboard/state';
-import { InspectTab } from 'app/features/inspector/types';
-
+import { DashboardModel } from 'app/features/dashboard/state';
+import { useMemo } from 'react';
 import { supportsDataQuery } from '../PanelEditor/utils';
+import { InspectTab } from 'app/features/inspector/types';
 
 /**
  * Given PanelData return first data source supporting metadata inspector
  */
 export const useDatasourceMetadata = (data?: PanelData) => {
-  const state = useAsync(async () => {
+  const state = useAsync<DataSourceApi | undefined>(async () => {
     const targets = data?.request?.targets || [];
 
     if (data && data.series && targets.length) {
@@ -37,31 +34,30 @@ export const useDatasourceMetadata = (data?: PanelData) => {
  * Configures tabs for PanelInspector
  */
 export const useInspectTabs = (
-  panel: PanelModel,
+  plugin: PanelPlugin,
   dashboard: DashboardModel,
-  plugin: PanelPlugin | undefined | null,
   error?: DataQueryError,
   metaDs?: DataSourceApi
 ) => {
   return useMemo(() => {
     const tabs = [];
     if (supportsDataQuery(plugin)) {
-      tabs.push({ label: t('dashboard.inspect.data-tab', 'Data'), value: InspectTab.Data });
-      tabs.push({ label: t('dashboard.inspect.stats-tab', 'Stats'), value: InspectTab.Stats });
+      tabs.push({ label: 'Data', value: InspectTab.Data });
+      tabs.push({ label: 'Stats', value: InspectTab.Stats });
     }
 
     if (metaDs) {
-      tabs.push({ label: t('dashboard.inspect.meta-tab', 'Meta Data'), value: InspectTab.Meta });
+      tabs.push({ label: 'Meta Data', value: InspectTab.Meta });
     }
 
-    tabs.push({ label: t('dashboard.inspect.json-tab', 'JSON'), value: InspectTab.JSON });
+    tabs.push({ label: 'JSON', value: InspectTab.JSON });
 
     if (error && error.message) {
-      tabs.push({ label: t('dashboard.inspect.error-tab', 'Error'), value: InspectTab.Error });
+      tabs.push({ label: 'Error', value: InspectTab.Error });
     }
 
     if (dashboard.meta.canEdit && supportsDataQuery(plugin)) {
-      tabs.push({ label: t('dashboard.inspect.query-tab', 'Query'), value: InspectTab.Query });
+      tabs.push({ label: 'Query', value: InspectTab.Query });
     }
     return tabs;
   }, [plugin, metaDs, dashboard, error]);

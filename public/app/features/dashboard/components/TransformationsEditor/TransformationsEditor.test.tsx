@@ -1,14 +1,11 @@
+import React from 'react';
+import { DataTransformerConfig, standardTransformersRegistry } from '@grafana/data';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import React from 'react';
-
-import { DataTransformerConfig, standardTransformersRegistry } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-import { getStandardTransformers } from 'app/features/transformers/standardTransformers';
-
-import { PanelModel } from '../../state';
-
 import { TransformationsEditor } from './TransformationsEditor';
+import { PanelModel } from '../../state';
+import { getStandardTransformers } from 'app/core/utils/standardTransformers';
+import { selectors } from '@grafana/e2e-selectors';
 
 const setup = (transformations: DataTransformerConfig[] = []) => {
   const panel = new PanelModel({});
@@ -36,13 +33,13 @@ describe('TransformationsEditor', () => {
           options: {},
         },
       ]);
-      const editors = screen.getAllByLabelText(/^Transformation editor/);
+      const editors = screen.getAllByLabelText(/^Transformation editor/g);
       expect(editors).toHaveLength(1);
     });
   });
 
   describe('when Add transformation clicked', () => {
-    it('renders transformations picker', async () => {
+    it('renders transformations picker', () => {
       const buttonLabel = 'Add transformation';
       setup([
         {
@@ -52,7 +49,7 @@ describe('TransformationsEditor', () => {
       ]);
 
       const addTransformationButton = screen.getByText(buttonLabel);
-      await userEvent.click(addTransformationButton);
+      userEvent.click(addTransformationButton);
 
       const search = screen.getByLabelText(selectors.components.Transforms.searchInput);
       expect(search).toBeDefined();
@@ -61,7 +58,7 @@ describe('TransformationsEditor', () => {
 
   describe('actions', () => {
     describe('debug', () => {
-      it('should show/hide debugger', async () => {
+      it('should show/hide debugger', () => {
         setup([
           {
             id: 'reduce',
@@ -73,7 +70,7 @@ describe('TransformationsEditor', () => {
         expect(screen.queryByLabelText(debuggerSelector)).toBeNull();
 
         const debugButton = screen.getByLabelText(selectors.components.QueryEditorRow.actionButton('Debug'));
-        await userEvent.click(debugButton);
+        userEvent.click(debugButton);
 
         expect(screen.getByLabelText(debuggerSelector)).toBeInTheDocument();
       });

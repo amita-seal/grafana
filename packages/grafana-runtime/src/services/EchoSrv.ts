@@ -18,7 +18,6 @@ export interface EchoMeta {
   windowSize: SizeMeta;
   userAgent: string;
   url?: string;
-  path?: string;
   /**
    * A unique browser session
    */
@@ -79,10 +78,7 @@ export interface EchoEvent<T extends EchoEventType = any, P = any> {
 export enum EchoEventType {
   Performance = 'performance',
   MetaAnalytics = 'meta-analytics',
-  Pageview = 'pageview',
-  Interaction = 'interaction',
-  ExperimentView = 'experimentview',
-  GrafanaJavascriptAgent = 'grafana-javascript-agent',
+  Sentry = 'sentry',
 }
 
 /**
@@ -120,13 +116,6 @@ let singletonInstance: EchoSrv;
  * @internal
  */
 export function setEchoSrv(instance: EchoSrv) {
-  // Check if there were any events reported to the FakeEchoSrv (before the main EchoSrv was initialized), and track them
-  if (singletonInstance instanceof FakeEchoSrv) {
-    for (const item of singletonInstance.buffer) {
-      instance.addEvent(item.event, item.meta);
-    }
-  }
-
   singletonInstance = instance;
 }
 
@@ -137,10 +126,6 @@ export function setEchoSrv(instance: EchoSrv) {
  * @public
  */
 export function getEchoSrv(): EchoSrv {
-  if (!singletonInstance) {
-    singletonInstance = new FakeEchoSrv();
-  }
-
   return singletonInstance;
 }
 
@@ -153,17 +138,3 @@ export function getEchoSrv(): EchoSrv {
 export const registerEchoBackend = (backend: EchoBackend) => {
   getEchoSrv().addBackend(backend);
 };
-
-export class FakeEchoSrv implements EchoSrv {
-  buffer: Array<{ event: Omit<EchoEvent, 'meta'>; meta?: {} | undefined }> = [];
-
-  flush(): void {
-    this.buffer = [];
-  }
-
-  addBackend(backend: EchoBackend): void {}
-
-  addEvent<T extends EchoEvent>(event: Omit<T, 'meta'>, meta?: {} | undefined): void {
-    this.buffer.push({ event, meta });
-  }
-}

@@ -1,41 +1,31 @@
-import { css } from '@emotion/css';
-import { noop } from 'lodash';
 import React from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-import { Icon, IconButton, useStyles2 } from '@grafana/ui';
+import noop from 'lodash/noop';
+import { Icon } from '@grafana/ui';
 
 type VersionHistoryHeaderProps = {
+  isComparing?: boolean;
   onClick?: () => void;
   baseVersion?: number;
   newVersion?: number;
   isNewLatest?: boolean;
 };
 
-export const VersionHistoryHeader = ({
+export const VersionHistoryHeader: React.FC<VersionHistoryHeaderProps> = ({
+  isComparing = false,
   onClick = noop,
   baseVersion = 0,
   newVersion = 0,
   isNewLatest = false,
-}: VersionHistoryHeaderProps) => {
-  const styles = useStyles2(getStyles);
-
-  return (
-    <h3 className={styles.header}>
-      <IconButton name="arrow-left" size="xl" onClick={onClick} />
+}) => (
+  <h3 className="dashboard-settings__header">
+    <span onClick={onClick} className={isComparing ? 'pointer' : ''}>
+      Versions
+    </span>
+    {isComparing && (
       <span>
-        Comparing {baseVersion} <Icon name="arrows-h" /> {newVersion}{' '}
+        <Icon name="angle-right" /> Comparing {baseVersion} <Icon name="arrows-h" /> {newVersion}{' '}
         {isNewLatest && <cite className="muted">(Latest)</cite>}
       </span>
-    </h3>
-  );
-};
-
-const getStyles = (theme: GrafanaTheme2) => ({
-  header: css`
-    font-size: ${theme.typography.h3.fontSize};
-    display: flex;
-    gap: ${theme.spacing(2)};
-    margin-bottom: ${theme.spacing(3)};
-  `,
-});
+    )}
+  </h3>
+);

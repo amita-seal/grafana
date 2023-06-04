@@ -1,6 +1,3 @@
-import { DashboardSrv } from '../dashboard/services/DashboardSrv';
-import { DatasourceSrv } from '../plugins/datasource_srv';
-
 import { AlertTabCtrl } from './AlertTabCtrl';
 
 interface Args {
@@ -19,9 +16,9 @@ function setupTestContext({ notifications = [] }: Args = {}) {
       render: jest.fn(),
     },
   };
-  const dashboardSrv = {} as DashboardSrv;
-  const uiSegmentSrv = {};
-  const datasourceSrv = {} as DatasourceSrv;
+  const dashboardSrv: any = {};
+  const uiSegmentSrv: any = {};
+  const datasourceSrv: any = {};
 
   const controller = new AlertTabCtrl($scope, dashboardSrv, uiSegmentSrv, datasourceSrv);
   controller.notifications = notifications;

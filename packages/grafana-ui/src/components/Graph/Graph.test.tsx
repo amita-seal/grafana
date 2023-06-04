@@ -1,15 +1,8 @@
-import { act, render, screen } from '@testing-library/react';
-import $ from 'jquery';
 import React from 'react';
-
-import { GraphSeriesXY, FieldType, dateTime, FieldColorModeId, DisplayProcessor } from '@grafana/data';
-import { TooltipDisplayMode } from '@grafana/schema';
-
-import { VizTooltip } from '../VizTooltip';
-
+import { mount } from 'enzyme';
 import Graph from './Graph';
-
-const display: DisplayProcessor = (v) => ({ numeric: Number(v), text: String(v), color: 'red' });
+import Chart from '../Chart';
+import { GraphSeriesXY, FieldType, ArrayVector, dateTime, FieldColorModeId } from '@grafana/data';
 
 const series: GraphSeriesXY[] = [
   {
@@ -25,15 +18,14 @@ const series: GraphSeriesXY[] = [
     timeField: {
       type: FieldType.time,
       name: 'time',
-      values: [1546372800000, 1546376400000, 1546380000000],
+      values: new ArrayVector([1546372800000, 1546376400000, 1546380000000]),
       config: {},
     },
     valueField: {
       type: FieldType.number,
       name: 'a-series',
-      values: [10, 20, 10],
+      values: new ArrayVector([10, 20, 10]),
       config: { color: { mode: FieldColorModeId.Fixed, fixedColor: 'red' } },
-      display,
     },
     timeStep: 3600000,
     yAxis: {
@@ -53,15 +45,14 @@ const series: GraphSeriesXY[] = [
     timeField: {
       type: FieldType.time,
       name: 'time',
-      values: [1546372800000, 1546376400000, 1546380000000],
+      values: new ArrayVector([1546372800000, 1546376400000, 1546380000000]),
       config: {},
     },
     valueField: {
       type: FieldType.number,
       name: 'b-series',
-      values: [20, 30, 40],
+      values: new ArrayVector([20, 30, 40]),
       config: { color: { mode: FieldColorModeId.Fixed, fixedColor: 'blue' } },
-      display,
     },
     timeStep: 3600000,
     yAxis: {
@@ -89,10 +80,9 @@ const mockGraphProps = (multiSeries = false) => {
   };
 };
 
-window.ResizeObserver = class ResizeObserver {
+(window as any).ResizeObserver = class ResizeObserver {
   constructor() {}
   observe() {}
-  unobserve() {}
   disconnect() {}
 };
 
@@ -102,30 +92,30 @@ describe('Graph', () => {
       it("doesn't render tooltip when not hovering over a datapoint", () => {
         const graphWithTooltip = (
           <Graph {...mockGraphProps()}>
-            <VizTooltip mode={TooltipDisplayMode.Single} />
+            <Chart.Tooltip mode="single" />
           </Graph>
         );
-        render(graphWithTooltip);
 
-        const timestamp = screen.queryByLabelText('Timestamp');
-        const tableRow = screen.queryByTestId('SeriesTableRow');
-        const seriesIcon = screen.queryByTestId('series-icon');
-
-        expect(timestamp).toBeFalsy();
-        expect(timestamp?.parentElement).toBeFalsy();
-        expect(tableRow?.parentElement).toBeFalsy();
-        expect(seriesIcon).toBeFalsy();
+        const container = mount(graphWithTooltip);
+        const tooltip = container.find('GraphTooltip');
+        expect(tooltip).toHaveLength(0);
       });
 
       it('renders tooltip when hovering over a datapoint', () => {
         // Given
         const graphWithTooltip = (
           <Graph {...mockGraphProps()}>
-            <VizTooltip mode={TooltipDisplayMode.Single} />
+            <Chart.Tooltip mode="single" />
           </Graph>
         );
-        render(graphWithTooltip);
-        const eventArgs = {
+        const container = mount(graphWithTooltip);
+
+        // When
+        // Simulating state set by $.flot plothover event when interacting with the canvas with Graph
+        // Unfortunately I haven't found a way to perfom the actual mouse hover interaction in JSDOM, hence I'm simulating the state
+        container.setState({
+          isTooltipVisible: true,
+          // This "is" close by middle point, Flot would have pick the middle point at this position
           pos: {
             x: 120,
             y: 50,
@@ -135,15 +125,18 @@ describe('Graph', () => {
             dataIndex: 1,
             series: { seriesIndex: 0 },
           },
-        };
-        act(() => {
-          $('div.graph-panel__chart').trigger('plothover', [eventArgs.pos, eventArgs.activeItem]);
         });
-        const timestamp = screen.getByLabelText('Timestamp');
-        const tooltip = screen.getByTestId('SeriesTableRow').parentElement;
 
-        expect(timestamp.parentElement?.isEqualNode(tooltip)).toBe(true);
-        expect(screen.getAllByTestId('series-icon')).toHaveLength(1);
+        // Then
+        const tooltip = container.find('GraphTooltip');
+        const time = tooltip.find("[aria-label='Timestamp']");
+        // Each series should have icon rendered by default GraphTooltip component
+        // We are using this to make sure correct amount of series were rendered
+        const seriesIcons = tooltip.find('SeriesIcon');
+
+        expect(time).toHaveLength(1);
+        expect(tooltip).toHaveLength(1);
+        expect(seriesIcons).toHaveLength(1);
       });
     });
 
@@ -152,33 +145,30 @@ describe('Graph', () => {
         // Given
         const graphWithTooltip = (
           <Graph {...mockGraphProps(true)}>
-            <VizTooltip mode={TooltipDisplayMode.Multi} />
+            <Chart.Tooltip mode="multi" />
           </Graph>
         );
-        render(graphWithTooltip);
+        const container = mount(graphWithTooltip);
 
         // When
-        const eventArgs = {
+        container.setState({
+          isTooltipVisible: true,
           // This "is" more or less between first and middle point. Flot would not have picked any point as active one at this position
           pos: {
             x: 80,
             y: 50,
           },
           activeItem: null,
-        };
-        // Then
-        act(() => {
-          $('div.graph-panel__chart').trigger('plothover', [eventArgs.pos, eventArgs.activeItem]);
         });
-        const timestamp = screen.getByLabelText('Timestamp');
 
-        const tableRows = screen.getAllByTestId('SeriesTableRow');
-        expect(tableRows).toHaveLength(2);
-        expect(timestamp.parentElement?.isEqualNode(tableRows[0].parentElement)).toBe(true);
-        expect(timestamp.parentElement?.isEqualNode(tableRows[1].parentElement)).toBe(true);
+        // Then
+        const tooltip = container.find('GraphTooltip');
+        const time = tooltip.find("[aria-label='Timestamp']");
+        const seriesIcons = tooltip.find('SeriesIcon');
 
-        const seriesIcon = screen.getAllByTestId('series-icon');
-        expect(seriesIcon).toHaveLength(2);
+        expect(time).toHaveLength(1);
+        expect(tooltip).toHaveLength(1);
+        expect(seriesIcons).toHaveLength(2);
       });
     });
   });

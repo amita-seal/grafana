@@ -1,6 +1,5 @@
-import { PanelModel } from '@grafana/data';
-
 import { sharedSingleStatMigrationHandler, sharedSingleStatPanelChangedHandler } from './SingleStatBaseOptions';
+import { PanelModel } from '@grafana/data';
 
 describe('sharedSingleStatMigrationHandler', () => {
   it('from old valueOptions model without pluginVersion', () => {
@@ -38,14 +37,14 @@ describe('sharedSingleStatMigrationHandler', () => {
 
     sharedSingleStatMigrationHandler(panel as any);
     expect((panel as any).fieldConfig).toMatchInlineSnapshot(`
-      {
-        "defaults": {
-          "color": {
+      Object {
+        "defaults": Object {
+          "color": Object {
             "mode": "thresholds",
           },
           "decimals": 5,
-          "mappings": [
-            {
+          "mappings": Array [
+            Object {
               "text": "OK",
               "type": 1,
               "value": "1",
@@ -53,20 +52,20 @@ describe('sharedSingleStatMigrationHandler', () => {
           ],
           "max": 100,
           "min": 10,
-          "thresholds": {
+          "thresholds": Object {
             "mode": "absolute",
-            "steps": [
-              {
+            "steps": Array [
+              Object {
                 "color": "green",
                 "index": 0,
                 "value": -Infinity,
               },
-              {
+              Object {
                 "color": "orange",
                 "index": 1,
                 "value": 40,
               },
-              {
+              Object {
                 "color": "red",
                 "index": 2,
                 "value": 80,
@@ -75,7 +74,7 @@ describe('sharedSingleStatMigrationHandler', () => {
           },
           "unit": "watt",
         },
-        "overrides": [],
+        "overrides": Array [],
       }
     `);
   });
@@ -110,12 +109,12 @@ describe('sharedSingleStatMigrationHandler', () => {
     sharedSingleStatMigrationHandler(panel as any);
 
     expect((panel as any).fieldConfig).toMatchInlineSnapshot(`
-      {
-        "defaults": {
+      Object {
+        "defaults": Object {
           "mappings": undefined,
           "thresholds": undefined,
         },
-        "overrides": [],
+        "overrides": Array [],
       }
     `);
   });
@@ -145,14 +144,14 @@ describe('sharedSingleStatMigrationHandler', () => {
 
     sharedSingleStatMigrationHandler(panel as any);
     expect((panel as any).fieldConfig).toMatchInlineSnapshot(`
-      {
-        "defaults": {
+      Object {
+        "defaults": Object {
           "mappings": undefined,
           "max": 100,
           "min": 0,
           "thresholds": undefined,
         },
-        "overrides": [],
+        "overrides": Array [],
       }
     `);
   });
@@ -181,7 +180,7 @@ describe('sharedSingleStatMigrationHandler', () => {
   });
 
   it('change from angular singlestat with no enabled gauge', () => {
-    const old = {
+    const old: any = {
       angular: {
         format: 'ms',
         decimals: 7,
@@ -200,7 +199,7 @@ describe('sharedSingleStatMigrationHandler', () => {
   });
 
   it('change from angular singlestat with tableColumn set', () => {
-    const old = {
+    const old: any = {
       angular: {
         tableColumn: 'info',
       },
@@ -212,7 +211,7 @@ describe('sharedSingleStatMigrationHandler', () => {
   });
 
   it('change from angular singlestat with no enabled gauge', () => {
-    const old = {
+    const old: any = {
       angular: {
         format: 'ms',
         decimals: 7,
@@ -229,23 +228,5 @@ describe('sharedSingleStatMigrationHandler', () => {
     expect(panel.fieldConfig.defaults.unit).toBe('ms');
     expect(panel.fieldConfig.defaults.min).toBe(undefined);
     expect(panel.fieldConfig.defaults.max).toBe(undefined);
-  });
-
-  it('auto set min/max for percent units before 8.0', () => {
-    const panel = {
-      options: {
-        fieldOptions: {
-          defaults: {
-            unit: 'percentunit',
-          },
-        },
-      },
-      title: 'Usage',
-      type: 'bargauge',
-    } as unknown as PanelModel;
-    sharedSingleStatMigrationHandler(panel as any);
-    expect(panel.fieldConfig.defaults.unit).toBe('percentunit');
-    expect(panel.fieldConfig.defaults.min).toBe(0);
-    expect(panel.fieldConfig.defaults.max).toBe(1);
   });
 });

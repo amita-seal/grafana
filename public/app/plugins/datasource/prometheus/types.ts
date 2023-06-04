@@ -1,55 +1,35 @@
-import { DataSourceJsonData, QueryResultMeta, ScopedVars } from '@grafana/data';
-import { DataQuery } from '@grafana/schema';
+import { DataQuery, DataSourceJsonData, QueryResultMeta, ScopedVars } from '@grafana/data';
+import { FetchError } from '@grafana/runtime';
 
-import { PromApplication } from '../../../types/unified-alerting-dto';
-
-import { Prometheus as GenPromQuery } from './dataquery.gen';
-import { QueryEditorMode } from './querybuilder/shared/types';
-
-export interface PromQuery extends GenPromQuery, DataQuery {
-  /**
-   * Timezone offset to align start & end time on backend
-   */
-  utcOffsetSec?: number;
-  valueWithRefId?: boolean;
-  showingGraph?: boolean;
-  showingTable?: boolean;
+export interface PromQuery extends DataQuery {
+  expr: string;
+  format?: string;
+  instant?: boolean;
+  range?: boolean;
+  exemplar?: boolean;
   hinting?: boolean;
   interval?: string;
-  // store the metrics modal additional settings
-  useBackend?: boolean;
-  disableTextWrap?: boolean;
-  fullMetaSearch?: boolean;
-  includeNullMetadata?: boolean;
-}
-
-export enum PrometheusCacheLevel {
-  Low = 'Low',
-  Medium = 'Medium',
-  High = 'High',
-  None = 'None',
+  intervalFactor?: number;
+  legendFormat?: string;
+  valueWithRefId?: boolean;
+  requestId?: string;
+  showingGraph?: boolean;
+  showingTable?: boolean;
 }
 
 export interface PromOptions extends DataSourceJsonData {
-  timeInterval?: string;
-  queryTimeout?: string;
-  httpMethod?: string;
-  directUrl?: string;
+  timeInterval: string;
+  queryTimeout: string;
+  httpMethod: string;
+  directUrl: string;
   customQueryParameters?: string;
   disableMetricsLookup?: boolean;
   exemplarTraceIdDestinations?: ExemplarTraceIdDestination[];
-  prometheusType?: PromApplication;
-  prometheusVersion?: string;
-  cacheLevel?: PrometheusCacheLevel;
-  defaultEditor?: QueryEditorMode;
-  incrementalQuerying?: boolean;
-  incrementalQueryOverlapWindow?: string;
 }
 
 export type ExemplarTraceIdDestination = {
   name: string;
   url?: string;
-  urlDisplayLabel?: string;
   datasourceUid?: string;
 };
 
@@ -68,7 +48,7 @@ export interface PromMetricsMetadataItem {
 }
 
 export interface PromMetricsMetadata {
-  [metric: string]: PromMetricsMetadataItem;
+  [metric: string]: PromMetricsMetadataItem[];
 }
 
 export interface PromDataSuccessResponse<T = PromData> {
@@ -125,8 +105,11 @@ export type PromValue = [number, any];
 
 export interface PromMetric {
   __name__?: string;
-
   [index: string]: any;
+}
+
+export function isFetchErrorResponse(response: any): response is FetchError {
+  return 'cancelled' in response;
 }
 
 export function isMatrixData(result: MatrixOrVectorResult): result is PromMatrixData['result'][0] {
@@ -163,37 +146,3 @@ export interface PromLabelQueryResponse {
   };
   cancelled?: boolean;
 }
-
-/**
- * Auto = query.legendFormat == '__auto'
- * Verbose = query.legendFormat == null/undefined/''
- * Custom query.legendFormat.length > 0 && query.legendFormat !== '__auto'
- */
-export enum LegendFormatMode {
-  Auto = '__auto',
-  Verbose = '__verbose',
-  Custom = '__custom',
-}
-
-export enum PromVariableQueryType {
-  LabelNames,
-  LabelValues,
-  MetricNames,
-  VarQueryResult,
-  SeriesQuery,
-}
-
-export interface PromVariableQuery extends DataQuery {
-  query?: string;
-  expr?: string;
-  qryType?: PromVariableQueryType;
-  label?: string;
-  metric?: string;
-  varQuery?: string;
-  seriesQuery?: string;
-}
-
-export type StandardPromVariableQuery = {
-  query: string;
-  refId: string;
-};

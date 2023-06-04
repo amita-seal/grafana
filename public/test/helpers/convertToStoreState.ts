@@ -1,12 +1,12 @@
-import { getPreloadedState } from '../../app/features/variables/state/helpers';
 import { StoreState } from '../../app/types';
 
-export const convertToStoreState = (key: string, models: any[]): StoreState => {
-  const variables = models.reduce((byName, variable) => {
-    byName[variable.name] = variable;
-    return byName;
-  }, {});
+export const convertToStoreState = (variables: any[]): StoreState => {
   return {
-    ...getPreloadedState(key, { variables }),
+    templating: {
+      variables: variables.reduce((byName, variable) => {
+        byName[variable.name] = variable;
+        return byName;
+      }, {}),
+    },
   } as StoreState;
 };

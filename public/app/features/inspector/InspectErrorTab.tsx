@@ -1,77 +1,22 @@
 import React from 'react';
-
 import { DataQueryError } from '@grafana/data';
-import { config } from '@grafana/runtime';
-import { Alert, JSONFormatter } from '@grafana/ui';
+import { JSONFormatter } from '@grafana/ui';
 
 interface InspectErrorTabProps {
-  errors?: DataQueryError[];
+  error?: DataQueryError;
 }
 
-const parseErrorMessage = (message: string): { msg: string; json?: any } => {
-  try {
-    const [msg, json] = message.split(/(\{.+)/);
-    const jsonError = JSON.parse(json);
-    return {
-      msg,
-      json: jsonError,
-    };
-  } catch {
-    return { msg: message };
+export const InspectErrorTab: React.FC<InspectErrorTabProps> = ({ error }) => {
+  if (!error) {
+    return null;
   }
-};
-
-function renderError(error: DataQueryError) {
   if (error.data) {
     return (
       <>
-        <h4>{error.data.message}</h4>
+        <h3>{error.data.message}</h3>
         <JSONFormatter json={error} open={2} />
       </>
     );
   }
-  if (error.message) {
-    const { msg, json } = parseErrorMessage(error.message);
-    if (!json) {
-      return (
-        <>
-          {error.status && <>Status: {error.status}. Message: </>}
-          {msg}
-          {config.featureToggles.showTraceId && error.traceId != null && (
-            <>
-              <br />
-              (Trace ID: {error.traceId})
-            </>
-          )}
-        </>
-      );
-    } else {
-      return (
-        <>
-          {msg !== '' && <h3>{msg}</h3>}
-          {error.status && <>Status: {error.status}</>}
-          <JSONFormatter json={json} open={5} />
-        </>
-      );
-    }
-  }
-  return <JSONFormatter json={error} open={2} />;
-}
-
-export const InspectErrorTab = ({ errors }: InspectErrorTabProps) => {
-  if (!errors?.length) {
-    return null;
-  }
-  if (errors.length === 1) {
-    return renderError(errors[0]);
-  }
-  return (
-    <>
-      {errors.map((error, index) => (
-        <Alert title={error.refId || `Query ${index + 1}`} severity="error" key={index}>
-          {renderError(error)}
-        </Alert>
-      ))}
-    </>
-  );
+  return <div>{error.message}</div>;
 };

@@ -1,13 +1,12 @@
-import React, { useEffect } from 'react';
-import useAsyncFn from 'react-use/lib/useAsyncFn';
-
-import { getBackendSrv, isFetchError } from '@grafana/runtime';
+import React, { FC, useEffect } from 'react';
+import { getNavModel } from 'app/core/selectors/navModel';
+import Page from 'app/core/components/Page/Page';
+import { useSelector } from 'react-redux';
+import { StoreState } from 'app/types/store';
 import { LinkButton } from '@grafana/ui';
-import { Page } from 'app/core/components/Page/Page';
-import { contextSrv } from 'app/core/services/context_srv';
-import { AccessControlAction } from 'app/types';
-
+import { getBackendSrv } from '@grafana/runtime';
 import { AdminOrgsTable } from './AdminOrgsTable';
+import useAsyncFn from 'react-use/lib/useAsyncFn';
 
 const deleteOrg = async (orgId: number) => {
   return await getBackendSrv().delete('/api/orgs/' + orgId);
@@ -17,30 +16,27 @@ const getOrgs = async () => {
   return await getBackendSrv().get('/api/orgs');
 };
 
-const getErrorMessage = (error: Error) => {
-  return isFetchError(error) ? error?.data?.message : 'An unexpected error happened.';
-};
-
-export default function AdminListOrgsPages() {
+export const AdminListOrgsPages: FC = () => {
+  const navIndex = useSelector((state: StoreState) => state.navIndex);
+  const navModel = getNavModel(navIndex, 'global-orgs');
   const [state, fetchOrgs] = useAsyncFn(async () => await getOrgs(), []);
-  const canCreateOrg = contextSrv.hasPermission(AccessControlAction.OrgsCreate);
 
   useEffect(() => {
     fetchOrgs();
-  }, [fetchOrgs]);
+  }, []);
 
   return (
-    <Page navId="global-orgs">
+    <Page navModel={navModel}>
       <Page.Contents>
         <>
           <div className="page-action-bar">
             <div className="page-action-bar__spacer" />
-            <LinkButton icon="plus" href="org/new" disabled={!canCreateOrg}>
+            <LinkButton icon="plus" href="org/new">
               New org
             </LinkButton>
           </div>
-          {state.error && getErrorMessage(state.error)}
           {state.loading && 'Fetching organizations'}
+          {state.error}
           {state.value && (
             <AdminOrgsTable
               orgs={state.value}
@@ -53,4 +49,6 @@ export default function AdminListOrgsPages() {
       </Page.Contents>
     </Page>
   );
-}
+};
+
+export default AdminListOrgsPages;

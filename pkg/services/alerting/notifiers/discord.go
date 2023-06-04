@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/notifications"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
@@ -26,15 +26,8 @@ func init() {
 		Heading:     "Discord settings",
 		Options: []alerting.NotifierOption{
 			{
-				Label:        "Avatar URL",
-				Element:      alerting.ElementTypeInput,
-				InputType:    alerting.InputTypeText,
-				Description:  "Provide a URL to an image to use as the avatar for the bot's message",
-				PropertyName: "avatar_url",
-			},
-			{
 				Label:        "Message Content",
-				Description:  "Mention a group using <@&ID> or a user using <@ID> when notifying in a channel",
+				Description:  "Mention a group using @ or a user using <@ID> when notifying in a channel",
 				Element:      alerting.ElementTypeInput,
 				InputType:    alerting.InputTypeText,
 				PropertyName: "content",
@@ -47,32 +40,22 @@ func init() {
 				PropertyName: "url",
 				Required:     true,
 			},
-			{
-				Label:        "Use Discord's Webhook Username",
-				Description:  "Use the username configured in Discord's webhook settings. Otherwise, the username will be 'Grafana'",
-				Element:      alerting.ElementTypeCheckbox,
-				PropertyName: "use_discord_username",
-			},
 		},
 	})
 }
 
-func newDiscordNotifier(model *models.AlertNotification, _ alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
-	avatar := model.Settings.Get("avatar_url").MustString()
+func newDiscordNotifier(model *models.AlertNotification) (alerting.Notifier, error) {
 	content := model.Settings.Get("content").MustString()
 	url := model.Settings.Get("url").MustString()
 	if url == "" {
 		return nil, alerting.ValidationError{Reason: "Could not find webhook url property in settings"}
 	}
-	useDiscordUsername := model.Settings.Get("use_discord_username").MustBool(false)
 
 	return &DiscordNotifier{
-		NotifierBase:       NewNotifierBase(model, ns),
-		Content:            content,
-		AvatarURL:          avatar,
-		WebhookURL:         url,
-		log:                log.New("alerting.notifier.discord"),
-		UseDiscordUsername: useDiscordUsername,
+		NotifierBase: NewNotifierBase(model),
+		Content:      content,
+		WebhookURL:   url,
+		log:          log.New("alerting.notifier.discord"),
 	}, nil
 }
 
@@ -80,11 +63,9 @@ func newDiscordNotifier(model *models.AlertNotification, _ alerting.GetDecrypted
 // notifications to discord.
 type DiscordNotifier struct {
 	NotifierBase
-	Content            string
-	AvatarURL          string
-	WebhookURL         string
-	log                log.Logger
-	UseDiscordUsername bool
+	Content    string
+	WebhookURL string
+	log        log.Logger
 }
 
 // Notify send an alert notification to Discord.
@@ -98,16 +79,10 @@ func (dn *DiscordNotifier) Notify(evalContext *alerting.EvalContext) error {
 	}
 
 	bodyJSON := simplejson.New()
-	if !dn.UseDiscordUsername {
-		bodyJSON.Set("username", "Grafana")
-	}
+	bodyJSON.Set("username", "Grafana")
 
 	if dn.Content != "" {
 		bodyJSON.Set("content", dn.Content)
-	}
-
-	if dn.AvatarURL != "" {
-		bodyJSON.Set("avatar_url", dn.AvatarURL)
 	}
 
 	fields := make([]map[string]interface{}, 0)
@@ -124,7 +99,7 @@ func (dn *DiscordNotifier) Notify(evalContext *alerting.EvalContext) error {
 
 	footer := map[string]interface{}{
 		"text":     "Grafana v" + setting.BuildVersion,
-		"icon_url": "https://grafana.com/static/assets/img/fav32.png",
+		"icon_url": "https://grafana.com/assets/img/fav32.png",
 	}
 
 	color, _ := strconv.ParseInt(strings.TrimLeft(evalContext.GetStateModel().Color, "#"), 16, 0)
@@ -161,7 +136,7 @@ func (dn *DiscordNotifier) Notify(evalContext *alerting.EvalContext) error {
 
 	json, _ := bodyJSON.MarshalJSON()
 
-	cmd := &notifications.SendWebhookSync{
+	cmd := &models.SendWebhookSync{
 		Url:         dn.WebhookURL,
 		HttpMethod:  "POST",
 		ContentType: "application/json",
@@ -177,7 +152,7 @@ func (dn *DiscordNotifier) Notify(evalContext *alerting.EvalContext) error {
 		}
 	}
 
-	if err := dn.NotificationService.SendWebhookSync(evalContext.Ctx, cmd); err != nil {
+	if err := bus.DispatchCtx(evalContext.Ctx, cmd); err != nil {
 		dn.log.Error("Failed to send notification to Discord", "error", err)
 		return err
 	}
@@ -185,7 +160,7 @@ func (dn *DiscordNotifier) Notify(evalContext *alerting.EvalContext) error {
 	return nil
 }
 
-func (dn *DiscordNotifier) embedImage(cmd *notifications.SendWebhookSync, imagePath string, existingJSONBody []byte) error {
+func (dn *DiscordNotifier) embedImage(cmd *models.SendWebhookSync, imagePath string, existingJSONBody []byte) error {
 	// nolint:gosec
 	// We can ignore the gosec G304 warning on this one because `imagePath` comes
 	// from the alert `evalContext` that generates the images.

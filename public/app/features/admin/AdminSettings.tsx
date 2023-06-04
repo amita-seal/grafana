@@ -1,23 +1,51 @@
 import React from 'react';
-import { useAsync } from 'react-use';
+import { connect } from 'react-redux';
+import { hot } from 'react-hot-loader';
 
 import { getBackendSrv } from '@grafana/runtime';
-import { Page } from 'app/core/components/Page/Page';
+import { NavModel } from '@grafana/data';
+
+import { StoreState } from 'app/types';
+import { getNavModel } from 'app/core/selectors/navModel';
+import Page from 'app/core/components/Page/Page';
 
 type Settings = { [key: string]: { [key: string]: string } };
 
-function AdminSettings() {
-  const { loading, value: settings } = useAsync(() => getBackendSrv().get<Settings>('/api/admin/settings'), []);
+interface Props {
+  navModel: NavModel;
+}
 
-  return (
-    <Page navId="server-settings">
-      <Page.Contents isLoading={loading}>
-        <div className="grafana-info-box span8" style={{ margin: '20px 0 25px 0' }}>
-          These system settings are defined in grafana.ini or custom.ini (or overridden in ENV variables). To change
-          these you currently need to restart Grafana.
-        </div>
+interface State {
+  settings: Settings;
+  isLoading: boolean;
+}
 
-        {settings && (
+export class AdminSettings extends React.PureComponent<Props, State> {
+  state: State = {
+    settings: {},
+    isLoading: true,
+  };
+
+  async componentDidMount() {
+    const settings: Settings = await getBackendSrv().get('/api/admin/settings');
+    this.setState({
+      settings,
+      isLoading: false,
+    });
+  }
+
+  render() {
+    const { settings, isLoading } = this.state;
+    const { navModel } = this.props;
+
+    return (
+      <Page navModel={navModel}>
+        <Page.Contents isLoading={isLoading}>
+          <div className="grafana-info-box span8" style={{ margin: '20px 0 25px 0' }}>
+            These system settings are defined in grafana.ini or custom.ini (or overridden in ENV variables). To change
+            these you currently need to restart grafana.
+          </div>
+
           <table className="filter-table">
             <tbody>
               {Object.entries(settings).map(([sectionName, sectionSettings], i) => (
@@ -36,10 +64,14 @@ function AdminSettings() {
               ))}
             </tbody>
           </table>
-        )}
-      </Page.Contents>
-    </Page>
-  );
+        </Page.Contents>
+      </Page>
+    );
+  }
 }
 
-export default AdminSettings;
+const mapStateToProps = (state: StoreState) => ({
+  navModel: getNavModel(state.navIndex, 'server-settings'),
+});
+
+export default hot(module)(connect(mapStateToProps)(AdminSettings));

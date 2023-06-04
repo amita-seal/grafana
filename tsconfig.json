@@ -3,14 +3,14 @@
     "jsx": "react",
     "baseUrl": "public/",
     "outDir": "public/dist",
+    "paths": {
+      "app": ["app/"],
+      "sass": ["sass/"]
+    },
     "rootDirs": ["public/"],
+    "typeRoots": ["node_modules/@types", "public/app/types"],
     "allowJs": true,
-    "strict": true,
-    "resolveJsonModule": true,
-    "useUnknownInCatchVariables": true,
-    "incremental": true,
-    "tsBuildInfoFile": "./tsconfig.tsbuildinfo",
-    "preserveSymlinks": true
+    "strictNullChecks": true
   },
   "extends": "@grafana/tsconfig/base.json",
   "include": [
@@ -18,7 +18,7 @@
     "public/e2e-test/**/*.ts",
     "public/test/**/*.ts",
     "public/vendor/**/*.ts",
-    "packages/grafana-data/typings",
-    "packages/grafana-ui/src/types"
+    "packages/jaeger-ui-components/typings",
+    "packages/grafana-data/typings"
   ]
 }

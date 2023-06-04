@@ -4,147 +4,141 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 
-	"github.com/grafana/grafana/pkg/tsdb/tempo/kinds/dataquery"
-
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"go.opentelemetry.io/collector/model/otlp"
-
-	"github.com/grafana/grafana/pkg/infra/httpclient"
 	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/tsdb"
+
+	jaeger "github.com/jaegertracing/jaeger/model"
+	jaeger_json "github.com/jaegertracing/jaeger/model/converter/json"
+
+	ot_pdata "go.opentelemetry.io/collector/consumer/pdata"
+	ot_jaeger "go.opentelemetry.io/collector/translator/trace/jaeger"
 )
 
-type Service struct {
-	im   instancemgmt.InstanceManager
-	tlog log.Logger
+type tempoExecutor struct {
+	httpClient *http.Client
 }
 
-func ProvideService(httpClientProvider httpclient.Provider) *Service {
-	return &Service{
-		tlog: log.New("tsdb.tempo"),
-		im:   datasource.NewInstanceManager(newInstanceSettings(httpClientProvider)),
-	}
-}
-
-type datasourceInfo struct {
-	HTTPClient *http.Client
-	URL        string
-}
-
-func newInstanceSettings(httpClientProvider httpclient.Provider) datasource.InstanceFactoryFunc {
-	return func(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-		opts, err := settings.HTTPClientOptions()
-		if err != nil {
-			return nil, err
-		}
-
-		client, err := httpClientProvider.New(opts)
-		if err != nil {
-			return nil, err
-		}
-
-		model := &datasourceInfo{
-			HTTPClient: client,
-			URL:        settings.URL,
-		}
-		return model, nil
-	}
-}
-
-func (s *Service) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	result := backend.NewQueryDataResponse()
-	queryRes := backend.DataResponse{}
-	refID := req.Queries[0].RefID
-
-	model := &dataquery.TempoQuery{}
-	err := json.Unmarshal(req.Queries[0].JSON, model)
-	if err != nil {
-		return result, err
-	}
-
-	dsInfo, err := s.getDSInfo(ctx, req.PluginContext)
+// NewExecutor returns a tempoExecutor.
+func NewExecutor(dsInfo *models.DataSource) (tsdb.TsdbQueryEndpoint, error) {
+	httpClient, err := dsInfo.GetHttpClient()
 	if err != nil {
 		return nil, err
 	}
 
-	request, err := s.createRequest(ctx, dsInfo, model.Query, req.Queries[0].TimeRange.From.Unix(), req.Queries[0].TimeRange.To.Unix())
+	return &tempoExecutor{
+		httpClient: httpClient,
+	}, nil
+}
+
+var (
+	tlog log.Logger
+)
+
+func init() {
+	tlog = log.New("tsdb.tempo")
+	tsdb.RegisterTsdbQueryEndpoint("tempo", NewExecutor)
+}
+
+func (e *tempoExecutor) Query(ctx context.Context, dsInfo *models.DataSource,
+	queryContext *tsdb.TsdbQuery) (*tsdb.Response, error) {
+	refID := queryContext.Queries[0].RefId
+	queryResult := &tsdb.QueryResult{}
+	traceID := queryContext.Queries[0].Model.Get("query").MustString("")
+
+	req, err := e.createRequest(ctx, dsInfo, traceID)
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 
-	resp, err := dsInfo.HTTPClient.Do(request)
+	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		return result, fmt.Errorf("failed get to tempo: %w", err)
+		return nil, fmt.Errorf("failed get to tempo: %w", err)
 	}
 
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			s.tlog.FromContext(ctx).Warn("failed to close response body", "err", err)
+			tlog.Warn("failed to close response body", "err", err)
 		}
 	}()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return &backend.QueryDataResponse{}, err
+		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		queryRes.Error = fmt.Errorf("failed to get trace with id: %s Status: %s Body: %s", model.Query, resp.Status, string(body))
-		result.Responses[refID] = queryRes
-		return result, nil
+		queryResult.ErrorString = fmt.Sprintf("failed to get trace with id: %s Status: %s Body: %s", traceID, resp.Status, string(body))
+		return &tsdb.Response{
+			Results: map[string]*tsdb.QueryResult{
+				refID: queryResult,
+			},
+		}, nil
 	}
 
-	otTrace, err := otlp.NewProtobufTracesUnmarshaler().UnmarshalTraces(body)
-
+	otTrace := ot_pdata.NewTraces()
+	err = otTrace.FromOtlpProtoBytes(body)
 	if err != nil {
-		return &backend.QueryDataResponse{}, fmt.Errorf("failed to convert tempo response to Otlp: %w", err)
+		return nil, fmt.Errorf("failed to convert tempo response to Otlp: %w", err)
 	}
 
-	frame, err := TraceToFrame(otTrace)
+	jaegerBatches, err := ot_jaeger.InternalTracesToJaegerProto(otTrace)
 	if err != nil {
-		return &backend.QueryDataResponse{}, fmt.Errorf("failed to transform trace %v to data frame: %w", model.Query, err)
+		return nil, fmt.Errorf("failed to translate to jaegerBatches %v: %w", traceID, err)
 	}
-	frame.RefID = refID
-	frames := []*data.Frame{frame}
-	queryRes.Frames = frames
-	result.Responses[refID] = queryRes
-	return result, nil
+
+	jaegerTrace := &jaeger.Trace{
+		Spans:      []*jaeger.Span{},
+		ProcessMap: []jaeger.Trace_ProcessMapping{},
+	}
+
+	// otel proto conversion doesn't set jaeger processes
+	for _, batch := range jaegerBatches {
+		for _, s := range batch.Spans {
+			s.Process = batch.Process
+		}
+
+		jaegerTrace.Spans = append(jaegerTrace.Spans, batch.Spans...)
+		jaegerTrace.ProcessMap = append(jaegerTrace.ProcessMap, jaeger.Trace_ProcessMapping{
+			Process:   *batch.Process,
+			ProcessID: batch.Process.ServiceName,
+		})
+	}
+	jsonTrace := jaeger_json.FromDomain(jaegerTrace)
+
+	traceBytes, err := json.Marshal(jsonTrace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to json.Marshal trace \"%s\" :%w", traceID, err)
+	}
+
+	frames := []*data.Frame{
+		{Name: "Traces", RefID: refID, Fields: []*data.Field{data.NewField("trace", nil, []string{string(traceBytes)})}},
+	}
+	queryResult.Dataframes = tsdb.NewDecodedDataFrames(frames)
+
+	return &tsdb.Response{
+		Results: map[string]*tsdb.QueryResult{
+			refID: queryResult,
+		},
+	}, nil
 }
 
-func (s *Service) createRequest(ctx context.Context, dsInfo *datasourceInfo, traceID string, start int64, end int64) (*http.Request, error) {
-	var tempoQuery string
-	if start == 0 || end == 0 {
-		tempoQuery = fmt.Sprintf("%s/api/traces/%s", dsInfo.URL, traceID)
-	} else {
-		tempoQuery = fmt.Sprintf("%s/api/traces/%s?start=%d&end=%d", dsInfo.URL, traceID, start, end)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", tempoQuery, nil)
+func (e *tempoExecutor) createRequest(ctx context.Context, dsInfo *models.DataSource, traceID string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", dsInfo.Url+"/api/traces/"+traceID, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if dsInfo.BasicAuth {
+		req.SetBasicAuth(dsInfo.BasicAuthUser, dsInfo.DecryptedBasicAuthPassword())
 	}
 
 	req.Header.Set("Accept", "application/protobuf")
 
-	s.tlog.FromContext(ctx).Debug("Tempo request", "url", req.URL.String(), "headers", req.Header)
+	tlog.Debug("Tempo request", "url", req.URL.String(), "headers", req.Header)
 	return req, nil
-}
-
-func (s *Service) getDSInfo(ctx context.Context, pluginCtx backend.PluginContext) (*datasourceInfo, error) {
-	i, err := s.im.Get(ctx, pluginCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	instance, ok := i.(*datasourceInfo)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast datsource info")
-	}
-
-	return instance, nil
 }

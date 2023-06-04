@@ -1,47 +1,28 @@
-import React from 'react';
-
-import { LoadingState } from '@grafana/data';
-
-import { DashboardModel, PanelModel } from '../../state';
-
-import { PanelHeaderMenu, PanelHeaderMenuNew } from './PanelHeaderMenu';
+import React, { FC } from 'react';
+import { ClickOutsideWrapper } from '@grafana/ui';
 import { PanelHeaderMenuProvider } from './PanelHeaderMenuProvider';
+import { PanelHeaderMenu } from './PanelHeaderMenu';
+import { DashboardModel, PanelModel } from '../../state';
 
 interface Props {
   panel: PanelModel;
   dashboard: DashboardModel;
-  loadingState?: LoadingState;
-  style?: React.CSSProperties;
-  menuItemsClassName?: string;
-  menuWrapperClassName?: string;
+  show: boolean;
+  onClose: () => void;
 }
 
-export function PanelHeaderMenuWrapper({
-  panel,
-  dashboard,
-  loadingState,
-  style,
-  menuItemsClassName,
-  menuWrapperClassName,
-}: Props) {
-  return (
-    <PanelHeaderMenuProvider panel={panel} dashboard={dashboard} loadingState={loadingState}>
-      {({ items }) => (
-        <PanelHeaderMenu
-          className={menuWrapperClassName}
-          itemsClassName={menuItemsClassName}
-          style={style}
-          items={items}
-        />
-      )}
-    </PanelHeaderMenuProvider>
-  );
-}
+export const PanelHeaderMenuWrapper: FC<Props> = ({ show, onClose, panel, dashboard }) => {
+  if (!show) {
+    return null;
+  }
 
-export function PanelHeaderMenuWrapperNew({ style, panel, dashboard, loadingState }: Props) {
   return (
-    <PanelHeaderMenuProvider panel={panel} dashboard={dashboard} loadingState={loadingState}>
-      {({ items }) => <PanelHeaderMenuNew style={style} items={items} />}
-    </PanelHeaderMenuProvider>
+    <ClickOutsideWrapper onClick={onClose} parent={document}>
+      <PanelHeaderMenuProvider panel={panel} dashboard={dashboard}>
+        {({ items }) => {
+          return <PanelHeaderMenu items={items} />;
+        }}
+      </PanelHeaderMenuProvider>
+    </ClickOutsideWrapper>
   );
-}
+};

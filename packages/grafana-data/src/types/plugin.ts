@@ -1,7 +1,6 @@
-import { ComponentType } from 'react';
-
+import { ComponentClass } from 'react';
 import { KeyValue } from './data';
-import { IconName } from './icon';
+import { LiveChannelSupport } from './live';
 
 /** Describes plugins life cycle status */
 export enum PluginState {
@@ -17,7 +16,6 @@ export enum PluginType {
   datasource = 'datasource',
   app = 'app',
   renderer = 'renderer',
-  secretsmanager = 'secretsmanager',
 }
 
 /** Describes status of {@link https://grafana.com/docs/grafana/latest/plugins/plugin-signatures/ | plugin signature} */
@@ -27,15 +25,6 @@ export enum PluginSignatureStatus {
   invalid = 'invalid', // invalid signature
   modified = 'modified', // valid signature, but content mismatch
   missing = 'missing', // missing signature file
-}
-
-/** Describes level of {@link https://grafana.com/docs/grafana/latest/plugins/plugin-signatures/#plugin-signature-levels/ | plugin signature level} */
-export enum PluginSignatureType {
-  grafana = 'grafana',
-  commercial = 'commercial',
-  community = 'community',
-  private = 'private',
-  core = 'core',
 }
 
 /** Describes error code returned from Grafana plugins API call */
@@ -58,7 +47,6 @@ export interface PluginMeta<T extends KeyValue = {}> {
   info: PluginMetaInfo;
   includes?: PluginInclude[];
   state?: PluginState;
-  alias?: string;
 
   // System.load & relative URLS
   module: string;
@@ -70,7 +58,6 @@ export interface PluginMeta<T extends KeyValue = {}> {
   // Filled in by the backend
   jsonData?: T;
   secureJsonData?: KeyValue;
-  secureJsonFields?: KeyValue<boolean>;
   enabled?: boolean;
   defaultNavUrl?: string;
   hasUpdate?: boolean;
@@ -78,8 +65,6 @@ export interface PluginMeta<T extends KeyValue = {}> {
   latestVersion?: string;
   pinned?: boolean;
   signature?: PluginSignatureStatus;
-  signatureType?: PluginSignatureType;
-  signatureOrg?: string;
   live?: boolean;
 }
 
@@ -91,7 +76,6 @@ interface PluginDependencyInfo {
 }
 
 export interface PluginDependencies {
-  grafanaDependency?: string;
   grafanaVersion: string;
   plugins: PluginDependencyInfo[];
 }
@@ -111,11 +95,8 @@ export interface PluginInclude {
   path?: string;
   icon?: string;
 
-  // "Admin", "Editor" or "Viewer". If set then the include will only show up in the navigation if the user has the required roles.
-  role?: string;
-
-  // Adds the "page" or "dashboard" type includes to the navigation if set to `true`.
-  addToNav?: boolean;
+  role?: string; // "Viewer", Admin, editor???
+  addToNav?: boolean; // Show in the sidebar... only if type=page?
 
   // Angular app pages
   component?: string;
@@ -124,7 +105,6 @@ export interface PluginInclude {
 interface PluginMetaInfoLink {
   name: string;
   url: string;
-  target?: '_blank' | '_self' | '_parent' | '_top';
 }
 
 export interface PluginBuildInfo {
@@ -165,10 +145,10 @@ export interface PluginConfigPageProps<T extends PluginMeta> {
 
 export interface PluginConfigPage<T extends PluginMeta> {
   title: string; // Display
-  icon?: IconName;
+  icon?: string;
   id: string; // Unique, in URL
 
-  body: ComponentType<PluginConfigPageProps<T>>;
+  body: ComponentClass<PluginConfigPageProps<T>>;
 }
 
 export class GrafanaPlugin<T extends PluginMeta = PluginMeta> {
@@ -177,6 +157,13 @@ export class GrafanaPlugin<T extends PluginMeta = PluginMeta> {
 
   // This is set if the plugin system had errors loading the plugin
   loadError?: boolean;
+
+  /**
+   * Live streaming support
+   *
+   * Note: `plugin.json` must also define `live: true`
+   */
+  channelSupport?: LiveChannelSupport;
 
   // Config control (app/datasource)
   angularConfigCtrl?: any;
@@ -194,10 +181,10 @@ export class GrafanaPlugin<T extends PluginMeta = PluginMeta> {
   }
 
   /**
-   * @deprecated -- this is no longer necessary and will be removed
+   * Specify how the plugin should support paths within the live streaming environment
    */
-  setChannelSupport(support: any) {
-    console.warn('[deprecation] plugin is using ignored option: setChannelSupport', this.meta);
+  setChannelSupport(support: LiveChannelSupport) {
+    this.channelSupport = support;
     return this;
   }
 

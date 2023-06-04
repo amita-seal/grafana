@@ -1,25 +1,21 @@
 import { camelCase } from 'lodash';
+const specialChars = ['(', '[', '{', '}', ']', ')', '|', '*', '+', '-', '.', '?', '<', '>', '#', '&', '^', '$'];
 
-const specialChars = ['(', '[', '{', '}', ']', ')', '\\', '|', '*', '+', '-', '.', '?', '<', '>', '#', '&', '^', '$'];
-const specialMatcher = '([\\' + specialChars.join('\\') + '])';
-const specialCharEscape = new RegExp(specialMatcher, 'g');
-const specialCharUnescape = new RegExp('(\\\\)' + specialMatcher, 'g');
-
-export function escapeStringForRegex(value: string) {
+export const escapeStringForRegex = (value: string) => {
   if (!value) {
     return value;
   }
 
-  return value.replace(specialCharEscape, '\\$1');
-}
+  return specialChars.reduce((escaped, currentChar) => escaped.replace(currentChar, '\\' + currentChar), value);
+};
 
-export function unEscapeStringFromRegex(value: string) {
+export const unEscapeStringFromRegex = (value: string) => {
   if (!value) {
     return value;
   }
 
-  return value.replace(specialCharUnescape, '$2');
-}
+  return specialChars.reduce((escaped, currentChar) => escaped.replace('\\' + currentChar, currentChar), value);
+};
 
 export function stringStartsAsRegEx(str: string): boolean {
   if (!str) {
@@ -34,7 +30,7 @@ export function stringToJsRegex(str: string): RegExp {
     return new RegExp(`^${str}$`);
   }
 
-  const match = str.match(new RegExp('^/(.*?)/(g?i?m?y?s?)$'));
+  const match = str.match(new RegExp('^/(.*?)/(g?i?m?y?)$'));
 
   if (!match) {
     throw new Error(`'${str}' is not a valid regular expression.`);
@@ -49,7 +45,7 @@ export function stringToMs(str: string): number {
   }
 
   const nr = parseInt(str, 10);
-  const unit = str.slice(String(nr).length);
+  const unit = str.substr(String(nr).length);
   const s = 1000;
   const m = s * 60;
   const h = m * 60;
@@ -73,7 +69,7 @@ export function stringToMs(str: string): number {
 }
 
 export function toNumberString(value: number | undefined | null): string {
-  if (value !== null && value !== undefined && Number.isFinite(value)) {
+  if (value !== null && value !== undefined && Number.isFinite(value as number)) {
     return value.toString();
   }
   return '';
@@ -95,11 +91,7 @@ export function toFloatOrUndefined(value: string): number | undefined {
   return isNaN(v) ? undefined : v;
 }
 
-export function toPascalCase(string: string) {
+export const toPascalCase = (string: string) => {
   const str = camelCase(string);
   return str.charAt(0).toUpperCase() + str.substring(1);
-}
-
-export function escapeRegex(value: string): string {
-  return value.replace(/[\\^$*+?.()|[\]{}\/]/g, '\\$&');
-}
+};

@@ -1,21 +1,15 @@
-import { css } from '@emotion/css';
-import { capitalize } from 'lodash';
 import React from 'react';
-
-import { DisplayValue, formattedValueToString } from '@grafana/data';
-
-import { useStyles2 } from '../../themes/ThemeContext';
 import { InlineList } from '../List/InlineList';
-
-interface Props {
-  stats: DisplayValue[];
-}
+import { css } from 'emotion';
+import { DisplayValue, formattedValueToString } from '@grafana/data';
+import capitalize from 'lodash/capitalize';
+import { useStyles } from '../../themes/ThemeContext';
 
 /**
  * @internal
  */
-export const VizLegendStatsList = ({ stats }: Props) => {
-  const styles = useStyles2(getStyles);
+export const VizLegendStatsList: React.FunctionComponent<{ stats: DisplayValue[] }> = ({ stats }) => {
+  const styles = useStyles(getStyles);
 
   if (stats.length === 0) {
     return null;
@@ -26,7 +20,7 @@ export const VizLegendStatsList = ({ stats }: Props) => {
       className={styles.list}
       items={stats}
       renderItem={(stat) => (
-        <div className={styles.item} title={stat.description}>
+        <div className={styles.item}>
           {stat.title && `${capitalize(stat.title)}:`} {formattedValueToString(stat)}
         </div>
       )}

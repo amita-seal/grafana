@@ -1,24 +1,25 @@
+// +build integration
+
 // package search_test contains integration tests for search
 package searchstore_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"time"
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/infra/db"
-	"github.com/grafana/grafana/pkg/services/accesscontrol"
-	"github.com/grafana/grafana/pkg/services/dashboards"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
-	"github.com/grafana/grafana/pkg/services/org"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/sqlstore"
+	"github.com/grafana/grafana/pkg/services/sqlstore/migrator"
 	"github.com/grafana/grafana/pkg/services/sqlstore/permissions"
 	"github.com/grafana/grafana/pkg/services/sqlstore/searchstore"
-	"github.com/grafana/grafana/pkg/services/user"
-	"github.com/grafana/grafana/pkg/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+var dialect migrator.Dialect
 
 const (
 	limit int64 = 15
@@ -26,30 +27,31 @@ const (
 )
 
 func TestBuilder_EqualResults_Basic(t *testing.T) {
-	user := &user.SignedInUser{
-		UserID:  1,
-		OrgID:   1,
-		OrgRole: org.RoleEditor,
+	user := &models.SignedInUser{
+		UserId:  1,
+		OrgId:   1,
+		OrgRole: models.ROLE_EDITOR,
 	}
 
-	store := setupTestEnvironment(t)
-	dashIds := createDashboards(t, store, 0, 1, user.OrgID)
-	require.Len(t, dashIds, 1)
+	db := setupTestEnvironment(t)
+	err := createDashboards(0, 1, user.OrgId)
+	require.NoError(t, err)
 
 	// create one dashboard in another organization that shouldn't
 	// be listed in the results.
-	createDashboards(t, store, 1, 2, 2)
+	err = createDashboards(1, 2, 2)
+	require.NoError(t, err)
 
 	builder := &searchstore.Builder{
 		Filters: []interface{}{
-			searchstore.OrgFilter{OrgId: user.OrgID},
+			searchstore.OrgFilter{OrgId: user.OrgId},
 			searchstore.TitleSorter{},
 		},
-		Dialect: store.GetDialect(),
+		Dialect: dialect,
 	}
 
-	res := []dashboards.DashboardSearchProjection{}
-	err := store.WithDbSession(context.Background(), func(sess *db.Session) error {
+	res := []sqlstore.DashboardSearchProjection{}
+	err = db.WithDbSession(context.Background(), func(sess *sqlstore.DBSession) error {
 		sql, params := builder.ToSQL(limit, page)
 		return sess.SQL(sql, params...).Find(&res)
 	})
@@ -57,9 +59,9 @@ func TestBuilder_EqualResults_Basic(t *testing.T) {
 
 	assert.Len(t, res, 1)
 	res[0].UID = ""
-	assert.EqualValues(t, []dashboards.DashboardSearchProjection{
+	assert.EqualValues(t, []sqlstore.DashboardSearchProjection{
 		{
-			ID:    dashIds[0],
+			ID:    1,
 			Title: "A",
 			Slug:  "a",
 			Term:  "templated",
@@ -68,27 +70,28 @@ func TestBuilder_EqualResults_Basic(t *testing.T) {
 }
 
 func TestBuilder_Pagination(t *testing.T) {
-	user := &user.SignedInUser{
-		UserID:  1,
-		OrgID:   1,
-		OrgRole: org.RoleViewer,
+	user := &models.SignedInUser{
+		UserId:  1,
+		OrgId:   1,
+		OrgRole: models.ROLE_VIEWER,
 	}
 
-	store := setupTestEnvironment(t)
-	createDashboards(t, store, 0, 25, user.OrgID)
+	db := setupTestEnvironment(t)
+	err := createDashboards(0, 25, user.OrgId)
+	require.NoError(t, err)
 
 	builder := &searchstore.Builder{
 		Filters: []interface{}{
-			searchstore.OrgFilter{OrgId: user.OrgID},
+			searchstore.OrgFilter{OrgId: user.OrgId},
 			searchstore.TitleSorter{},
 		},
-		Dialect: store.GetDialect(),
+		Dialect: dialect,
 	}
 
-	resPg1 := []dashboards.DashboardSearchProjection{}
-	resPg2 := []dashboards.DashboardSearchProjection{}
-	resPg3 := []dashboards.DashboardSearchProjection{}
-	err := store.WithDbSession(context.Background(), func(sess *db.Session) error {
+	resPg1 := []sqlstore.DashboardSearchProjection{}
+	resPg2 := []sqlstore.DashboardSearchProjection{}
+	resPg3 := []sqlstore.DashboardSearchProjection{}
+	err = db.WithDbSession(context.Background(), func(sess *sqlstore.DBSession) error {
 		sql, params := builder.ToSQL(15, 1)
 		err := sess.SQL(sql, params...).Find(&resPg1)
 		if err != nil {
@@ -114,34 +117,35 @@ func TestBuilder_Pagination(t *testing.T) {
 }
 
 func TestBuilder_Permissions(t *testing.T) {
-	user := &user.SignedInUser{
-		UserID:  1,
-		OrgID:   1,
-		OrgRole: org.RoleViewer,
+	user := &models.SignedInUser{
+		UserId:  1,
+		OrgId:   1,
+		OrgRole: models.ROLE_VIEWER,
 	}
 
-	store := setupTestEnvironment(t)
-	createDashboards(t, store, 0, 1, user.OrgID)
+	db := setupTestEnvironment(t)
+	err := createDashboards(0, 1, user.OrgId)
+	require.NoError(t, err)
 
-	level := dashboards.PERMISSION_EDIT
+	level := models.PERMISSION_EDIT
 
 	builder := &searchstore.Builder{
 		Filters: []interface{}{
-			searchstore.OrgFilter{OrgId: user.OrgID},
+			searchstore.OrgFilter{OrgId: user.OrgId},
 			searchstore.TitleSorter{},
 			permissions.DashboardPermissionFilter{
-				Dialect:         store.GetDialect(),
+				Dialect:         dialect,
 				OrgRole:         user.OrgRole,
-				OrgId:           user.OrgID,
-				UserId:          user.UserID,
+				OrgId:           user.OrgId,
+				UserId:          user.UserId,
 				PermissionLevel: level,
 			},
 		},
-		Dialect: store.GetDialect(),
+		Dialect: dialect,
 	}
 
-	res := []dashboards.DashboardSearchProjection{}
-	err := store.WithDbSession(context.Background(), func(sess *db.Session) error {
+	res := []sqlstore.DashboardSearchProjection{}
+	err = db.WithDbSession(context.Background(), func(sess *sqlstore.DBSession) error {
 		sql, params := builder.ToSQL(limit, page)
 		return sess.SQL(sql, params...).Find(&res)
 	})
@@ -150,157 +154,18 @@ func TestBuilder_Permissions(t *testing.T) {
 	assert.Len(t, res, 0)
 }
 
-func TestBuilder_RBAC(t *testing.T) {
-	testsCases := []struct {
-		desc            string
-		userPermissions []accesscontrol.Permission
-		features        featuremgmt.FeatureToggles
-		expectedParams  []interface{}
-	}{
-		{
-			desc:     "no user permissions",
-			features: featuremgmt.WithFeatures(),
-			expectedParams: []interface{}{
-				int64(1),
-			},
-		},
-		{
-			desc: "user with view permission",
-			userPermissions: []accesscontrol.Permission{
-				{Action: dashboards.ActionDashboardsRead, Scope: "dashboards:uid:1"},
-			},
-			features: featuremgmt.WithFeatures(),
-			expectedParams: []interface{}{
-				int64(1),
-				int64(1),
-				int64(1),
-				0,
-				"Viewer",
-				int64(1),
-				0,
-				"dashboards:read",
-				"dashboards:write",
-				2,
-				int64(1),
-				int64(1),
-				0,
-				"Viewer",
-				int64(1),
-				0,
-				"dashboards:read",
-				"dashboards:write",
-				2,
-				int64(1),
-				int64(1),
-				0,
-				"Viewer",
-				int64(1),
-				0,
-				"folders:read",
-				"dashboards:create",
-				2,
-			},
-		},
-		{
-			desc: "user with view permission with nesting",
-			userPermissions: []accesscontrol.Permission{
-				{Action: dashboards.ActionDashboardsRead, Scope: "dashboards:uid:1"},
-			},
-			features: featuremgmt.WithFeatures(featuremgmt.FlagNestedFolders),
-			expectedParams: []interface{}{
-				int64(1),
-				int64(1),
-				0,
-				"Viewer",
-				int64(1),
-				0,
-				"dashboards:read",
-				"dashboards:write",
-				2,
-				int64(1),
-				int64(1),
-				0,
-				"Viewer",
-				int64(1),
-				0,
-				"folders:read",
-				"dashboards:create",
-				2,
-				int64(1),
-				int64(1),
-				int64(1),
-				0,
-				"Viewer",
-				int64(1),
-				0,
-				"dashboards:read",
-				"dashboards:write",
-				2,
-			},
-		},
-	}
-
-	user := &user.SignedInUser{
-		UserID:  1,
-		OrgID:   1,
-		OrgRole: org.RoleViewer,
-	}
-
-	store := setupTestEnvironment(t)
-	createDashboards(t, store, 0, 1, user.OrgID)
-
-	recursiveQueriesAreSupported, err := store.RecursiveQueriesAreSupported()
-	require.NoError(t, err)
-
-	for _, tc := range testsCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			if len(tc.userPermissions) > 0 {
-				user.Permissions = map[int64]map[string][]string{1: accesscontrol.GroupScopesByAction(tc.userPermissions)}
-			}
-
-			level := dashboards.PERMISSION_EDIT
-
-			builder := &searchstore.Builder{
-				Filters: []interface{}{
-					searchstore.OrgFilter{OrgId: user.OrgID},
-					searchstore.TitleSorter{},
-					permissions.NewAccessControlDashboardPermissionFilter(
-						user,
-						level,
-						"",
-						tc.features,
-						recursiveQueriesAreSupported,
-					),
-				},
-				Dialect: store.GetDialect(),
-			}
-
-			res := []dashboards.DashboardSearchProjection{}
-			err := store.WithDbSession(context.Background(), func(sess *db.Session) error {
-				sql, params := builder.ToSQL(limit, page)
-				// TODO: replace with a proper test
-				assert.Equal(t, tc.expectedParams, params)
-				return sess.SQL(sql, params...).Find(&res)
-			})
-			require.NoError(t, err)
-
-			assert.Len(t, res, 0)
-		})
-	}
-}
-
-func setupTestEnvironment(t *testing.T) db.DB {
+func setupTestEnvironment(t *testing.T) *sqlstore.SQLStore {
 	t.Helper()
-	store := db.InitTestDB(t)
+	store := sqlstore.InitTestDB(t)
+	dialect = store.Dialect
 	return store
 }
 
-func createDashboards(t *testing.T, store db.DB, startID, endID int, orgID int64) []int64 {
-	t.Helper()
+func createDashboards(startID, endID int, orgID int64) error {
+	if endID < startID {
+		return fmt.Errorf("startID must be smaller than endID")
+	}
 
-	require.GreaterOrEqual(t, endID, startID)
-
-	createdIds := []int64{}
 	for i := startID; i < endID; i++ {
 		dashboard, err := simplejson.NewJson([]byte(`{
 			"id": null,
@@ -311,35 +176,20 @@ func createDashboards(t *testing.T, store db.DB, startID, endID int, orgID int64
 			"schemaVersion": 16,
 			"version": 0
 		}`))
-		require.NoError(t, err)
-
-		var dash *dashboards.Dashboard
-		err = store.WithDbSession(context.Background(), func(sess *db.Session) error {
-			dash = dashboards.NewDashboardFromJson(dashboard)
-			dash.OrgID = orgID
-			dash.UID = util.GenerateShortUID()
-			dash.CreatedBy = 1
-			dash.UpdatedBy = 1
-			_, err := sess.Insert(dash)
-			require.NoError(t, err)
-
-			tags := dash.GetTags()
-			if len(tags) > 0 {
-				for _, tag := range tags {
-					if _, err := sess.Insert(&DashboardTag{DashboardId: dash.ID, Term: tag}); err != nil {
-						return err
-					}
-				}
-			}
-
-			return nil
+		if err != nil {
+			return err
+		}
+		err = sqlstore.SaveDashboard(&models.SaveDashboardCommand{
+			Dashboard: dashboard,
+			UserId:    1,
+			OrgId:     orgID,
+			UpdatedAt: time.Now(),
 		})
-		require.NoError(t, err)
-
-		createdIds = append(createdIds, dash.ID)
+		if err != nil {
+			return err
+		}
 	}
-
-	return createdIds
+	return nil
 }
 
 // lexiCounter counts in a lexicographically sortable order.
@@ -352,10 +202,4 @@ func lexiCounter(n int) string {
 	}
 
 	return value
-}
-
-type DashboardTag struct {
-	Id          int64
-	DashboardId int64
-	Term        string
 }

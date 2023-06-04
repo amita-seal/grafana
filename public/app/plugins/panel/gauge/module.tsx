@@ -1,46 +1,26 @@
 import { PanelPlugin } from '@grafana/data';
-import { commonOptionsBuilder } from '@grafana/ui';
-
-import { addOrientationOption, addStandardDataReduceOptions } from '../stat/common';
-
-import { gaugePanelMigrationHandler, gaugePanelChangedHandler } from './GaugeMigrations';
 import { GaugePanel } from './GaugePanel';
-import { Options, defaultOptions } from './panelcfg.gen';
-import { GaugeSuggestionsSupplier } from './suggestions';
+import { GaugeOptions } from './types';
+import { addStandardDataReduceOptions } from '../stat/types';
+import { gaugePanelMigrationHandler, gaugePanelChangedHandler } from './GaugeMigrations';
 
-export const plugin = new PanelPlugin<Options>(GaugePanel)
-  .useFieldConfig({
-    useCustomConfig: (builder) => {
-      builder.addNumberInput({
-        path: 'neutral',
-        name: 'Neutral',
-        description: 'Leave empty to use Min as neutral point',
-        category: ['Gauge'],
-        settings: {
-          placeholder: 'auto',
-        },
-      });
-    },
-  })
+export const plugin = new PanelPlugin<GaugeOptions>(GaugePanel)
+  .useFieldConfig()
   .setPanelOptions((builder) => {
-    addStandardDataReduceOptions(builder);
-    addOrientationOption(builder);
+    addStandardDataReduceOptions(builder, false);
     builder
       .addBooleanSwitch({
         path: 'showThresholdLabels',
         name: 'Show threshold labels',
         description: 'Render the threshold values around the gauge bar',
-        defaultValue: defaultOptions.showThresholdLabels,
+        defaultValue: false,
       })
       .addBooleanSwitch({
         path: 'showThresholdMarkers',
         name: 'Show threshold markers',
         description: 'Renders the thresholds as an outer bar',
-        defaultValue: defaultOptions.showThresholdMarkers,
+        defaultValue: true,
       });
-
-    commonOptionsBuilder.addTextSizeOptions(builder);
   })
   .setPanelChangeHandler(gaugePanelChangedHandler)
-  .setSuggestionsSupplier(new GaugeSuggestionsSupplier())
   .setMigrationHandler(gaugePanelMigrationHandler);

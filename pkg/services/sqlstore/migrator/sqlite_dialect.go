@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/grafana/grafana/pkg/util/errutil"
 	"github.com/mattn/go-sqlite3"
 	"xorm.io/xorm"
 )
@@ -38,12 +39,6 @@ func (db *SQLite3) BooleanStr(value bool) string {
 		return "1"
 	}
 	return "0"
-}
-
-func (db *SQLite3) BatchSize() int {
-	// SQLite has a maximum parameter count per statement of 100.
-	// So, we use a small batch size to support write operations.
-	return 10
 }
 
 func (db *SQLite3) DateTimeFunc(value string) string {
@@ -107,23 +102,22 @@ func (db *SQLite3) TruncateDBTables() error {
 	for _, table := range tables {
 		switch table.Name {
 		case "migration_log":
-			continue
 		case "dashboard_acl":
 			// keep default dashboard permissions
 			if _, err := sess.Exec(fmt.Sprintf("DELETE FROM %q WHERE dashboard_id != -1 AND org_id != -1;", table.Name)); err != nil {
-				return fmt.Errorf("failed to truncate table %q: %w", table.Name, err)
+				return errutil.Wrapf(err, "failed to truncate table %q", table.Name)
 			}
 			if _, err := sess.Exec("UPDATE sqlite_sequence SET seq = 2 WHERE name = '%s';", table.Name); err != nil {
-				return fmt.Errorf("failed to cleanup sqlite_sequence: %w", err)
+				return errutil.Wrapf(err, "failed to cleanup sqlite_sequence")
 			}
 		default:
 			if _, err := sess.Exec(fmt.Sprintf("DELETE FROM %s;", table.Name)); err != nil {
-				return fmt.Errorf("failed to truncate table %q: %w", table.Name, err)
+				return errutil.Wrapf(err, "failed to truncate table %q", table.Name)
 			}
 		}
 	}
 	if _, err := sess.Exec("UPDATE sqlite_sequence SET seq = 0 WHERE name != 'dashboard_acl';"); err != nil {
-		return fmt.Errorf("failed to cleanup sqlite_sequence: %w", err)
+		return errutil.Wrapf(err, "failed to cleanup sqlite_sequence")
 	}
 	return nil
 }
@@ -148,7 +142,7 @@ func (db *SQLite3) ErrorMessage(err error) string {
 }
 
 func (db *SQLite3) IsUniqueConstraintViolation(err error) bool {
-	return db.isThisError(err, int(sqlite3.ErrConstraintUnique)) || db.isThisError(err, int(sqlite3.ErrConstraintPrimaryKey))
+	return db.isThisError(err, int(sqlite3.ErrConstraintUnique))
 }
 
 func (db *SQLite3) IsDeadlock(err error) bool {
@@ -157,15 +151,6 @@ func (db *SQLite3) IsDeadlock(err error) bool {
 
 // UpsertSQL returns the upsert sql statement for SQLite dialect
 func (db *SQLite3) UpsertSQL(tableName string, keyCols, updateCols []string) string {
-	str, _ := db.UpsertMultipleSQL(tableName, keyCols, updateCols, 1)
-	return str
-}
-
-// UpsertMultipleSQL returns the upsert sql statement for PostgreSQL dialect
-func (db *SQLite3) UpsertMultipleSQL(tableName string, keyCols, updateCols []string, count int) (string, error) {
-	if count < 1 {
-		return "", fmt.Errorf("upsert statement must have count >= 1. Got %v", count)
-	}
 	columnsStr := strings.Builder{}
 	onConflictStr := strings.Builder{}
 	colPlaceHoldersStr := strings.Builder{}
@@ -191,22 +176,12 @@ func (db *SQLite3) UpsertMultipleSQL(tableName string, keyCols, updateCols []str
 		onConflictStr.WriteString(fmt.Sprintf("%s%s", db.Quote(c), separatorVar))
 	}
 
-	valuesStr := strings.Builder{}
-	separatorVar = separator
-	colPlaceHolders := colPlaceHoldersStr.String()
-	for i := 0; i < count; i++ {
-		if i == count-1 {
-			separatorVar = ""
-		}
-		valuesStr.WriteString(fmt.Sprintf("(%s)%s", colPlaceHolders, separatorVar))
-	}
-
-	s := fmt.Sprintf(`INSERT INTO %s (%s) VALUES %s ON CONFLICT(%s) DO UPDATE SET %s`,
+	s := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s) ON CONFLICT(%s) DO UPDATE SET %s`,
 		tableName,
 		columnsStr.String(),
-		valuesStr.String(),
+		colPlaceHoldersStr.String(),
 		onConflictStr.String(),
 		setStr.String(),
 	)
-	return s, nil
+	return s
 }

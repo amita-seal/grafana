@@ -686,10 +686,6 @@
               "value": "lengthm"
             },
             {
-              "text": "inch (in)",
-              "value": "lengthin"
-            },
-            {
               "text": "feet (ft)",
               "value": "lengthft"
             },
@@ -730,10 +726,6 @@
             {
               "text": "gram (g)",
               "value": "massg"
-            },
-            {
-              "text": "pound (lb)",
-              "value": "masslb"
             },
             {
               "text": "kilogram (kg)",
@@ -815,19 +807,19 @@
               "value": "Wm2"
             },
             {
-              "text": "Volt-Ampere (VA)",
+              "text": "Volt-ampere (VA)",
               "value": "voltamp"
             },
             {
-              "text": "Kilovolt-Ampere (kVA)",
+              "text": "Kilovolt-ampere (kVA)",
               "value": "kvoltamp"
             },
             {
-              "text": "Volt-Ampere reactive (VAr)",
+              "text": "Volt-ampere reactive (var)",
               "value": "voltampreact"
             },
             {
-              "text": "Kilovolt-Ampere reactive (kVAr)",
+              "text": "Kilovolt-ampere reactive (kvar)",
               "value": "kvoltampreact"
             },
             {
@@ -1797,10 +1789,6 @@
               "value": "lengthm"
             },
             {
-              "text": "inch (in)",
-              "value": "lengthin"
-            },
-            {
               "text": "feet (ft)",
               "value": "lengthft"
             },
@@ -1841,10 +1829,6 @@
             {
               "text": "gram (g)",
               "value": "massg"
-            },
-            {
-              "text": "pound (lb)",
-              "value": "masslb"
             },
             {
               "text": "kilogram (kg)",
@@ -2867,10 +2851,6 @@
               "value": "opm"
             },
             {
-              "text": "requests/min (rpm)",
-              "value": "reqpm"
-            },
-            {
               "text": "reads/min (rpm)",
               "value": "rpm"
             },
@@ -2890,10 +2870,6 @@
             {
               "text": "meter (m)",
               "value": "lengthm"
-            },
-            {
-              "text": "inch (in)",
-              "value": "lengthin"
             },
             {
               "text": "feet (ft)",
@@ -2936,10 +2912,6 @@
             {
               "text": "gram (g)",
               "value": "massg"
-            },
-            {
-              "text": "pound (lb)",
-              "value": "masslb"
             },
             {
               "text": "kilogram (kg)",

@@ -1,25 +1,32 @@
+export interface NewsOptions {
+  feedUrl?: string;
+  useProxy?: boolean;
+}
+
+export const defaults: NewsOptions = {
+  // will default to grafana blog
+};
+
 export interface NewsItem {
   date: number;
   title: string;
   link: string;
   content: string;
-  ogImage?: string | null;
 }
 
 /**
- * Helper interface for feed parser
+ * Helper class for rss-parser
  */
-export interface Feed {
+export interface RssFeed {
   title?: string;
   description?: string;
-  items: FeedItem[];
+  items: RssItem[];
 }
 
-export interface FeedItem {
+export interface RssItem {
   title: string;
   link: string;
   pubDate?: string;
   content?: string;
   contentSnippet?: string;
-  ogImage?: string | null;
 }

@@ -1,25 +1,22 @@
-import { css } from '@emotion/css';
-import { cloneDeep } from 'lodash';
+import { DataFrame, DataLink, GrafanaTheme, VariableSuggestion } from '@grafana/data';
 import React, { useState } from 'react';
-
-import { DataFrame, DataLink, GrafanaTheme2, VariableSuggestion } from '@grafana/data';
-
-import { stylesFactory, useTheme2 } from '../../../themes';
+import { css } from 'emotion';
 import { Button } from '../../Button/Button';
+import cloneDeep from 'lodash/cloneDeep';
 import { Modal } from '../../Modal/Modal';
-
-import { DataLinkEditorModalContent } from './DataLinkEditorModalContent';
+import { stylesFactory, useTheme } from '../../../themes';
 import { DataLinksListItem } from './DataLinksListItem';
+import { DataLinkEditorModalContent } from './DataLinkEditorModalContent';
 
 interface DataLinksInlineEditorProps {
   links?: DataLink[];
   onChange: (links: DataLink[]) => void;
-  getSuggestions: () => VariableSuggestion[];
+  suggestions: VariableSuggestion[];
   data: DataFrame[];
 }
 
-export const DataLinksInlineEditor = ({ links, onChange, getSuggestions, data }: DataLinksInlineEditorProps) => {
-  const theme = useTheme2();
+export const DataLinksInlineEditor: React.FC<DataLinksInlineEditorProps> = ({ links, onChange, suggestions, data }) => {
+  const theme = useTheme();
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [isNew, setIsNew] = useState(false);
 
@@ -77,6 +74,7 @@ export const DataLinksInlineEditor = ({ links, onChange, getSuggestions, data }:
                 onEdit={() => setEditIndex(i)}
                 onRemove={() => onDataLinkRemove(i)}
                 data={data}
+                suggestions={suggestions}
               />
             );
           })}
@@ -87,7 +85,6 @@ export const DataLinksInlineEditor = ({ links, onChange, getSuggestions, data }:
         <Modal
           title="Edit link"
           isOpen={true}
-          closeOnBackdropClick={false}
           onDismiss={() => {
             onDataLinkCancel(editIndex);
           }}
@@ -98,7 +95,7 @@ export const DataLinksInlineEditor = ({ links, onChange, getSuggestions, data }:
             data={data}
             onSave={onDataLinkChange}
             onCancel={onDataLinkCancel}
-            getSuggestions={getSuggestions}
+            suggestions={suggestions}
           />
         </Modal>
       )}
@@ -110,10 +107,10 @@ export const DataLinksInlineEditor = ({ links, onChange, getSuggestions, data }:
   );
 };
 
-const getDataLinksInlineEditorStyles = stylesFactory((theme: GrafanaTheme2) => {
+const getDataLinksInlineEditorStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
     wrapper: css`
-      margin-bottom: ${theme.spacing(2)};
+      margin-bottom: ${theme.spacing.md};
     `,
   };
 });

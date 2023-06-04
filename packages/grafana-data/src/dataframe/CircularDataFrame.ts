@@ -1,6 +1,5 @@
-import { CircularVector } from '../vector/CircularVector';
-
 import { MutableDataFrame } from './MutableDataFrame';
+import { CircularVector } from '../vector/CircularVector';
 
 interface CircularOptions {
   append?: 'head' | 'tail';
@@ -13,7 +12,7 @@ interface CircularOptions {
  */
 export class CircularDataFrame<T = any> extends MutableDataFrame<T> {
   constructor(options: CircularOptions) {
-    super(undefined, (buffer) => {
+    super(undefined, (buffer?: any[]) => {
       return new CircularVector({
         ...options,
         buffer,

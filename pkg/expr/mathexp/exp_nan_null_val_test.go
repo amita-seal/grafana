@@ -1,16 +1,12 @@
 package mathexp
 
 import (
-	"fmt"
 	"math"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"github.com/grafana/grafana/pkg/infra/tracing"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNaN(t *testing.T) {
@@ -33,7 +29,7 @@ func TestNaN(t *testing.T) {
 		},
 		{
 			name:      "unary -: Op Number(NaN) is NaN",
-			expr:      "-$A",
+			expr:      "! $A",
 			vars:      Vars{"A": Results{[]Value{makeNumber("", nil, NaN)}}},
 			newErrIs:  assert.NoError,
 			execErrIs: assert.NoError,
@@ -61,10 +57,10 @@ func TestNaN(t *testing.T) {
 			vars: Vars{
 				"A": Results{
 					[]Value{
-						makeSeries("temp", nil, tp{
-							time.Unix(5, 0), float64Pointer(2),
-						}, tp{
-							time.Unix(10, 0), NaN,
+						makeSeriesNullableTime("temp", nil, nullTimeTP{
+							unixTimePointer(5, 0), float64Pointer(2),
+						}, nullTimeTP{
+							unixTimePointer(10, 0), NaN,
 						}),
 					},
 				},
@@ -73,10 +69,10 @@ func TestNaN(t *testing.T) {
 			execErrIs: assert.NoError,
 			results: Results{
 				[]Value{
-					makeSeries("", nil, tp{
-						time.Unix(5, 0), float64Pointer(-1),
-					}, tp{
-						time.Unix(10, 0), NaN,
+					makeSeriesNullableTime("", nil, nullTimeTP{
+						unixTimePointer(5, 0), float64Pointer(-1),
+					}, nullTimeTP{
+						unixTimePointer(10, 0), NaN,
 					}),
 				},
 			},
@@ -87,10 +83,10 @@ func TestNaN(t *testing.T) {
 			vars: Vars{
 				"A": Results{
 					[]Value{
-						makeSeries("temp", nil, tp{
-							time.Unix(5, 0), float64Pointer(2),
-						}, tp{
-							time.Unix(10, 0), NaN,
+						makeSeriesNullableTime("temp", nil, nullTimeTP{
+							unixTimePointer(5, 0), float64Pointer(2),
+						}, nullTimeTP{
+							unixTimePointer(10, 0), NaN,
 						}),
 					},
 				},
@@ -100,10 +96,10 @@ func TestNaN(t *testing.T) {
 			execErrIs: assert.NoError,
 			results: Results{
 				[]Value{
-					makeSeries("", nil, tp{
-						time.Unix(5, 0), float64Pointer(0),
-					}, tp{
-						time.Unix(10, 0), NaN,
+					makeSeriesNullableTime("", nil, nullTimeTP{
+						unixTimePointer(5, 0), float64Pointer(0),
+					}, nullTimeTP{
+						unixTimePointer(10, 0), NaN,
 					}),
 				},
 			},
@@ -114,10 +110,10 @@ func TestNaN(t *testing.T) {
 			vars: Vars{
 				"A": Results{
 					[]Value{
-						makeSeries("temp", nil, tp{
-							time.Unix(5, 0), float64Pointer(2),
-						}, tp{
-							time.Unix(10, 0), NaN,
+						makeSeriesNullableTime("temp", nil, nullTimeTP{
+							unixTimePointer(5, 0), float64Pointer(2),
+						}, nullTimeTP{
+							unixTimePointer(10, 0), NaN,
 						}),
 					},
 				},
@@ -127,10 +123,10 @@ func TestNaN(t *testing.T) {
 			execErrIs: assert.NoError,
 			results: Results{
 				[]Value{
-					makeSeries("", nil, tp{
-						time.Unix(5, 0), NaN,
-					}, tp{
-						time.Unix(10, 0), NaN,
+					makeSeriesNullableTime("", nil, nullTimeTP{
+						unixTimePointer(5, 0), NaN,
+					}, nullTimeTP{
+						unixTimePointer(10, 0), NaN,
 					}),
 				},
 			},
@@ -148,7 +144,7 @@ func TestNaN(t *testing.T) {
 				e, err := New(tt.expr)
 				tt.newErrIs(t, err)
 				if e != nil {
-					res, err := e.Execute("", tt.vars, tracing.NewFakeTracer())
+					res, err := e.Execute("", tt.vars)
 					tt.execErrIs(t, err)
 					if diff := cmp.Diff(res, tt.results, options...); diff != "" {
 						assert.FailNow(t, tt.name, diff)
@@ -201,10 +197,10 @@ func TestNullValues(t *testing.T) {
 			vars: Vars{
 				"A": Results{
 					[]Value{
-						makeSeries("", nil, tp{
-							time.Unix(5, 0), float64Pointer(1),
-						}, tp{
-							time.Unix(10, 0), nil,
+						makeSeriesNullableTime("", nil, nullTimeTP{
+							unixTimePointer(5, 0), float64Pointer(1),
+						}, nullTimeTP{
+							unixTimePointer(10, 0), nil,
 						}),
 					},
 				},
@@ -213,10 +209,10 @@ func TestNullValues(t *testing.T) {
 			execErrIs: assert.NoError,
 			results: Results{
 				[]Value{
-					makeSeries("", nil, tp{
-						time.Unix(5, 0), float64Pointer(-1),
-					}, tp{
-						time.Unix(10, 0), nil,
+					makeSeriesNullableTime("", nil, nullTimeTP{
+						unixTimePointer(5, 0), float64Pointer(-1),
+					}, nullTimeTP{
+						unixTimePointer(10, 0), nil,
 					}),
 				},
 			},
@@ -227,10 +223,10 @@ func TestNullValues(t *testing.T) {
 			vars: Vars{
 				"A": Results{
 					[]Value{
-						makeSeries("", nil, tp{
-							time.Unix(5, 0), float64Pointer(1),
-						}, tp{
-							time.Unix(10, 0), nil,
+						makeSeriesNullableTime("", nil, nullTimeTP{
+							unixTimePointer(5, 0), float64Pointer(1),
+						}, nullTimeTP{
+							unixTimePointer(10, 0), nil,
 						}),
 					},
 				},
@@ -239,10 +235,10 @@ func TestNullValues(t *testing.T) {
 			execErrIs: assert.NoError,
 			results: Results{
 				[]Value{
-					makeSeries("", nil, tp{
-						time.Unix(5, 0), float64Pointer(0),
-					}, tp{
-						time.Unix(10, 0), nil,
+					makeSeriesNullableTime("", nil, nullTimeTP{
+						unixTimePointer(5, 0), float64Pointer(0),
+					}, nullTimeTP{
+						unixTimePointer(10, 0), nil,
 					}),
 				},
 			},
@@ -253,10 +249,10 @@ func TestNullValues(t *testing.T) {
 			vars: Vars{
 				"A": Results{
 					[]Value{
-						makeSeries("", nil, tp{
-							time.Unix(5, 0), float64Pointer(1),
-						}, tp{
-							time.Unix(10, 0), nil,
+						makeSeriesNullableTime("", nil, nullTimeTP{
+							unixTimePointer(5, 0), float64Pointer(1),
+						}, nullTimeTP{
+							unixTimePointer(10, 0), nil,
 						}),
 					},
 				},
@@ -265,10 +261,10 @@ func TestNullValues(t *testing.T) {
 			execErrIs: assert.NoError,
 			results: Results{
 				[]Value{
-					makeSeries("", nil, tp{
-						time.Unix(5, 0), float64Pointer(0),
-					}, tp{
-						time.Unix(10, 0), nil,
+					makeSeriesNullableTime("", nil, nullTimeTP{
+						unixTimePointer(5, 0), float64Pointer(0),
+					}, nullTimeTP{
+						unixTimePointer(10, 0), nil,
 					}),
 				},
 			},
@@ -343,10 +339,10 @@ func TestNullValues(t *testing.T) {
 				},
 				"B": Results{
 					[]Value{
-						makeSeries("", nil, tp{
-							time.Unix(5, 0), float64Pointer(1),
-						}, tp{
-							time.Unix(10, 0), nil,
+						makeSeriesNullableTime("", nil, nullTimeTP{
+							unixTimePointer(5, 0), float64Pointer(1),
+						}, nullTimeTP{
+							unixTimePointer(10, 0), nil,
 						}),
 					},
 				},
@@ -355,10 +351,10 @@ func TestNullValues(t *testing.T) {
 			execErrIs: assert.NoError,
 			results: Results{
 				[]Value{
-					makeSeries("", nil, tp{
-						time.Unix(5, 0), float64Pointer(1),
-					}, tp{
-						time.Unix(10, 0), nil,
+					makeSeriesNullableTime("", nil, nullTimeTP{
+						unixTimePointer(5, 0), float64Pointer(1),
+					}, nullTimeTP{
+						unixTimePointer(10, 0), nil,
 					}),
 				},
 			},
@@ -374,10 +370,10 @@ func TestNullValues(t *testing.T) {
 				},
 				"B": Results{
 					[]Value{
-						makeSeries("", nil, tp{
-							time.Unix(5, 0), float64Pointer(1),
-						}, tp{
-							time.Unix(10, 0), nil,
+						makeSeriesNullableTime("", nil, nullTimeTP{
+							unixTimePointer(5, 0), float64Pointer(1),
+						}, nullTimeTP{
+							unixTimePointer(10, 0), nil,
 						}),
 					},
 				},
@@ -386,10 +382,10 @@ func TestNullValues(t *testing.T) {
 			execErrIs: assert.NoError,
 			results: Results{
 				[]Value{
-					makeSeries("", nil, tp{
-						time.Unix(5, 0), nil,
-					}, tp{
-						time.Unix(10, 0), nil,
+					makeSeriesNullableTime("", nil, nullTimeTP{
+						unixTimePointer(5, 0), nil,
+					}, nullTimeTP{
+						unixTimePointer(10, 0), nil,
 					}),
 				},
 			},
@@ -410,7 +406,7 @@ func TestNullValues(t *testing.T) {
 				e, err := New(tt.expr)
 				tt.newErrIs(t, err)
 				if e != nil {
-					res, err := e.Execute("", tt.vars, tracing.NewFakeTracer())
+					res, err := e.Execute("", tt.vars)
 					tt.execErrIs(t, err)
 					if diff := cmp.Diff(tt.results, res, options...); diff != "" {
 						t.Errorf("Result mismatch (-want +got):\n%s", diff)
@@ -421,92 +417,6 @@ func TestNullValues(t *testing.T) {
 				assert.Panics(t, testBlock)
 			} else {
 				testBlock()
-			}
-		})
-	}
-}
-
-func TestNoData(t *testing.T) {
-	t.Run("unary operation return NoData if input NoData", func(t *testing.T) {
-		unaryOps := []string{
-			"abs($A)",
-			"is_inf($A)",
-			"is_nan($A)",
-			"is_null($A)",
-			"is_number($A)",
-			"log($A)",
-			"round($A)",
-			"ceil($A)",
-			"floor($A)",
-			"!$A",
-			"-$A",
-		}
-		vars := Vars{"A": Results{[]Value{NewNoData()}}}
-		for _, expr := range unaryOps {
-			t.Run(fmt.Sprintf("op: %s", expr), func(t *testing.T) {
-				e, err := New(expr)
-				require.NoError(t, err)
-				if e != nil {
-					res, err := e.Execute("", vars, tracing.NewFakeTracer())
-					require.NoError(t, err)
-					require.Len(t, res.Values, 1)
-					require.Equal(t, NewNoData(), res.Values[0])
-				}
-			})
-		}
-	})
-
-	makeVars := func(a, b Value) Vars {
-		return Vars{
-			"A": Results{[]Value{a}},
-			"B": Results{[]Value{b}},
-		}
-	}
-
-	bin_ops := []string{
-		"$A || $B",
-		"$A && $B",
-		"$A + $B",
-		"$A * $B",
-		"$A - $B",
-		"$A / $B",
-		"$A ** $B",
-		"$A % $B",
-		"$A == $B",
-		"$A > $B",
-		"$A != $B",
-		"$A < $B",
-		"$A >= $B",
-		"$A <= $B",
-		"$A || $B",
-		"$A && $B",
-	}
-	series := makeSeries("test", nil, tp{time.Unix(5, 0), float64Pointer(2)})
-	for _, expr := range bin_ops {
-		t.Run(fmt.Sprintf("op: %s", expr), func(t *testing.T) {
-			e, err := New(expr)
-			require.NoError(t, err)
-			if e != nil {
-				t.Run("$A,$B=nodata", func(t *testing.T) {
-					res, err := e.Execute("", makeVars(NewNoData(), NewNoData()), tracing.NewFakeTracer())
-					require.NoError(t, err)
-					require.Len(t, res.Values, 1)
-					require.Equal(t, NewNoData(), res.Values[0])
-				})
-
-				t.Run("$A=nodata, $B=series", func(t *testing.T) {
-					res, err := e.Execute("", makeVars(NewNoData(), series), tracing.NewFakeTracer())
-					require.NoError(t, err)
-					require.Len(t, res.Values, 1)
-					require.Equal(t, NewNoData(), res.Values[0])
-				})
-
-				t.Run("$A=series, $B=nodata", func(t *testing.T) {
-					res, err := e.Execute("", makeVars(NewNoData(), series), tracing.NewFakeTracer())
-					require.NoError(t, err)
-					require.Len(t, res.Values, 1)
-					require.Equal(t, NewNoData(), res.Values[0])
-				})
 			}
 		})
 	}

@@ -1,5 +1,4 @@
 import { toDataFrame, FieldType } from '@grafana/data';
-
 import { getDataTimeRange } from './utils';
 
 describe('DataFrame utility functions', () => {

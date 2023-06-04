@@ -5,23 +5,22 @@ import (
 	"testing"
 
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/stretchr/testify/require"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestUploadToS3(t *testing.T) {
-	t.Run("[Integration test] for external_image_store.s3", func(t *testing.T) {
-		t.Skip("Skip test [Integration test] for external_image_store.s3")
+	SkipConvey("[Integration test] for external_image_store.s3", t, func() {
 		cfg := setting.NewCfg()
-		err := cfg.Load(setting.CommandLineArgs{
+		err := cfg.Load(&setting.CommandLineArgs{
 			HomePath: "../../../",
 		})
-		require.NoError(t, err)
+		So(err, ShouldBeNil)
 
 		s3Uploader, err := NewImageUploader()
-		require.NoError(t, err)
+		So(err, ShouldBeNil)
 
 		path, err := s3Uploader.Upload(context.Background(), "../../../public/img/logo_transparent_400x.png")
-		require.NoError(t, err)
-		require.NotEqual(t, "", path)
+		So(err, ShouldBeNil)
+		So(path, ShouldNotEqual, "")
 	})
 }

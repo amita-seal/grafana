@@ -1,9 +1,8 @@
-import { matcherHint, printReceived } from 'jest-matcher-utils';
 import { Observable, Subscription } from 'rxjs';
-
 import { expectObservable, forceObservableCompletion } from './utils';
+import { matcherHint, printReceived } from 'jest-matcher-utils';
 
-function tryExpectations(received: unknown[], expectations: (received: unknown[]) => void): jest.CustomMatcherResult {
+function tryExpectations(received: any[], expectations: (received: any[]) => void): jest.CustomMatcherResult {
   try {
     expectations(received);
     return {
@@ -22,11 +21,6 @@ function tryExpectations(received: unknown[], expectations: (received: unknown[]
   }
 }
 
-/**
- * Collect all the values emitted by the observables (also errors) and pass them to the expectations functions after
- * the observable ended (or emitted error). If Observable does not complete within OBSERVABLE_TEST_TIMEOUT_IN_MS the
- * test fails.
- */
 export function toEmitValuesWith(
   received: Observable<any>,
   expectations: (actual: any[]) => void

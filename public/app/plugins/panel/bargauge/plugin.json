@@ -4,7 +4,6 @@
   "id": "bargauge",
 
   "info": {
-    "description": "Horizontal and vertical gauges",
     "author": {
       "name": "Grafana Labs",
       "url": "https://grafana.com"

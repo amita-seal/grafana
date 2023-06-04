@@ -1,48 +1,40 @@
-import { cx, css } from '@emotion/css';
 import React, { forwardRef, HTMLAttributes } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { useTheme2 } from '../../themes';
-import { IconName } from '../../types/icon';
+import { cx, css } from 'emotion';
+import { GrafanaTheme } from '@grafana/data';
+import { useTheme } from '../../themes';
 import { getTagColor, getTagColorsFromName } from '../../utils';
-import { Icon } from '../Icon/Icon';
 
 /**
  * @public
  */
-export type OnTagClick = (name: string, event: React.MouseEvent<HTMLElement>) => void;
+export type OnTagClick = (name: string, event: React.MouseEvent<HTMLElement>) => any;
 
 export interface Props extends Omit<HTMLAttributes<HTMLElement>, 'onClick'> {
   /** Name of the tag to display */
   name: string;
-  icon?: IconName;
   /** Use constant color from TAG_COLORS. Using index instead of color directly so we can match other styling. */
   colorIndex?: number;
   onClick?: OnTagClick;
 }
 
-export const Tag = forwardRef<HTMLElement, Props>(({ name, onClick, icon, className, colorIndex, ...rest }, ref) => {
-  const theme = useTheme2();
+export const Tag = forwardRef<HTMLElement, Props>(({ name, onClick, className, colorIndex, ...rest }, ref) => {
+  const theme = useTheme();
   const styles = getTagStyles(theme, name, colorIndex);
 
   const onTagClick = (event: React.MouseEvent<HTMLElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    onClick?.(name, event);
+    if (onClick) {
+      onClick(name, event);
+    }
   };
 
-  const classes = cx(styles.wrapper, className, { [styles.hover]: onClick !== undefined });
-
-  return onClick ? (
-    <button {...rest} className={classes} onClick={onTagClick} ref={ref as React.ForwardedRef<HTMLButtonElement>}>
-      {icon && <Icon name={icon} />}
-      {name}
-    </button>
-  ) : (
-    <span {...rest} className={classes} ref={ref}>
-      {icon && <Icon name={icon} />}
+  return (
+    <span
+      key={name}
+      ref={ref}
+      onClick={onTagClick}
+      className={cx(styles.wrapper, className, onClick && styles.hover)}
+      {...rest}
+    >
       {name}
     </span>
   );
@@ -50,7 +42,7 @@ export const Tag = forwardRef<HTMLElement, Props>(({ name, onClick, icon, classN
 
 Tag.displayName = 'Tag';
 
-const getTagStyles = (theme: GrafanaTheme2, name: string, colorIndex?: number) => {
+const getTagStyles = (theme: GrafanaTheme, name: string, colorIndex?: number) => {
   let colors;
   if (colorIndex === undefined) {
     colors = getTagColorsFromName(name);
@@ -59,18 +51,16 @@ const getTagStyles = (theme: GrafanaTheme2, name: string, colorIndex?: number) =
   }
   return {
     wrapper: css`
-      appearance: none;
-      border-style: none;
-      font-weight: ${theme.typography.fontWeightMedium};
+      font-weight: ${theme.typography.weight.semibold};
       font-size: ${theme.typography.size.sm};
-      line-height: ${theme.typography.bodySmall.lineHeight};
+      line-height: ${theme.typography.lineHeight.xs};
       vertical-align: baseline;
       background-color: ${colors.color};
-      color: ${theme.v1.palette.gray98};
+      color: ${theme.palette.gray98};
       white-space: nowrap;
       text-shadow: none;
       padding: 3px 6px;
-      border-radius: ${theme.shape.radius.default};
+      border-radius: ${theme.border.radius.md};
     `,
     hover: css`
       &:hover {

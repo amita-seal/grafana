@@ -3,17 +3,13 @@ package notifiers
 import (
 	"testing"
 
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
 )
 
 func TestWebhookNotifier_parsingFromSettings(t *testing.T) {
-	encryptionService := encryptionservice.SetupTestService(t)
-
 	t.Run("Empty settings should cause error", func(t *testing.T) {
 		const json = `{}`
 
@@ -25,7 +21,7 @@ func TestWebhookNotifier_parsingFromSettings(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		_, err = NewWebHookNotifier(model, encryptionService.GetDecryptedValue, nil)
+		_, err = NewWebHookNotifier(model)
 		require.Error(t, err)
 	})
 
@@ -40,7 +36,7 @@ func TestWebhookNotifier_parsingFromSettings(t *testing.T) {
 			Settings: settingsJSON,
 		}
 
-		not, err := NewWebHookNotifier(model, encryptionService.GetDecryptedValue, nil)
+		not, err := NewWebHookNotifier(model)
 		require.NoError(t, err)
 		webhookNotifier := not.(*WebhookNotifier)
 

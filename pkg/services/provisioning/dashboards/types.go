@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/dashboards"
 	"github.com/grafana/grafana/pkg/services/provisioning/values"
 )
@@ -58,22 +59,22 @@ type configs struct {
 
 func createDashboardJSON(data *simplejson.Json, lastModified time.Time, cfg *config, folderID int64) (*dashboards.SaveDashboardDTO, error) {
 	dash := &dashboards.SaveDashboardDTO{}
-	dash.Dashboard = dashboards.NewDashboardFromJson(data)
+	dash.Dashboard = models.NewDashboardFromJson(data)
 	dash.UpdatedAt = lastModified
 	dash.Overwrite = true
-	dash.OrgID = cfg.OrgID
-	dash.Dashboard.OrgID = cfg.OrgID
-	dash.Dashboard.FolderID = folderID
+	dash.OrgId = cfg.OrgID
+	dash.Dashboard.OrgId = cfg.OrgID
+	dash.Dashboard.FolderId = folderID
 
 	if dash.Dashboard.Title == "" {
-		return nil, dashboards.ErrDashboardTitleEmpty
+		return nil, models.ErrDashboardTitleEmpty
 	}
 
 	return dash, nil
 }
 
 func mapV0ToDashboardsAsConfig(v0 []*configV0) ([]*config, error) {
-	r := make([]*config, 0, len(v0))
+	var r []*config
 	seen := make(map[string]bool)
 
 	for _, v := range v0 {
@@ -100,7 +101,7 @@ func mapV0ToDashboardsAsConfig(v0 []*configV0) ([]*config, error) {
 }
 
 func (dc *configV1) mapToDashboardsAsConfig() ([]*config, error) {
-	r := make([]*config, 0, len(dc.Providers))
+	var r []*config
 	seen := make(map[string]bool)
 
 	for _, v := range dc.Providers {

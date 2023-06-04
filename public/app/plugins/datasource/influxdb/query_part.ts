@@ -1,6 +1,5 @@
-import { map, clone } from 'lodash';
-
-import { QueryPartDef, QueryPart, functionRenderer, suffixRenderer } from 'app/features/alerting/state/query_part';
+import _ from 'lodash';
+import { QueryPartDef, QueryPart, functionRenderer, suffixRenderer } from 'app/core/components/query_part/query_part';
 
 const index: any[] = [];
 const categories: any = {
@@ -34,23 +33,10 @@ function aliasRenderer(part: { params: string[] }, innerExpr: string) {
 }
 
 function fieldRenderer(part: { params: string[] }, innerExpr: any) {
-  const param = part.params[0];
-
-  if (param === '*') {
+  if (part.params[0] === '*') {
     return '*';
   }
-
-  let escapedParam = `"${param}"`;
-
-  if (param.endsWith('::tag')) {
-    escapedParam = `"${param.slice(0, -5)}"::tag`;
-  }
-
-  if (param.endsWith('::field')) {
-    escapedParam = `"${param.slice(0, -7)}"::field`;
-  }
-
-  return escapedParam;
+  return '"' + part.params[0] + '"';
 }
 
 function replaceAggregationAddStrategy(selectParts: any[], partModel: { def: { type: string } }) {
@@ -140,8 +126,8 @@ function addAliasStrategy(selectParts: any[], partModel: any) {
 
 function addFieldStrategy(selectParts: any, partModel: any, query: { selectModels: any[][] }) {
   // copy all parts
-  const parts = map(selectParts, (part: any) => {
-    return createPart({ type: part.def.type, params: clone(part.params) });
+  const parts = _.map(selectParts, (part: any) => {
+    return createPart({ type: part.def.type, params: _.clone(part.params) });
   });
 
   query.selectModels.push(parts);

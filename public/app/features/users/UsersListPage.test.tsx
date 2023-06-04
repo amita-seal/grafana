@@ -1,63 +1,63 @@
-import { render } from '@testing-library/react';
 import React from 'react';
-import { Provider } from 'react-redux';
-import { mockToolkitActionCreator } from 'test/core/redux/mocks';
-
-import { configureStore } from 'app/store/configureStore';
+import { shallow } from 'enzyme';
+import { Props, UsersListPage } from './UsersListPage';
 import { Invitee, OrgUser } from 'app/types';
-
-import { Props, UsersListPageUnconnected } from './UsersListPage';
-import { pageChanged } from './state/reducers';
+// import { getMockUser } from './__mocks__/userMocks';
+import { NavModel } from '@grafana/data';
+import { mockToolkitActionCreator } from 'test/core/redux/mocks';
+import { setUsersSearchPage, setUsersSearchQuery } from './state/reducers';
 
 jest.mock('../../core/app_events', () => ({
   emit: jest.fn(),
 }));
 
-jest.mock('app/core/core', () => ({
-  contextSrv: {
-    user: { orgId: 1 },
-    hasAccess: () => false,
-    licensedAccessControlEnabled: () => false,
-  },
-}));
-
 const setup = (propOverrides?: object) => {
-  const store = configureStore();
   const props: Props = {
+    navModel: {
+      main: {
+        text: 'Configuration',
+      },
+      node: {
+        text: 'Users',
+      },
+    } as NavModel,
     users: [] as OrgUser[],
     invitees: [] as Invitee[],
     searchQuery: '',
-    page: 1,
-    totalPages: 1,
-    perPage: 30,
+    searchPage: 1,
     externalUserMngInfo: '',
-    fetchInvitees: jest.fn(),
+    loadInvitees: jest.fn(),
     loadUsers: jest.fn(),
     updateUser: jest.fn(),
     removeUser: jest.fn(),
-    changePage: mockToolkitActionCreator(pageChanged),
-    isLoading: false,
+    setUsersSearchQuery: mockToolkitActionCreator(setUsersSearchQuery),
+    setUsersSearchPage: mockToolkitActionCreator(setUsersSearchPage),
+    hasFetched: false,
   };
 
   Object.assign(props, propOverrides);
 
-  render(
-    <Provider store={store}>
-      <UsersListPageUnconnected {...props} />
-    </Provider>
-  );
+  const wrapper = shallow(<UsersListPage {...props} />);
+  const instance = wrapper.instance() as UsersListPage;
+
+  return {
+    wrapper,
+    instance,
+  };
 };
 
 describe('Render', () => {
   it('should render component', () => {
-    expect(setup).not.toThrow();
+    const { wrapper } = setup();
+
+    expect(wrapper).toMatchSnapshot();
   });
 
   it('should render List page', () => {
-    expect(() =>
-      setup({
-        hasFetched: true,
-      })
-    ).not.toThrow();
+    const { wrapper } = setup({
+      hasFetched: true,
+    });
+
+    expect(wrapper).toMatchSnapshot();
   });
 });

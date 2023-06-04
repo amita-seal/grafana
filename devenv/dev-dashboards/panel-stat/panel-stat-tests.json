@@ -772,11 +772,7 @@
   ],
   "schemaVersion": 26,
   "style": "dark",
-  "tags": [
-    "gdev",
-    "panel-tests",
-    "graph-ng"
-  ],
+  "tags": ["gdev", "panel-tests"],
   "templating": {
     "list": []
   },

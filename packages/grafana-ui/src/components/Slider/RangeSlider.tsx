@@ -1,11 +1,8 @@
-import { cx } from '@emotion/css';
-import { Global } from '@emotion/react';
-import Slider, { SliderProps } from 'rc-slider';
-import React, { useCallback } from 'react';
-
-import { useTheme2 } from '../../themes/ThemeContext';
-
-import HandleTooltip from './HandleTooltip';
+import React, { FunctionComponent } from 'react';
+import { Range as RangeComponent, createSliderWithTooltip } from 'rc-slider';
+import { cx } from 'emotion';
+import { Global } from '@emotion/core';
+import { useTheme } from '../../themes/ThemeContext';
 import { getStyles } from './styles';
 import { RangeSliderProps } from './types';
 
@@ -14,7 +11,7 @@ import { RangeSliderProps } from './types';
  *
  * RichHistoryQueriesTab uses this Range Component
  */
-export const RangeSlider = ({
+export const RangeSlider: FunctionComponent<RangeSliderProps> = ({
   min,
   max,
   onChange,
@@ -25,58 +22,32 @@ export const RangeSlider = ({
   formatTooltipResult,
   value,
   tooltipAlwaysVisible = true,
-}: RangeSliderProps) => {
-  const handleChange = useCallback(
-    (v: number | number[]) => {
-      const value = typeof v === 'number' ? [v, v] : v;
-      onChange?.(value);
-    },
-    [onChange]
-  );
-
-  const handleAfterChange = useCallback(
-    (v: number | number[]) => {
-      const value = typeof v === 'number' ? [v, v] : v;
-      onAfterChange?.(value);
-    },
-    [onAfterChange]
-  );
-
+}) => {
   const isHorizontal = orientation === 'horizontal';
-  const theme = useTheme2();
+  const theme = useTheme();
   const styles = getStyles(theme, isHorizontal);
-
-  const tipHandleRender: SliderProps['handleRender'] = (node, handleProps) => {
-    return (
-      <HandleTooltip
-        value={handleProps.value}
-        visible={tooltipAlwaysVisible || handleProps.dragging}
-        tipFormatter={formatTooltipResult ? () => formatTooltipResult(handleProps.value) : undefined}
-        placement={isHorizontal ? 'top' : 'right'}
-      >
-        {node}
-      </HandleTooltip>
-    );
-  };
-
+  const RangeWithTooltip = createSliderWithTooltip(RangeComponent);
   return (
     <div className={cx(styles.container, styles.slider)}>
       {/** Slider tooltip's parent component is body and therefore we need Global component to do css overrides for it. */}
       <Global styles={styles.tooltip} />
-      <Slider
+      <RangeWithTooltip
+        tipProps={{
+          visible: tooltipAlwaysVisible,
+          placement: isHorizontal ? 'top' : 'right',
+        }}
         min={min}
         max={max}
         step={step}
         defaultValue={value}
-        range={true}
-        onChange={handleChange}
-        onAfterChange={handleAfterChange}
+        tipFormatter={(value: number) => (formatTooltipResult ? formatTooltipResult(value) : value)}
+        onChange={onChange}
+        onAfterChange={onAfterChange}
         vertical={!isHorizontal}
         reverse={reverse}
-        handleRender={tipHandleRender}
       />
     </div>
   );
 };
 
-RangeSlider.displayName = 'RangeSlider';
+RangeSlider.displayName = 'Range';

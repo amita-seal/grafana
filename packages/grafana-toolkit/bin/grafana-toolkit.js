@@ -15,7 +15,7 @@ const isLinkedMode = () => {
   }
 
   try {
-    const resolvedPath = require.resolve('@grafana/toolkit');
+    const resolvedPath = path.resolve(`${__dirname}/../../../node_modules/@grafana/toolkit`);
     return fs.lstatSync(resolvedPath).isSymbolicLink();
   } catch {
     return false;
@@ -32,7 +32,7 @@ const entrypoint = () => {
   if (isLinkedMode() || !fs.existsSync(resolvedJsDir)) {
     console.log('Running in local/linked mode');
     // This bin is used for cli executed internally
-    const tsProjectPath = path.resolve(__dirname, '../tsconfig.json');
+    var tsProjectPath = path.resolve(__dirname, '../tsconfig.json');
     require('ts-node').register({
       project: tsProjectPath,
       transpileOnly: true,

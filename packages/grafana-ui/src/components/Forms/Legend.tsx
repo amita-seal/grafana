@@ -1,27 +1,26 @@
-import { css, cx } from '@emotion/css';
 import React, { ReactNode } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { useStyles2 } from '../../themes';
+import { useTheme, stylesFactory } from '../../themes';
+import { GrafanaTheme } from '@grafana/data';
+import { css, cx } from 'emotion';
 
 export interface LabelProps extends React.HTMLAttributes<HTMLLegendElement> {
   children: string | ReactNode;
   description?: string;
 }
 
-export const getLegendStyles = (theme: GrafanaTheme2) => {
+export const getLegendStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
     legend: css`
-      font-size: ${theme.typography.h3.fontSize};
-      font-weight: ${theme.typography.fontWeightRegular};
-      margin: 0 0 ${theme.spacing(2)} 0;
+      font-size: ${theme.typography.heading.h3};
+      font-weight: ${theme.typography.weight.regular};
+      margin: 0 0 ${theme.spacing.md} 0;
     `,
   };
-};
+});
 
-export const Legend = ({ children, className, ...legendProps }: LabelProps) => {
-  const styles = useStyles2(getLegendStyles);
+export const Legend: React.FC<LabelProps> = ({ children, className, ...legendProps }) => {
+  const theme = useTheme();
+  const styles = getLegendStyles(theme);
 
   return (
     <legend className={cx(styles.legend, className)} {...legendProps}>

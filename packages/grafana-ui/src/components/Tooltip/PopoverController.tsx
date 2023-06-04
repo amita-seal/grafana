@@ -1,7 +1,33 @@
+import React from 'react';
 import { Placement } from '@popperjs/core';
-import { Component } from 'react';
+import { PopoverContent } from './Tooltip';
 
-import { PopoverContent } from './types';
+// This API allows popovers to update Popper's position when e.g. popover content changes
+// updatePopperPosition is delivered to content by react-popper
+
+export interface UsingPopperProps {
+  show?: boolean;
+  placement?: TooltipPlacement;
+  content: PopoverContent;
+  children: JSX.Element;
+}
+
+export type TooltipPlacement =
+  | 'auto-start'
+  | 'auto'
+  | 'auto-end'
+  | 'top-start'
+  | 'top'
+  | 'top-end'
+  | 'right-start'
+  | 'right'
+  | 'right-end'
+  | 'bottom-end'
+  | 'bottom'
+  | 'bottom-start'
+  | 'left-end'
+  | 'left'
+  | 'left-start';
 
 type PopperControllerRenderProp = (
   showPopper: () => void,
@@ -25,14 +51,12 @@ interface State {
   show: boolean;
 }
 
-class PopoverController extends Component<Props, State> {
-  private hideTimeout: ReturnType<typeof setTimeout> | null = null;
+class PopoverController extends React.Component<Props, State> {
+  private hideTimeout: any;
   state = { show: false };
 
   showPopper = () => {
-    if (this.hideTimeout) {
-      clearTimeout(this.hideTimeout);
-    }
+    clearTimeout(this.hideTimeout);
     this.setState({ show: true });
   };
 

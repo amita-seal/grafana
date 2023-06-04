@@ -1,55 +1,35 @@
 import { PanelPlugin } from '@grafana/data';
 
 import { TextPanel } from './TextPanel';
-import { TextPanelEditor } from './TextPanelEditor';
-import { CodeLanguage, defaultCodeOptions, defaultOptions, Options, TextMode } from './panelcfg.gen';
+import { TextOptions } from './types';
 import { textPanelMigrationHandler } from './textPanelMigrationHandler';
+import { TextPanelEditor } from './TextPanelEditor';
 
-export const plugin = new PanelPlugin<Options>(TextPanel)
+export const plugin = new PanelPlugin<TextOptions>(TextPanel)
   .setPanelOptions((builder) => {
     builder
       .addRadio({
         path: 'mode',
         name: 'Mode',
+        description: 'text mode of the panel',
         settings: {
           options: [
-            { value: TextMode.Markdown, label: 'Markdown' },
-            { value: TextMode.HTML, label: 'HTML' },
-            { value: TextMode.Code, label: 'Code' },
+            { value: 'markdown', label: 'Markdown' },
+            { value: 'html', label: 'HTML' },
           ],
         },
-        defaultValue: defaultOptions.mode,
-      })
-      .addSelect({
-        path: 'code.language',
-        name: 'Language',
-        settings: {
-          options: Object.values(CodeLanguage).map((v) => ({
-            value: v,
-            label: v,
-          })),
-        },
-        defaultValue: defaultCodeOptions.language,
-        showIf: (v) => v.mode === TextMode.Code,
-      })
-      .addBooleanSwitch({
-        path: 'code.showLineNumbers',
-        name: 'Show line numbers',
-        defaultValue: defaultCodeOptions.showLineNumbers,
-        showIf: (v) => v.mode === TextMode.Code,
-      })
-      .addBooleanSwitch({
-        path: 'code.showMiniMap',
-        name: 'Show mini map',
-        defaultValue: defaultCodeOptions.showMiniMap,
-        showIf: (v) => v.mode === TextMode.Code,
+        defaultValue: 'markdown',
       })
       .addCustomEditor({
         id: 'content',
         path: 'content',
         name: 'Content',
+        description: 'Content of the panel',
+        defaultValue: `# Title
+
+For markdown syntax help: [commonmark.org/help](https://commonmark.org/help/)
+         `,
         editor: TextPanelEditor,
-        defaultValue: defaultOptions.content,
       });
   })
   .setMigrationHandler(textPanelMigrationHandler);

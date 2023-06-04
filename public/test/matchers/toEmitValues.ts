@@ -1,10 +1,9 @@
-import { matcherHint, printExpected, printReceived } from 'jest-matcher-utils';
-import { isEqual } from 'lodash';
 import { Observable, Subscription } from 'rxjs';
-
+import { matcherHint, printExpected, printReceived } from 'jest-matcher-utils';
 import { expectObservable, forceObservableCompletion } from './utils';
+import isEqual from 'lodash/isEqual';
 
-function passMessage(received: unknown[], expected: unknown[]) {
+function passMessage(received: any[], expected: any[]) {
   return `${matcherHint('.not.toEmitValues')}
 
   Expected observable to emit values:
@@ -14,7 +13,7 @@ function passMessage(received: unknown[], expected: unknown[]) {
     `;
 }
 
-function failMessage(received: unknown[], expected: unknown[]) {
+function failMessage(received: any[], expected: any[]) {
   return `${matcherHint('.toEmitValues')}
 
   Expected observable to emit values:
@@ -24,7 +23,7 @@ function failMessage(received: unknown[], expected: unknown[]) {
     `;
 }
 
-function tryExpectations(received: unknown[], expected: unknown[]): jest.CustomMatcherResult {
+function tryExpectations(received: any[], expected: any[]): jest.CustomMatcherResult {
   try {
     if (received.length !== expected.length) {
       return {
@@ -50,22 +49,21 @@ function tryExpectations(received: unknown[], expected: unknown[]): jest.CustomM
       message: () => passMessage(received, expected),
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'An unknown error occurred';
     return {
       pass: false,
-      message: () => message,
+      message: () => err,
     };
   }
 }
 
-export function toEmitValues(received: Observable<unknown>, expected: unknown[]): Promise<jest.CustomMatcherResult> {
+export function toEmitValues(received: Observable<any>, expected: any[]): Promise<jest.CustomMatcherResult> {
   const failsChecks = expectObservable(received);
   if (failsChecks) {
     return Promise.resolve(failsChecks);
   }
 
   return new Promise((resolve) => {
-    const receivedValues: unknown[] = [];
+    const receivedValues: any[] = [];
     const subscription = new Subscription();
 
     subscription.add(

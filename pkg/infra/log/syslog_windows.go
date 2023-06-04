@@ -1,22 +1,20 @@
-//go:build windows
-// +build windows
+//+build windows
 
 package log
 
 import (
-	"github.com/go-kit/log"
+	"github.com/inconshreveable/log15"
 	"gopkg.in/ini.v1"
 )
 
 type SysLogHandler struct {
-	logger log.Logger
 }
 
-func NewSyslog(sec *ini.Section, format Formatedlogger) *SysLogHandler {
+func NewSyslog(sec *ini.Section, format log15.Format) *SysLogHandler {
 	return &SysLogHandler{}
 }
 
-func (sw *SysLogHandler) Log(keyvals ...interface{}) error {
+func (sw *SysLogHandler) Log(r *log15.Record) error {
 	return nil
 }
 

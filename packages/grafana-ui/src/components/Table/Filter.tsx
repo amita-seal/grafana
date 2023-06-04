@@ -1,14 +1,12 @@
-import { css, cx } from '@emotion/css';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { FC, useCallback, useMemo, useRef, useState } from 'react';
+import { css, cx } from 'emotion';
+import { Field, GrafanaTheme } from '@grafana/data';
 
-import { Field, GrafanaTheme2 } from '@grafana/data';
-
-import { Popover } from '..';
-import { useStyles2 } from '../../themes';
-import { Icon } from '../Icon/Icon';
-
-import { FilterPopup } from './FilterPopup';
 import { TableStyles } from './styles';
+import { stylesFactory, useStyles } from '../../themes';
+import { Icon } from '../Icon/Icon';
+import { FilterPopup } from './FilterPopup';
+import { Popover } from '..';
 
 interface Props {
   column: any;
@@ -16,10 +14,10 @@ interface Props {
   field?: Field;
 }
 
-export const Filter = ({ column, field, tableStyles }: Props) => {
-  const ref = useRef<HTMLButtonElement>(null);
+export const Filter: FC<Props> = ({ column, field, tableStyles }) => {
+  const ref = useRef<HTMLDivElement>(null);
   const [isPopoverVisible, setPopoverVisible] = useState<boolean>(false);
-  const styles = useStyles2(getStyles);
+  const styles = useStyles(getStyles);
   const filterEnabled = useMemo(() => Boolean(column.filterValue), [column.filterValue]);
   const onShowPopover = useCallback(() => setPopoverVisible(true), [setPopoverVisible]);
   const onClosePopover = useCallback(() => setPopoverVisible(false), [setPopoverVisible]);
@@ -27,11 +25,11 @@ export const Filter = ({ column, field, tableStyles }: Props) => {
   if (!field || !field.config.custom?.filterable) {
     return null;
   }
+
   return (
-    <button
+    <span
       className={cx(tableStyles.headerFilter, filterEnabled ? styles.filterIconEnabled : styles.filterIconDisabled)}
       ref={ref}
-      type="button"
       onClick={onShowPopover}
     >
       <Icon name="filter" />
@@ -43,17 +41,17 @@ export const Filter = ({ column, field, tableStyles }: Props) => {
           show
         />
       )}
-    </button>
+    </span>
   );
 };
 
-const getStyles = (theme: GrafanaTheme2) => ({
+const getStyles = stylesFactory((theme: GrafanaTheme) => ({
   filterIconEnabled: css`
     label: filterIconEnabled;
-    color: ${theme.colors.primary.text};
+    color: ${theme.colors.textBlue};
   `,
   filterIconDisabled: css`
     label: filterIconDisabled;
-    color: ${theme.colors.text.disabled};
+    color: ${theme.colors.textFaint};
   `,
-});
+}));

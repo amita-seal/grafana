@@ -3,9 +3,9 @@ package flux
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -14,14 +14,15 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/grafana/grafana-plugin-sdk-go/experimental"
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	"github.com/influxdata/influxdb-client-go/v2/api"
+	"github.com/grafana/grafana/pkg/components/securejsondata"
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/xorcare/pointer"
 
-	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/tsdb/influxdb/models"
-	"github.com/grafana/grafana/pkg/util"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api"
 )
 
 //--------------------------------------------------------------
@@ -34,7 +35,7 @@ type MockRunner struct {
 }
 
 func (r *MockRunner) runQuery(ctx context.Context, q string) (*api.QueryTableResult, error) {
-	bytes, err := os.ReadFile(filepath.Join("testdata", r.testDataPath))
+	bytes, err := ioutil.ReadFile(filepath.Join("testdata", r.testDataPath))
 	if err != nil {
 		return nil, err
 	}
@@ -62,14 +63,16 @@ func executeMockedQuery(t *testing.T, name string, query queryModel) *backend.Da
 		testDataPath: name + ".csv",
 	}
 
-	dr := executeQuery(context.Background(), glog, query, runner, 50)
+	dr := executeQuery(context.Background(), query, runner, 50)
 	return &dr
 }
 
 func verifyGoldenResponse(t *testing.T, name string) *backend.DataResponse {
 	dr := executeMockedQuery(t, name, queryModel{MaxDataPoints: 100})
 
-	experimental.CheckGoldenJSONResponse(t, "testdata", name+".golden", dr, true)
+	err := experimental.CheckGoldenDataResponse(filepath.Join("testdata", fmt.Sprintf("%s.golden.txt", name)),
+		dr, true)
+	require.NoError(t, err)
 	require.NoError(t, dr.Error)
 
 	return dr
@@ -135,9 +138,9 @@ func TestAggregateGrouping(t *testing.T) {
 	// 	 `Name:
 	// Dimensions: 2 Fields by 3 Rows
 	// +-------------------------------+--------------------------+
-	// | Name: Time                    | Name: Value              |
+	// | Name: Time                    | Name:                    |
 	// | Labels:                       | Labels: host=hostname.ru |
-	// | Type: []*time.Time            | Type: []*float64         |
+	// | Type: []time.Time             | Type: []*float64         |
 	// +-------------------------------+--------------------------+
 	// | 2020-06-05 12:06:00 +0000 UTC | 8.291                    |
 	// | 2020-06-05 12:07:00 +0000 UTC | 0.534                    |
@@ -145,16 +148,16 @@ func TestAggregateGrouping(t *testing.T) {
 	// +-------------------------------+--------------------------+
 	// `
 
-	t1 := time.Date(2020, 6, 5, 12, 6, 0, 0, time.UTC)
-	t2 := time.Date(2020, 6, 5, 12, 7, 0, 0, time.UTC)
-	t3 := time.Date(2020, 6, 5, 12, 8, 0, 0, time.UTC)
-
 	expectedFrame := data.NewFrame("",
-		data.NewField("Time", nil, []*time.Time{&t1, &t2, &t3}),
-		data.NewField("Value", map[string]string{"host": "hostname.ru"}, []*float64{
-			util.Pointer(8.291),
-			util.Pointer(0.534),
-			util.Pointer(0.667),
+		data.NewField("Time", nil, []time.Time{
+			time.Date(2020, 6, 5, 12, 6, 0, 0, time.UTC),
+			time.Date(2020, 6, 5, 12, 7, 0, 0, time.UTC),
+			time.Date(2020, 6, 5, 12, 8, 0, 0, time.UTC),
+		}),
+		data.NewField("", map[string]string{"host": "hostname.ru"}, []*float64{
+			pointer.Float64(8.291),
+			pointer.Float64(0.534),
+			pointer.Float64(0.667),
 		}),
 	)
 	expectedFrame.Meta = &data.FrameMeta{}
@@ -171,23 +174,21 @@ func TestNonStandardTimeColumn(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println(str)
 
-	// Dimensions: 3 Fields by 1 Rows
-	// +-----------------------------------------+-----------------------------------------+------------------+
-	// | Name: _start_water                      | Name: _stop_water                       | Name: _value     |
-	// | Labels: st=1                            | Labels: st=1                            | Labels: st=1     |
-	// | Type: []*time.Time                      | Type: []*time.Time                      | Type: []*float64 |
-	// +-----------------------------------------+-----------------------------------------+------------------+
-	// | 2020-06-28 17:50:13.012584046 +0000 UTC | 2020-06-29 17:50:13.012584046 +0000 UTC | 156.304          |
-	// +-----------------------------------------+-----------------------------------------+------------------+
-
-	t1 := time.Date(2020, 6, 28, 17, 50, 13, 12584046, time.UTC)
-	t2 := time.Date(2020, 6, 29, 17, 50, 13, 12584046, time.UTC)
+	// Dimensions: 2 Fields by 1 Rows
+	// +-----------------------------------------+------------------+
+	// | Name: _start_water                      | Name:            |
+	// | Labels:                                 | Labels: st=1     |
+	// | Type: []time.Time                       | Type: []*float64 |
+	// +-----------------------------------------+------------------+
+	// | 2020-06-28 17:50:13.012584046 +0000 UTC | 156.304          |
+	// +-----------------------------------------+------------------+
 
 	expectedFrame := data.NewFrame("",
-		data.NewField("_start_water", map[string]string{"st": "1"}, []*time.Time{&t1}),
-		data.NewField("_stop_water", map[string]string{"st": "1"}, []*time.Time{&t2}),
-		data.NewField("_value", map[string]string{"st": "1"}, []*float64{
-			util.Pointer(156.304),
+		data.NewField("_start_water", nil, []time.Time{
+			time.Date(2020, 6, 28, 17, 50, 13, 12584046, time.UTC),
+		}),
+		data.NewField("", map[string]string{"st": "1"}, []*float64{
+			pointer.Float64(156.304),
 		}),
 	)
 	expectedFrame.Meta = &data.FrameMeta{}
@@ -200,12 +201,8 @@ func TestBuckets(t *testing.T) {
 	verifyGoldenResponse(t, "buckets")
 }
 
-func TestBooleanTagGrouping(t *testing.T) {
-	verifyGoldenResponse(t, "boolean_tag")
-}
-
-func TestBooleanData(t *testing.T) {
-	verifyGoldenResponse(t, "boolean_data")
+func TestBooleanGrouping(t *testing.T) {
+	verifyGoldenResponse(t, "boolean")
 }
 
 func TestGoldenFiles(t *testing.T) {
@@ -219,18 +216,23 @@ func TestRealQuery(t *testing.T) {
 		json := simplejson.New()
 		json.Set("organization", "test-org")
 
-		dsInfo := &models.DatasourceInfo{
-			URL: "http://localhost:9999", // NOTE! no api/v2
+		dsInfo := &models.DataSource{
+			Url:      "http://localhost:9999", // NOTE! no api/v2
+			JsonData: json,
+			SecureJsonData: securejsondata.GetEncryptedJsonData(map[string]string{
+				"token": "PjSEcM5oWhqg2eI6IXcqYJFe5UbMM_xt-UNlAL0BRYJqLeVpcdMWidiPfWxGhu4Xrh6wioRR-CiadCg-ady68Q==",
+			}),
 		}
 
 		runner, err := runnerFromDataSource(dsInfo)
 		require.NoError(t, err)
 
-		dr := executeQuery(context.Background(), glog, queryModel{
+		dr := executeQuery(context.Background(), queryModel{
 			MaxDataPoints: 100,
 			RawQuery:      "buckets()",
 		}, runner, 50)
-		experimental.CheckGoldenJSONResponse(t, "testdata", "buckets-real.golden", &dr, true)
+		err = experimental.CheckGoldenDataResponse(filepath.Join("testdata", "buckets-real.golden.txt"), &dr, true)
+		require.NoError(t, err)
 	})
 }
 
@@ -262,46 +264,4 @@ func TestMaxDataPointsExceededWithAggregate(t *testing.T) {
 	// it should contain the error-message
 	require.EqualError(t, dr.Error, "A query returned too many datapoints and the results have been truncated at 21 points to prevent memory issues. At the current graph size, Grafana can only draw 2.")
 	assertDataResponseDimensions(t, dr, 2, 21)
-}
-
-func TestMultivalue(t *testing.T) {
-	// we await a non-labeled _time column
-	// and two value-columns named _value and _value2
-	dr := verifyGoldenResponse(t, "multivalue")
-	require.Len(t, dr.Frames, 4)
-	frame := dr.Frames[0]
-	require.Len(t, frame.Fields, 3)
-	require.Equal(t, frame.Fields[0].Name, "_time")
-	require.Equal(t, frame.Fields[0].Len(), 2)
-	require.Len(t, frame.Fields[0].Labels, 0)
-	require.Equal(t, frame.Fields[1].Name, "_value")
-	require.Len(t, frame.Fields[1].Labels, 5)
-	require.Equal(t, frame.Fields[2].Name, "_value2")
-	require.Len(t, frame.Fields[2].Labels, 5)
-}
-
-func TestMultiTime(t *testing.T) {
-	// we await three columns, _time, _time2, _value
-	// all have all labels
-	dr := verifyGoldenResponse(t, "multitime")
-	require.Len(t, dr.Frames, 4)
-	frame := dr.Frames[0]
-	require.Len(t, frame.Fields, 3)
-	require.Equal(t, frame.Fields[0].Name, "_time")
-	require.Equal(t, frame.Fields[0].Len(), 1)
-	require.Len(t, frame.Fields[0].Labels, 5)
-	require.Equal(t, frame.Fields[1].Name, "_time2")
-	require.Len(t, frame.Fields[1].Labels, 5)
-	require.Equal(t, frame.Fields[2].Name, "_value")
-	require.Len(t, frame.Fields[2].Labels, 5)
-}
-
-func TestTimestampFirst(t *testing.T) {
-	dr := verifyGoldenResponse(t, "time_first")
-	require.Len(t, dr.Frames, 1)
-	// we make sure the timestamp-column is the first column
-	// in the dataframe, even if it was not the first column
-	// in the csv.
-	require.Equal(t, "Time", dr.Frames[0].Fields[0].Name)
-	require.Equal(t, "Value", dr.Frames[0].Fields[1].Name)
 }

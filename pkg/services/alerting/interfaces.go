@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/tsdb/legacydata"
+	"github.com/grafana/grafana/pkg/models"
 )
 
 type evalHandler interface {
@@ -56,10 +55,9 @@ type ConditionResult struct {
 	NoDataFound bool
 	Operator    string
 	EvalMatches []*EvalMatch
-	AllMatches  []*EvalMatch
 }
 
 // Condition is responsible for evaluating an alert condition.
 type Condition interface {
-	Eval(result *EvalContext, requestHandler legacydata.RequestHandler) (*ConditionResult, error)
+	Eval(result *EvalContext) (*ConditionResult, error)
 }

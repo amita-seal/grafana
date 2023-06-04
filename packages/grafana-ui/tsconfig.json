@@ -1,20 +1,15 @@
 {
   "compilerOptions": {
-    "baseUrl": "./",
-    "declarationDir": "./compiled",
-    "emitDeclarationOnly": true,
-    "isolatedModules": true,
-    "rootDirs": ["."]
+    "baseUrl": "node_modules/@types",
+    "declarationDir": "dist",
+    "outDir": "compiled",
+    "paths": {
+      "@grafana/ui": ["."]
+    },
+    "rootDirs": [".", "stories"],
+    "typeRoots": ["node_modules/@types"]
   },
-  "exclude": ["dist/**/*"],
+  "exclude": ["dist", "node_modules"],
   "extends": "@grafana/tsconfig",
-  "include": ["src/**/*.ts*", "../../public/app/types/*.d.ts"],
-  // override for storybook which uses ts-node to compile main.ts / preview.ts files.
-  "ts-node": {
-    "compilerOptions": {
-      "isolatedModules": false,
-      "resolveJsonModule": true,
-      "module": "commonjs"
-    }
-  }
+  "include": ["src/**/*.ts*", "../../public/app/types/sanitize-url.d.ts", "../../public/app/types/svg.d.ts"]
 }

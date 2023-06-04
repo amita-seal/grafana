@@ -1,39 +1,38 @@
-import { render, screen } from '@testing-library/react';
-import React from 'react';
+import React, { useContext } from 'react';
+import { render } from 'enzyme';
+import { CallToActionCard, CallToActionCardProps } from './CallToActionCard';
+import { ThemeContext } from '../../themes';
 
-import { CallToActionCard } from './CallToActionCard';
+type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+
+const TestRenderer = (props: Omit<CallToActionCardProps, 'theme'>) => {
+  const theme = useContext(ThemeContext);
+  return <CallToActionCard theme={theme} {...props} />;
+};
 
 describe('CallToActionCard', () => {
   describe('rendering', () => {
-    it('should render callToActionElement', () => {
-      render(<CallToActionCard callToActionElement={<a href="http://dummy.link">Click me</a>} />);
-      expect(screen.getByRole('link', { name: 'Click me' })).toBeInTheDocument();
+    it('when no message and footer provided', () => {
+      const tree = render(<TestRenderer callToActionElement={<a href="http://dummy.link">Click me</a>} />);
+      expect(tree).toMatchSnapshot();
     });
 
-    it('should render message when provided', () => {
-      render(
-        <CallToActionCard message="Click button below" callToActionElement={<a href="http://dummy.link">Click me</a>} />
+    it('when message and no footer provided', () => {
+      const tree = render(
+        <TestRenderer message="Click button bellow" callToActionElement={<a href="http://dummy.link">Click me</a>} />
       );
-      expect(screen.getByText('Click button below')).toBeInTheDocument();
+      expect(tree).toMatchSnapshot();
     });
 
-    it('should render footer when provided', () => {
-      render(
-        <CallToActionCard footer="footer content" callToActionElement={<a href="http://dummy.link">Click me</a>} />
-      );
-      expect(screen.getByText('footer content')).toBeInTheDocument();
-    });
-
-    it('should render both message and footer when provided', () => {
-      render(
-        <CallToActionCard
-          message="Click button below"
+    it('when message and footer provided', () => {
+      const tree = render(
+        <TestRenderer
+          message="Click button bellow"
           footer="footer content"
           callToActionElement={<a href="http://dummy.link">Click me</a>}
         />
       );
-      expect(screen.getByText('Click button below')).toBeInTheDocument();
-      expect(screen.getByText('footer content')).toBeInTheDocument();
+      expect(tree).toMatchSnapshot();
     });
   });
 });

@@ -137,7 +137,7 @@
           "displayMode": "hidden",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -250,7 +250,7 @@
           "displayMode": "hidden",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -363,7 +363,7 @@
           "displayMode": "hidden",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -511,12 +511,13 @@
       },
       "id": 41,
       "options": {
+        "graph": {},
         "legend": {
           "calcs": [],
           "displayMode": "list",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -612,12 +613,13 @@
       },
       "id": 42,
       "options": {
+        "graph": {},
         "legend": {
           "calcs": [],
           "displayMode": "list",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -714,12 +716,13 @@
       },
       "id": 32,
       "options": {
+        "graph": {},
         "legend": {
           "calcs": [],
           "displayMode": "list",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -816,12 +819,13 @@
       },
       "id": 44,
       "options": {
+        "graph": {},
         "legend": {
           "calcs": [],
           "displayMode": "list",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -1024,7 +1028,7 @@
           "displayMode": "list",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "multi"
         }
       },
@@ -1332,7 +1336,7 @@
           "displayMode": "hidden",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -1587,7 +1591,7 @@
           "displayMode": "hidden",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -1713,7 +1717,7 @@
           "displayMode": "hidden",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -1891,7 +1895,7 @@
           "displayMode": "hidden",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -1991,7 +1995,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "drawStyle": "line",
-            "fillOpacity": 0,
+            "fillOpacity": 29,
             "gradientMode": {
               "label": "None",
               "value": "none"
@@ -2054,18 +2058,6 @@
                 "value": 0
               }
             ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "value"
-            },
-            "properties": [
-              {
-                "id": "custom.fillOpacity",
-                "value": 0
-              }
-            ]
           }
         ]
       },
@@ -2078,6 +2070,7 @@
       "id": 29,
       "maxDataPoints": 500,
       "options": {
+        "graph": {},
         "legend": {
           "calcs": [
             "last"
@@ -2085,7 +2078,7 @@
           "displayMode": "list",
           "placement": "bottom"
         },
-        "tooltip": {
+        "tooltipOptions": {
           "mode": "single"
         }
       },
@@ -2168,7 +2161,6 @@
   "style": "dark",
   "tags": [
     "gdev",
-    "graph-ng",
     "demo"
   ],
   "templating": {

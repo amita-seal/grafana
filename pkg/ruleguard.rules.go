@@ -1,6 +1,4 @@
-//go:build ignore
 // +build ignore
-
 // The MIT License (MIT)
 //
 // Copyright (c) 2020 Grafana Labs <contact@grafana.com>, Damian Gryski <damian@gryski.com>

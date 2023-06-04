@@ -1,4 +1,3 @@
-import store from '../../../core/store';
 import { lastUsedDatasourceKeyForOrgId } from '../../../core/utils/explore';
 
 const dataSourceMock = {
@@ -8,7 +7,11 @@ jest.mock('app/features/plugins/datasource_srv', () => ({
   getDatasourceSrv: jest.fn(() => dataSourceMock),
 }));
 
-jest.spyOn(store, 'set');
+const storeMock = {
+  getObject: jest.fn().mockReturnValue([]),
+  set: jest.fn(),
+};
+jest.mock('app/core/store', () => storeMock);
 
 import { loadAndInitDatasource } from './utils';
 
@@ -24,23 +27,23 @@ describe('loadAndInitDatasource', () => {
     dataSourceMock.get.mockRejectedValueOnce(new Error('Datasource not found'));
     dataSourceMock.get.mockResolvedValue(DEFAULT_DATASOURCE);
 
-    const { instance } = await loadAndInitDatasource(1, { uid: 'Unknown' });
+    const { instance } = await loadAndInitDatasource(1, 'Unknown');
 
     expect(dataSourceMock.get).toBeCalledTimes(2);
-    expect(dataSourceMock.get).toBeCalledWith({ uid: 'Unknown' });
+    expect(dataSourceMock.get).toBeCalledWith('Unknown');
     expect(dataSourceMock.get).toBeCalledWith();
     expect(instance).toMatchObject(DEFAULT_DATASOURCE);
-    expect(store.set).toBeCalledWith(lastUsedDatasourceKeyForOrgId(1), DEFAULT_DATASOURCE.uid);
+    expect(storeMock.set).toBeCalledWith(lastUsedDatasourceKeyForOrgId(1), DEFAULT_DATASOURCE.uid);
   });
 
   it('saves last loaded data source uid', async () => {
     dataSourceMock.get.mockResolvedValue(TEST_DATASOURCE);
 
-    const { instance } = await loadAndInitDatasource(1, { uid: 'Test' });
+    const { instance } = await loadAndInitDatasource(1, 'Test');
 
     expect(dataSourceMock.get).toBeCalledTimes(1);
-    expect(dataSourceMock.get).toBeCalledWith({ uid: 'Test' });
+    expect(dataSourceMock.get).toBeCalledWith('Test');
     expect(instance).toMatchObject(TEST_DATASOURCE);
-    expect(store.set).toBeCalledWith(lastUsedDatasourceKeyForOrgId(1), TEST_DATASOURCE.uid);
+    expect(storeMock.set).toBeCalledWith(lastUsedDatasourceKeyForOrgId(1), TEST_DATASOURCE.uid);
   });
 });

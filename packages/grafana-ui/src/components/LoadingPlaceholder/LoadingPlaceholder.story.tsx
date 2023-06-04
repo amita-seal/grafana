@@ -1,12 +1,9 @@
-import { StoryFn, Meta } from '@storybook/react';
 import React from 'react';
-
+import { LoadingPlaceholder } from './LoadingPlaceholder';
 import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
-import { LoadingPlaceholder, LoadingPlaceholderProps } from './LoadingPlaceholder';
 import mdx from './LoadingPlaceholder.mdx';
 
-const meta: Meta<typeof LoadingPlaceholder> = {
+export default {
   title: 'General/LoadingPlaceholder',
   component: LoadingPlaceholder,
   decorators: [withCenteredStory],
@@ -15,19 +12,8 @@ const meta: Meta<typeof LoadingPlaceholder> = {
       page: mdx,
     },
   },
-  argTypes: {
-    text: {
-      control: { type: 'text' },
-    },
-  },
 };
 
-export const Basic: StoryFn<typeof LoadingPlaceholder> = (args: LoadingPlaceholderProps) => {
-  return <LoadingPlaceholder {...args} />;
+export const basic = () => {
+  return <LoadingPlaceholder text="Loading..." />;
 };
-
-Basic.args = {
-  text: 'Loading...',
-};
-
-export default meta;

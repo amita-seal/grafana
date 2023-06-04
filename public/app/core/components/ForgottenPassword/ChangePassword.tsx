@@ -1,10 +1,7 @@
-import React, { SyntheticEvent } from 'react';
-
+import React, { FC, SyntheticEvent } from 'react';
+import { Tooltip, Form, Field, Input, VerticalGroup, Button } from '@grafana/ui';
 import { selectors } from '@grafana/e2e-selectors';
-import { Tooltip, Form, Field, VerticalGroup, Button } from '@grafana/ui';
-
 import { submitButton } from '../Login/LoginForm';
-import { PasswordField } from '../PasswordField/PasswordField';
 interface Props {
   onSubmit: (pw: string) => void;
   onSkip?: (event?: SyntheticEvent) => void;
@@ -15,7 +12,7 @@ interface PasswordDTO {
   confirmNew: string;
 }
 
-export const ChangePassword = ({ onSubmit, onSkip }: Props) => {
+export const ChangePassword: FC<Props> = ({ onSubmit, onSkip }) => {
   const submit = (passwords: PasswordDTO) => {
     onSubmit(passwords.newPassword);
   };
@@ -24,20 +21,22 @@ export const ChangePassword = ({ onSubmit, onSkip }: Props) => {
       {({ errors, register, getValues }) => (
         <>
           <Field label="New password" invalid={!!errors.newPassword} error={errors?.newPassword?.message}>
-            <PasswordField
-              id="new-password"
+            <Input
               autoFocus
-              autoComplete="new-password"
-              {...register('newPassword', { required: 'New Password is required' })}
+              type="password"
+              name="newPassword"
+              ref={register({
+                required: 'New password required',
+              })}
             />
           </Field>
           <Field label="Confirm new password" invalid={!!errors.confirmNew} error={errors?.confirmNew?.message}>
-            <PasswordField
-              id="confirm-new-password"
-              autoComplete="new-password"
-              {...register('confirmNew', {
-                required: 'Confirmed Password is required',
-                validate: (v: string) => v === getValues().newPassword || 'Passwords must match!',
+            <Input
+              type="password"
+              name="confirmNew"
+              ref={register({
+                required: 'Confirmed password is required',
+                validate: (v) => v === getValues().newPassword || 'Passwords must match!',
               })}
             />
           </Field>
@@ -51,7 +50,7 @@ export const ChangePassword = ({ onSubmit, onSkip }: Props) => {
                 content="If you skip you will be prompted to change password next time you log in."
                 placement="bottom"
               >
-                <Button fill="text" onClick={onSkip} type="button" aria-label={selectors.pages.Login.skip}>
+                <Button variant="link" onClick={onSkip} type="button" aria-label={selectors.pages.Login.skip}>
                   Skip
                 </Button>
               </Tooltip>

@@ -1,14 +1,13 @@
-import { isEqual } from 'lodash';
-import React, { createRef, PureComponent } from 'react';
+import React, { createRef } from 'react';
 import ReactDOM from 'react-dom';
+import _ from 'lodash';
 import { FixedSizeList } from 'react-window';
-
-import { ThemeContext } from '../../themes/ThemeContext';
-import { CompletionItem, CompletionItemGroup, CompletionItemKind } from '../../types/completion';
-import { flattenGroupItems, calculateLongestLabel, calculateListSizes } from '../../utils/typeahead';
 
 import { TypeaheadInfo } from './TypeaheadInfo';
 import { TypeaheadItem } from './TypeaheadItem';
+import { flattenGroupItems, calculateLongestLabel, calculateListSizes } from '../../utils/typeahead';
+import { ThemeContext } from '../../themes/ThemeContext';
+import { CompletionItem, CompletionItemGroup, CompletionItemKind } from '../../types/completion';
 
 const modulo = (a: number, n: number) => a - n * Math.floor(a / n);
 
@@ -30,7 +29,7 @@ export interface State {
   typeaheadIndex: number | null;
 }
 
-export class Typeahead extends PureComponent<Props, State> {
+export class Typeahead extends React.PureComponent<Props, State> {
   static contextType = ThemeContext;
   context!: React.ContextType<typeof ThemeContext>;
   listRef = createRef<FixedSizeList>();
@@ -84,7 +83,7 @@ export class Typeahead extends PureComponent<Props, State> {
       this.listRef.current.scrollToItem(this.state.typeaheadIndex);
     }
 
-    if (isEqual(prevProps.groupedItems, this.props.groupedItems) === false) {
+    if (_.isEqual(prevProps.groupedItems, this.props.groupedItems) === false) {
       const allItems = flattenGroupItems(this.props.groupedItems);
       const longestLabel = calculateLongestLabel(allItems);
       const { listWidth, listHeight, itemHeight } = calculateListSizes(this.context, allItems, longestLabel);
@@ -162,7 +161,7 @@ export class Typeahead extends PureComponent<Props, State> {
 
     return (
       <Portal origin={origin} isOpen={isOpen} style={this.menuPosition}>
-        <ul role="menu" className="typeahead" data-testid="typeahead">
+        <ul className="typeahead">
           <FixedSizeList
             ref={this.listRef}
             itemCount={allItems.length}
@@ -209,10 +208,10 @@ interface PortalProps {
   style: string;
 }
 
-class Portal extends PureComponent<React.PropsWithChildren<PortalProps>, {}> {
+class Portal extends React.PureComponent<PortalProps, {}> {
   node: HTMLElement;
 
-  constructor(props: React.PropsWithChildren<PortalProps>) {
+  constructor(props: PortalProps) {
     super(props);
     const { index = 0, origin = 'query', style } = props;
     this.node = document.createElement('div');

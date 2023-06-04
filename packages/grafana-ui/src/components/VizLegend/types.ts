@@ -1,50 +1,47 @@
-import React from 'react';
-
 import { DataFrameFieldIndex, DisplayValue } from '@grafana/data';
-import { LegendDisplayMode, LegendPlacement } from '@grafana/schema';
 
-export enum SeriesVisibilityChangeBehavior {
-  Isolate,
-  Hide,
-}
-
-export interface VizLegendBaseProps<T> {
+export interface VizLegendBaseProps {
   placement: LegendPlacement;
   className?: string;
-  items: Array<VizLegendItem<T>>;
-  seriesVisibilityChangeBehavior?: SeriesVisibilityChangeBehavior;
-  onLabelClick?: (item: VizLegendItem<T>, event: React.MouseEvent<HTMLButtonElement>) => void;
-  itemRenderer?: (item: VizLegendItem<T>, index: number) => JSX.Element;
-  onLabelMouseOver?: (
-    item: VizLegendItem,
-    event: React.MouseEvent<HTMLButtonElement> | React.FocusEvent<HTMLButtonElement>
-  ) => void;
-  onLabelMouseOut?: (
-    item: VizLegendItem,
-    event: React.MouseEvent<HTMLButtonElement> | React.FocusEvent<HTMLButtonElement>
-  ) => void;
-  readonly?: boolean;
+  items: VizLegendItem[];
+  itemRenderer?: (item: VizLegendItem, index: number) => JSX.Element;
+  onSeriesColorChange?: SeriesColorChangeHandler;
+  onLabelClick?: (item: VizLegendItem, event: React.MouseEvent<HTMLElement>) => void;
 }
 
-export interface VizLegendTableProps<T> extends VizLegendBaseProps<T> {
+export interface VizLegendTableProps extends VizLegendBaseProps {
   sortBy?: string;
   sortDesc?: boolean;
   onToggleSort?: (sortBy: string) => void;
 }
 
-export interface LegendProps<T = any> extends VizLegendBaseProps<T>, VizLegendTableProps<T> {
+export interface LegendProps extends VizLegendBaseProps, VizLegendTableProps {
   displayMode: LegendDisplayMode;
 }
 
-export interface VizLegendItem<T = any> {
-  getItemKey?: () => string;
+export interface VizLegendItem {
   label: string;
-  color?: string;
-  gradient?: string;
+  color: string;
   yAxis: number;
   disabled?: boolean;
   // displayValues?: DisplayValue[];
   getDisplayValues?: () => DisplayValue[];
   fieldIndex?: DataFrameFieldIndex;
-  data?: T;
 }
+
+export enum LegendDisplayMode {
+  List = 'list',
+  Table = 'table',
+  Hidden = 'hidden',
+}
+
+export type LegendPlacement = 'bottom' | 'right';
+
+export interface VizLegendOptions {
+  displayMode: LegendDisplayMode;
+  placement: LegendPlacement;
+  calcs: string[];
+}
+
+export type SeriesOptionChangeHandler<TOption> = (label: string, option: TOption) => void;
+export type SeriesColorChangeHandler = SeriesOptionChangeHandler<string>;

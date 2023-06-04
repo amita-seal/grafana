@@ -1,12 +1,13 @@
 import React, { Component } from 'react';
 
 import { renderMarkdown, LinkModelSupplier, ScopedVars } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-import { locationService, getTemplateSrv } from '@grafana/runtime';
 import { Tooltip, PopoverContent } from '@grafana/ui';
-import { getTimeSrv, TimeSrv } from 'app/features/dashboard/services/TimeSrv';
+import { getLocationSrv, getTemplateSrv } from '@grafana/runtime';
+
 import { PanelModel } from 'app/features/dashboard/state/PanelModel';
+import { getTimeSrv, TimeSrv } from 'app/features/dashboard/services/TimeSrv';
 import { InspectTab } from 'app/features/inspector/types';
+import { selectors } from '@grafana/e2e-selectors';
 
 enum InfoMode {
   Error = 'Error',
@@ -14,7 +15,7 @@ enum InfoMode {
   Links = 'Links',
 }
 
-export interface Props {
+interface Props {
   panel: PanelModel;
   title?: string;
   description?: string;
@@ -73,10 +74,7 @@ export class PanelHeaderCorner extends Component<Props> {
    * Open the Panel Inspector when we click on an error
    */
   onClickError = () => {
-    locationService.partial({
-      inspect: this.props.panel.id,
-      inspectTab: InspectTab.Error,
-    });
+    getLocationSrv().update({ partial: true, query: { inspect: this.props.panel.id, inspectTab: InspectTab.Error } });
   };
 
   renderCornerType(infoMode: InfoMode, content: PopoverContent, onClick?: () => void) {
@@ -85,11 +83,11 @@ export class PanelHeaderCorner extends Component<Props> {
     const ariaLabel = selectors.components.Panels.Panel.headerCornerInfo(infoMode.toLowerCase());
 
     return (
-      <Tooltip content={content} placement="top-start" theme={theme} interactive>
-        <button type="button" className={className} onClick={onClick} aria-label={ariaLabel}>
-          <i aria-hidden className="fa" />
+      <Tooltip content={content} placement="top-start" theme={theme}>
+        <div className={className} onClick={onClick} aria-label={ariaLabel}>
+          <i className="fa" />
           <span className="panel-info-corner-inner" />
-        </button>
+        </div>
       </Tooltip>
     );
   }

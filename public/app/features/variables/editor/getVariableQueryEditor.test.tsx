@@ -1,16 +1,15 @@
-import { DataSourceApi, VariableSupportType } from '@grafana/data';
-
-import { LegacyVariableQueryEditor } from './LegacyVariableQueryEditor';
+import { VariableSupportType } from '@grafana/data';
 import { getVariableQueryEditor, StandardVariableQueryEditor } from './getVariableQueryEditor';
+import { LegacyVariableQueryEditor } from './LegacyVariableQueryEditor';
 
 describe('getVariableQueryEditor', () => {
   describe('happy cases', () => {
     describe('when called with a data source with custom variable support', () => {
       it('then it should return correct editor', async () => {
-        const editor = StandardVariableQueryEditor;
-        const datasource = {
-          variables: { getType: () => VariableSupportType.Custom, query: jest.fn(), editor },
-        } as unknown as DataSourceApi;
+        const editor: any = StandardVariableQueryEditor;
+        const datasource: any = {
+          variables: { getType: () => VariableSupportType.Custom, query: () => undefined, editor },
+        };
 
         const result = await getVariableQueryEditor(datasource);
 
@@ -20,10 +19,10 @@ describe('getVariableQueryEditor', () => {
 
     describe('when called with a data source with standard variable support', () => {
       it('then it should return correct editor', async () => {
-        const editor = StandardVariableQueryEditor;
-        const datasource = {
-          variables: { getType: () => VariableSupportType.Standard, toDataQuery: jest.fn() },
-        } as unknown as DataSourceApi;
+        const editor: any = StandardVariableQueryEditor;
+        const datasource: any = {
+          variables: { getType: () => VariableSupportType.Standard, toDataQuery: () => undefined },
+        };
 
         const result = await getVariableQueryEditor(datasource);
 
@@ -33,13 +32,10 @@ describe('getVariableQueryEditor', () => {
 
     describe('when called with a data source with datasource variable support', () => {
       it('then it should return correct editor', async () => {
-        const editor = StandardVariableQueryEditor;
+        const editor: any = StandardVariableQueryEditor;
         const plugin = { components: { QueryEditor: editor } };
         const importDataSourcePluginFunc = jest.fn().mockResolvedValue(plugin);
-        const datasource = {
-          variables: { getType: () => VariableSupportType.Datasource },
-          meta: {},
-        } as unknown as DataSourceApi;
+        const datasource: any = { variables: { getType: () => VariableSupportType.Datasource }, meta: {} };
 
         const result = await getVariableQueryEditor(datasource, importDataSourcePluginFunc);
 
@@ -51,10 +47,10 @@ describe('getVariableQueryEditor', () => {
 
     describe('when called with a data source with legacy variable support', () => {
       it('then it should return correct editor', async () => {
-        const editor = StandardVariableQueryEditor;
+        const editor: any = StandardVariableQueryEditor;
         const plugin = { components: { VariableQueryEditor: editor } };
         const importDataSourcePluginFunc = jest.fn().mockResolvedValue(plugin);
-        const datasource = { metricFindQuery: () => undefined, meta: {} } as unknown as DataSourceApi;
+        const datasource: any = { metricFindQuery: () => undefined, meta: {} };
 
         const result = await getVariableQueryEditor(datasource, importDataSourcePluginFunc);
 
@@ -68,7 +64,7 @@ describe('getVariableQueryEditor', () => {
   describe('negative cases', () => {
     describe('when variable support is not recognized', () => {
       it('then it should return null', async () => {
-        const datasource = {} as unknown as DataSourceApi;
+        const datasource: any = {};
 
         const result = await getVariableQueryEditor(datasource);
 
@@ -80,10 +76,7 @@ describe('getVariableQueryEditor', () => {
       it('then it should return throw', async () => {
         const plugin = { components: {} };
         const importDataSourcePluginFunc = jest.fn().mockResolvedValue(plugin);
-        const datasource = {
-          variables: { getType: () => VariableSupportType.Datasource },
-          meta: {},
-        } as unknown as DataSourceApi;
+        const datasource: any = { variables: { getType: () => VariableSupportType.Datasource }, meta: {} };
 
         await expect(getVariableQueryEditor(datasource, importDataSourcePluginFunc)).rejects.toThrow(
           new Error('Missing QueryEditor in plugin definition.')
@@ -97,7 +90,7 @@ describe('getVariableQueryEditor', () => {
       it('then it should return LegacyVariableQueryEditor', async () => {
         const plugin = { components: {} };
         const importDataSourcePluginFunc = jest.fn().mockResolvedValue(plugin);
-        const datasource = { metricFindQuery: () => undefined, meta: {} } as unknown as DataSourceApi;
+        const datasource: any = { metricFindQuery: () => undefined, meta: {} };
 
         const result = await getVariableQueryEditor(datasource, importDataSourcePluginFunc);
 

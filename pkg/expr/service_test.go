@@ -10,72 +10,44 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/grafana/grafana/pkg/bus"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/tsdb"
 	"github.com/stretchr/testify/require"
-
-	"github.com/grafana/grafana/pkg/infra/tracing"
-	"github.com/grafana/grafana/pkg/services/datasources"
-	datafakes "github.com/grafana/grafana/pkg/services/datasources/fakes"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
-	"github.com/grafana/grafana/pkg/setting"
 )
 
 func TestService(t *testing.T) {
 	dsDF := data.NewFrame("test",
-		data.NewField("time", nil, []time.Time{time.Unix(1, 0)}),
+		data.NewField("time", nil, []*time.Time{utp(1)}),
 		data.NewField("value", nil, []*float64{fp(2)}))
 
-	me := &mockEndpoint{
-		Frames: []*data.Frame{dsDF},
-	}
+	registerEndPoint(dsDF)
 
-	cfg := setting.NewCfg()
+	s := Service{}
 
-	s := Service{
-		cfg:               cfg,
-		dataService:       me,
-		dataSourceService: &datafakes.FakeDataSourceService{},
-		features:          &featuremgmt.FeatureManager{},
-		tracer:            tracing.InitializeTracerForTest(),
-		metrics:           newMetrics(nil),
-	}
-
-	queries := []Query{
+	queries := []backend.DataQuery{
 		{
 			RefID: "A",
-			DataSource: &datasources.DataSource{
-				OrgID: 1,
-				UID:   "test",
-				Type:  "test",
-			},
-			JSON: json.RawMessage(`{ "datasource": { "uid": "1" }, "intervalMs": 1000, "maxDataPoints": 1000 }`),
-			TimeRange: AbsoluteTimeRange{
-				From: time.Time{},
-				To:   time.Time{},
-			},
+			JSON:  json.RawMessage(`{ "datasource": "test", "datasourceId": 1, "orgId": 1, "intervalMs": 1000, "maxDataPoints": 1000 }`),
 		},
 		{
-			RefID:      "B",
-			DataSource: DataSourceModel(),
-			JSON:       json.RawMessage(`{ "datasource": { "uid": "__expr__", "type": "__expr__"}, "type": "math", "expression": "$A * 2" }`),
+			RefID: "B",
+			JSON:  json.RawMessage(`{ "datasource": "__expr__", "datasourceId": -100, "type": "math", "expression": "$A * 2" }`),
 		},
 	}
 
-	req := &Request{Queries: queries}
+	req := &backend.QueryDataRequest{Queries: queries}
 
 	pl, err := s.BuildPipeline(req)
 	require.NoError(t, err)
 
-	res, err := s.ExecutePipeline(context.Background(), time.Now(), pl)
+	res, err := s.ExecutePipeline(context.Background(), pl)
 	require.NoError(t, err)
 
 	bDF := data.NewFrame("",
-		data.NewField("Time", nil, []time.Time{time.Unix(1, 0)}),
+		data.NewField("Time", nil, []*time.Time{utp(1)}),
 		data.NewField("B", nil, []*float64{fp(4)}))
 	bDF.RefID = "B"
-	bDF.SetMeta(&data.FrameMeta{
-		Type:        data.FrameTypeTimeSeriesMulti,
-		TypeVersion: data.FrameTypeVersion{0, 1},
-	})
 
 	expect := &backend.QueryDataResponse{
 		Responses: backend.Responses{
@@ -102,6 +74,11 @@ func TestService(t *testing.T) {
 	}
 }
 
+func utp(sec int64) *time.Time {
+	t := time.Unix(sec, 0)
+	return &t
+}
+
 func fp(f float64) *float64 {
 	return &f
 }
@@ -110,10 +87,27 @@ type mockEndpoint struct {
 	Frames data.Frames
 }
 
-func (me *mockEndpoint) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	resp := backend.NewQueryDataResponse()
-	resp.Responses["A"] = backend.DataResponse{
-		Frames: me.Frames,
+func (me *mockEndpoint) Query(ctx context.Context, ds *models.DataSource, query *tsdb.TsdbQuery) (*tsdb.Response, error) {
+	return &tsdb.Response{
+		Results: map[string]*tsdb.QueryResult{
+			"A": {
+				Dataframes: tsdb.NewDecodedDataFrames(me.Frames),
+			},
+		},
+	}, nil
+}
+
+func registerEndPoint(df ...*data.Frame) {
+	me := &mockEndpoint{
+		Frames: df,
 	}
-	return resp, nil
+	endpoint := func(dsInfo *models.DataSource) (tsdb.TsdbQueryEndpoint, error) {
+		return me, nil
+	}
+
+	tsdb.RegisterTsdbQueryEndpoint("test", endpoint)
+	bus.AddHandler("test", func(query *models.GetDataSourceQuery) error {
+		query.Result = &models.DataSource{Id: 1, OrgId: 1, Type: "test"}
+		return nil
+	})
 }

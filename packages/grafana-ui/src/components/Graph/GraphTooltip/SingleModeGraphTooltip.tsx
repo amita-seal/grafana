@@ -1,17 +1,19 @@
 import React from 'react';
-
 import {
   getValueFromDimension,
   getColumnFromDimension,
   formattedValueToString,
+  getDisplayProcessor,
   getFieldDisplayName,
 } from '@grafana/data';
-
-import { SeriesTable } from '../../VizTooltip';
-
+import { SeriesTable } from './SeriesTable';
 import { GraphTooltipContentProps } from './types';
 
-export const SingleModeGraphTooltip = ({ dimensions, activeDimensions, timeZone }: GraphTooltipContentProps) => {
+export const SingleModeGraphTooltip: React.FC<GraphTooltipContentProps> = ({
+  dimensions,
+  activeDimensions,
+  timeZone,
+}) => {
   // not hovering over a point, skip rendering
   if (
     activeDimensions.yAxis === null ||
@@ -27,7 +29,7 @@ export const SingleModeGraphTooltip = ({ dimensions, activeDimensions, timeZone 
 
   const valueField = getColumnFromDimension(dimensions.yAxis, activeDimensions.yAxis[0]);
   const value = getValueFromDimension(dimensions.yAxis, activeDimensions.yAxis[0], activeDimensions.yAxis[1]);
-  const display = valueField.display!;
+  const display = valueField.display ?? getDisplayProcessor({ field: valueField, timeZone });
   const disp = display(value);
 
   return (

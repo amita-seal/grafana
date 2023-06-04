@@ -1,26 +1,25 @@
-import { css } from '@emotion/css';
-import React, { useState } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
+import React, { FC, useState } from 'react';
+import { Form, Field, Input, Button, Legend, Container, useStyles, HorizontalGroup, LinkButton } from '@grafana/ui';
 import { getBackendSrv } from '@grafana/runtime';
-import { Form, Field, Input, Button, Legend, Container, useStyles2, HorizontalGroup, LinkButton } from '@grafana/ui';
+import { css } from 'emotion';
+import { GrafanaTheme } from '@grafana/data';
 import config from 'app/core/config';
 
 interface EmailDTO {
   userOrEmail: string;
 }
 
-const paragraphStyles = (theme: GrafanaTheme2) => css`
-  color: ${theme.colors.text.secondary};
-  font-size: ${theme.typography.bodySmall.fontSize};
-  font-weight: ${theme.typography.fontWeightRegular};
-  margin-top: ${theme.spacing(1)};
+const paragraphStyles = (theme: GrafanaTheme) => css`
+  color: ${theme.colors.formDescription};
+  font-size: ${theme.typography.size.sm};
+  font-weight: ${theme.typography.weight.regular};
+  margin-top: ${theme.spacing.sm};
   display: block;
 `;
 
-export const ForgottenPassword = () => {
+export const ForgottenPassword: FC = () => {
   const [emailSent, setEmailSent] = useState(false);
-  const styles = useStyles2(paragraphStyles);
+  const styles = useStyles(paragraphStyles);
   const loginHref = `${config.appSubUrl}/login`;
 
   const sendEmail = async (formModel: EmailDTO) => {
@@ -52,15 +51,11 @@ export const ForgottenPassword = () => {
             invalid={!!errors.userOrEmail}
             error={errors?.userOrEmail?.message}
           >
-            <Input
-              id="user-input"
-              placeholder="Email or username"
-              {...register('userOrEmail', { required: 'Email or username is required' })}
-            />
+            <Input placeholder="Email or username" name="userOrEmail" ref={register({ required: true })} />
           </Field>
           <HorizontalGroup>
-            <Button type="submit">Send reset email</Button>
-            <LinkButton fill="text" href={loginHref}>
+            <Button>Send reset email</Button>
+            <LinkButton variant="link" href={loginHref}>
               Back to login
             </LinkButton>
           </HorizontalGroup>

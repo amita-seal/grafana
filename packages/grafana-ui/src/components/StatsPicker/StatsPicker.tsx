@@ -1,20 +1,19 @@
-import { difference } from 'lodash';
 import React, { PureComponent } from 'react';
 
-import { fieldReducers, SelectableValue } from '@grafana/data';
+import difference from 'lodash/difference';
 
 import { Select } from '../Select/Select';
 
-export interface Props {
+import { fieldReducers, SelectableValue } from '@grafana/data';
+
+interface Props {
   placeholder?: string;
   onChange: (stats: string[]) => void;
   stats: string[];
   allowMultiple?: boolean;
   defaultStat?: string;
   className?: string;
-  width?: number;
   menuPlacement?: 'auto' | 'bottom' | 'top';
-  inputId?: string;
 }
 
 export class StatsPicker extends PureComponent<Props> {
@@ -63,7 +62,7 @@ export class StatsPicker extends PureComponent<Props> {
   };
 
   render() {
-    const { stats, allowMultiple, defaultStat, placeholder, className, menuPlacement, width, inputId } = this.props;
+    const { stats, allowMultiple, defaultStat, placeholder, className, menuPlacement } = this.props;
 
     const select = fieldReducers.selectOptions(stats);
     return (
@@ -72,13 +71,11 @@ export class StatsPicker extends PureComponent<Props> {
         className={className}
         isClearable={!defaultStat}
         isMulti={allowMultiple}
-        width={width}
         isSearchable={true}
         options={select.options}
         placeholder={placeholder}
         onChange={this.onSelectionChange}
         menuPlacement={menuPlacement}
-        inputId={inputId}
       />
     );
   }

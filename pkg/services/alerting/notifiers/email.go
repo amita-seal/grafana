@@ -3,12 +3,13 @@ package notifiers
 import (
 	"os"
 
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/notifications"
-	"github.com/grafana/grafana/pkg/setting"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/util"
+
+	"github.com/grafana/grafana/pkg/services/alerting"
+	"github.com/grafana/grafana/pkg/setting"
 )
 
 func init() {
@@ -47,7 +48,7 @@ type EmailNotifier struct {
 
 // NewEmailNotifier is the constructor function
 // for the EmailNotifier.
-func NewEmailNotifier(model *models.AlertNotification, _ alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+func NewEmailNotifier(model *models.AlertNotification) (alerting.Notifier, error) {
 	addressesString := model.Settings.Get("addresses").MustString()
 	singleEmail := model.Settings.Get("singleEmail").MustBool(false)
 
@@ -59,7 +60,7 @@ func NewEmailNotifier(model *models.AlertNotification, _ alerting.GetDecryptedVa
 	addresses := util.SplitEmails(addressesString)
 
 	return &EmailNotifier{
-		NotifierBase: NewNotifierBase(model, ns),
+		NotifierBase: NewNotifierBase(model),
 		Addresses:    addresses,
 		SingleEmail:  singleEmail,
 		log:          log.New("alerting.notifier.email"),
@@ -81,8 +82,8 @@ func (en *EmailNotifier) Notify(evalContext *alerting.EvalContext) error {
 		error = evalContext.Error.Error()
 	}
 
-	cmd := &notifications.SendEmailCommandSync{
-		SendEmailCommand: notifications.SendEmailCommand{
+	cmd := &models.SendEmailCommandSync{
+		SendEmailCommand: models.SendEmailCommand{
 			Subject: evalContext.GetNotificationTitle(),
 			Data: map[string]interface{}{
 				"Title":         evalContext.GetNotificationTitle(),
@@ -99,7 +100,7 @@ func (en *EmailNotifier) Notify(evalContext *alerting.EvalContext) error {
 			},
 			To:            en.Addresses,
 			SingleEmail:   en.SingleEmail,
-			Template:      "alert_notification",
+			Template:      "alert_notification.html",
 			EmbeddedFiles: []string{},
 		},
 	}
@@ -116,7 +117,9 @@ func (en *EmailNotifier) Notify(evalContext *alerting.EvalContext) error {
 		}
 	}
 
-	if err := en.NotificationService.SendEmailCommandHandlerSync(evalContext.Ctx, cmd); err != nil {
+	err = bus.DispatchCtx(evalContext.Ctx, cmd)
+
+	if err != nil {
 		en.log.Error("Failed to send alert notification email", "error", err)
 		return err
 	}

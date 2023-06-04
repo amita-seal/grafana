@@ -1,19 +1,17 @@
-import { css, cx } from '@emotion/css';
-import { orderBy } from 'lodash';
-import React from 'react';
-
-import { DisplayValue, GrafanaTheme2 } from '@grafana/data';
-
-import { useStyles2 } from '../../themes/ThemeContext';
-import { Icon } from '../Icon/Icon';
-
-import { LegendTableItem } from './VizLegendTableItem';
+import React, { FC } from 'react';
+import { css, cx } from 'emotion';
 import { VizLegendTableProps } from './types';
+import { Icon } from '../Icon/Icon';
+import { useStyles } from '../../themes/ThemeContext';
+import union from 'lodash/union';
+import sortBy from 'lodash/sortBy';
+import { LegendTableItem } from './VizLegendTableItem';
+import { GrafanaTheme } from '@grafana/data';
 
 /**
  * @internal
  */
-export const VizLegendTable = <T extends unknown>({
+export const VizLegendTable: FC<VizLegendTableProps> = ({
   items,
   sortBy: sortKey,
   sortDesc,
@@ -21,33 +19,35 @@ export const VizLegendTable = <T extends unknown>({
   className,
   onToggleSort,
   onLabelClick,
-  onLabelMouseOver,
-  onLabelMouseOut,
-  readonly,
-}: VizLegendTableProps<T>): JSX.Element => {
-  const styles = useStyles2(getStyles);
-  const stats: Record<string, DisplayValue> = {};
+  onSeriesColorChange,
+}) => {
+  const styles = useStyles(getStyles);
 
-  for (const item of items) {
-    if (item.getDisplayValues) {
-      for (const displayValue of item.getDisplayValues()) {
-        stats[displayValue.title ?? '?'] = displayValue;
+  const columns = items
+    .map((item) => {
+      if (item.getDisplayValues) {
+        return item.getDisplayValues().map((i) => i.title);
       }
-    }
-  }
+      return [];
+    })
+    .reduce(
+      (acc, current) => {
+        return union(
+          acc,
+          current.filter((item) => !!item)
+        );
+      },
+      ['']
+    ) as string[];
 
   const sortedItems = sortKey
-    ? orderBy(
-        items,
-        (item) => {
-          if (item.getDisplayValues) {
-            const stat = item.getDisplayValues().filter((stat) => stat.title === sortKey)[0];
-            return stat && stat.numeric;
-          }
-          return undefined;
-        },
-        sortDesc ? 'desc' : 'asc'
-      )
+    ? sortBy(items, (item) => {
+        if (item.getDisplayValues) {
+          const stat = item.getDisplayValues().filter((stat) => stat.title === sortKey)[0];
+          return stat && stat.numeric;
+        }
+        return undefined;
+      })
     : items;
 
   if (!itemRenderer) {
@@ -56,10 +56,8 @@ export const VizLegendTable = <T extends unknown>({
       <LegendTableItem
         key={`${item.label}-${index}`}
         item={item}
+        onSeriesColorChange={onSeriesColorChange}
         onLabelClick={onLabelClick}
-        onLabelMouseOver={onLabelMouseOver}
-        onLabelMouseOut={onLabelMouseOut}
-        readonly={readonly}
       />
     );
   }
@@ -68,24 +66,21 @@ export const VizLegendTable = <T extends unknown>({
     <table className={cx(styles.table, className)}>
       <thead>
         <tr>
-          <th></th>
-          {Object.keys(stats).map((columnTitle) => {
-            const displayValue = stats[columnTitle];
+          {columns.map((columnHeader) => {
             return (
               <th
-                title={displayValue.description}
-                key={columnTitle}
-                className={cx(styles.header, onToggleSort && styles.headerSortable, {
-                  [styles.withIcon]: sortKey === columnTitle,
-                })}
+                key={columnHeader}
+                className={cx(styles.header, onToggleSort && styles.headerSortable)}
                 onClick={() => {
                   if (onToggleSort) {
-                    onToggleSort(columnTitle);
+                    onToggleSort(columnHeader);
                   }
                 }}
               >
-                {columnTitle}
-                {sortKey === columnTitle && <Icon size="xs" name={sortDesc ? 'angle-down' : 'angle-up'} />}
+                {columnHeader}
+                {sortKey === columnHeader && (
+                  <Icon className={styles.sortIcon} name={sortDesc ? 'angle-down' : 'angle-up'} />
+                )}
               </th>
             );
           })}
@@ -96,28 +91,22 @@ export const VizLegendTable = <T extends unknown>({
   );
 };
 
-const getStyles = (theme: GrafanaTheme2) => ({
+const getStyles = (theme: GrafanaTheme) => ({
   table: css`
     width: 100%;
-    th:first-child {
-      width: 100%;
-      border-bottom: 1px solid ${theme.colors.border.weak};
-    }
+    margin-left: ${theme.spacing.sm};
   `,
   header: css`
-    color: ${theme.colors.primary.text};
-    font-weight: ${theme.typography.fontWeightMedium};
-    border-bottom: 1px solid ${theme.colors.border.weak};
-    padding: ${theme.spacing(0.25, 1, 0.25, 1)};
-    font-size: ${theme.typography.bodySmall.fontSize};
+    color: ${theme.colors.textBlue};
+    font-weight: ${theme.typography.weight.semibold};
+    border-bottom: 1px solid ${theme.colors.border1};
+    padding: ${theme.spacing.xxs} ${theme.spacing.sm};
     text-align: right;
-    white-space: nowrap;
-  `,
-  // This needs to be padding-right - icon size(xs==12) to avoid jumping
-  withIcon: css`
-    padding-right: 4px;
   `,
   headerSortable: css`
     cursor: pointer;
+  `,
+  sortIcon: css`
+    margin-left: ${theme.spacing.sm};
   `,
 });

@@ -1,27 +1,19 @@
-import { isArray, isEqual } from 'lodash';
-
-import { ScopedVars, UrlQueryMap, UrlQueryValue, VariableType } from '@grafana/data';
+import isString from 'lodash/isString';
+import { ScopedVars, VariableType } from '@grafana/data';
 import { getTemplateSrv } from '@grafana/runtime';
-import { safeStringifyValue } from 'app/core/utils/explore';
 
-import { getState } from '../../store/store';
-import { StoreState } from '../../types';
+import { ALL_VARIABLE_TEXT, ALL_VARIABLE_VALUE } from './state/types';
+import { QueryVariableModel, VariableModel, VariableRefresh } from './types';
 import { getTimeSrv } from '../dashboard/services/TimeSrv';
-
 import { variableAdapters } from './adapters';
-import { ALL_VARIABLE_TEXT, ALL_VARIABLE_VALUE, VARIABLE_PREFIX } from './constants';
-import { getVariablesState } from './state/selectors';
-import { KeyedVariableIdentifier, VariableIdentifier, VariablePayload } from './state/types';
-import { QueryVariableModel, TransactionStatus, VariableModel, VariableRefresh, VariableWithOptions } from './types';
 
 /*
  * This regex matches 3 types of variable reference with an optional format specifier
- * There are 6 capture groups that replace will return
- * \$(\w+)                                    $var1
- * \[\[(\w+?)(?::(\w+))?\]\]                  [[var2]] or [[var2:fmt2]]
- * \${(\w+)(?:\.([^:^\}]+))?(?::([^\}]+))?}   ${var3} or ${var3.fieldPath} or ${var3:fmt3} (or ${var3.fieldPath:fmt3} but that is not a separate capture group)
+ * \$(\w+)                          $var1
+ * \[\[([\s\S]+?)(?::(\w+))?\]\]    [[var2]] or [[var2:fmt2]]
+ * \${(\w+)(?::(\w+))?}             ${var3} or ${var3:fmt3}
  */
-export const variableRegex = /\$(\w+)|\[\[(\w+?)(?::(\w+))?\]\]|\${(\w+)(?:\.([^:^\}]+))?(?::([^\}]+))?}/g;
+export const variableRegex = /\$(\w+)|\[\[([\s\S]+?)(?::(\w+))?\]\]|\${(\w+)(?:\.([^:^\}]+))?(?::([^\}]+))?}/g;
 
 // Helper function since lastIndex is not reset
 export const variableRegexExec = (variableString: string) => {
@@ -34,14 +26,10 @@ export const SEARCH_FILTER_VARIABLE = '__searchFilter';
 export const containsSearchFilter = (query: string | unknown): boolean =>
   query && typeof query === 'string' ? query.indexOf(SEARCH_FILTER_VARIABLE) !== -1 : false;
 
-export interface SearchFilterOptions {
-  searchFilter?: string;
-}
-
 export const getSearchFilterScopedVar = (args: {
   query: string;
   wildcardChar: string;
-  options?: SearchFilterOptions;
+  options: { searchFilter?: string };
 }): ScopedVars => {
   const { query, wildcardChar } = args;
   if (!containsSearchFilter(query)) {
@@ -63,7 +51,7 @@ export const getSearchFilterScopedVar = (args: {
 
 export function containsVariable(...args: any[]) {
   const variableName = args[args.length - 1];
-  args[0] = typeof args[0] === 'string' ? args[0] : safeStringifyValue(args[0]);
+  args[0] = isString(args[0]) ? args[0] : Object['values'](args[0]).join(' ');
   const variableString = args.slice(0, -1).join(' ');
   const matches = variableString.match(variableRegex);
   const isMatchingVariable =
@@ -135,22 +123,6 @@ export const getCurrentText = (variable: any): string => {
   return variable.current.text;
 };
 
-export const getCurrentValue = (variable: VariableWithOptions): string | null => {
-  if (!variable || !variable.current || variable.current.value === undefined || variable.current.value === null) {
-    return null;
-  }
-
-  if (Array.isArray(variable.current.value)) {
-    return variable.current.value.toString();
-  }
-
-  if (typeof variable.current.value !== 'string') {
-    return null;
-  }
-
-  return variable.current.value;
-};
-
 export function getTemplatedRegex(variable: QueryVariableModel, templateSrv = getTemplateSrv()): string {
   if (!variable) {
     return '';
@@ -194,118 +166,8 @@ export function getVariableTypes(): Array<{ label: string; value: VariableType }
   return variableAdapters
     .list()
     .filter((v) => v.id !== 'system')
-    .map(({ id, name, description }) => ({
+    .map(({ id, name }) => ({
       label: name,
       value: id,
-      description,
     }));
-}
-
-function getUrlValueForComparison(value: any): any {
-  if (isArray(value)) {
-    if (value.length === 0) {
-      value = undefined;
-    } else if (value.length === 1) {
-      value = value[0];
-    }
-  }
-
-  return value;
-}
-
-export interface UrlQueryType {
-  value: UrlQueryValue;
-  removed?: boolean;
-}
-
-export interface ExtendedUrlQueryMap extends Record<string, UrlQueryType> {}
-
-export function findTemplateVarChanges(query: UrlQueryMap, old: UrlQueryMap): ExtendedUrlQueryMap | undefined {
-  let count = 0;
-  const changes: ExtendedUrlQueryMap = {};
-
-  for (const key in query) {
-    if (!key.startsWith(VARIABLE_PREFIX)) {
-      continue;
-    }
-
-    let oldValue = getUrlValueForComparison(old[key]);
-    let newValue = getUrlValueForComparison(query[key]);
-
-    if (!isEqual(newValue, oldValue)) {
-      changes[key] = { value: query[key] };
-      count++;
-    }
-  }
-
-  for (const key in old) {
-    if (!key.startsWith(VARIABLE_PREFIX)) {
-      continue;
-    }
-
-    const value = old[key];
-
-    // ignore empty array values
-    if (isArray(value) && value.length === 0) {
-      continue;
-    }
-
-    if (!query.hasOwnProperty(key)) {
-      changes[key] = { value: '', removed: true }; // removed
-      count++;
-    }
-  }
-  return count ? changes : undefined;
-}
-
-export function ensureStringValues(value: any | any[]): string | string[] {
-  if (Array.isArray(value)) {
-    return value.map(String);
-  }
-
-  if (value === null || value === undefined) {
-    return '';
-  }
-
-  if (typeof value === 'number') {
-    return value.toString(10);
-  }
-
-  if (typeof value === 'string') {
-    return value;
-  }
-
-  if (typeof value === 'boolean') {
-    return value.toString();
-  }
-
-  return '';
-}
-
-export function hasOngoingTransaction(key: string, state: StoreState = getState()): boolean {
-  return getVariablesState(key, state).transaction.status !== TransactionStatus.NotStarted;
-}
-
-export function toStateKey(key: string | null | undefined): string {
-  return String(key);
-}
-
-export const toKeyedVariableIdentifier = (variable: VariableModel): KeyedVariableIdentifier => {
-  if (!variable.rootStateKey) {
-    throw new Error(`rootStateKey not found for variable with id:${variable.id}`);
-  }
-
-  return { type: variable.type, id: variable.id, rootStateKey: variable.rootStateKey };
-};
-
-export function toVariablePayload<T extends any = undefined>(
-  identifier: VariableIdentifier,
-  data?: T
-): VariablePayload<T>;
-export function toVariablePayload<T extends any = undefined>(model: VariableModel, data?: T): VariablePayload<T>;
-export function toVariablePayload<T extends any = undefined>(
-  obj: VariableIdentifier | VariableModel,
-  data?: T
-): VariablePayload<T> {
-  return { type: obj.type, id: obj.id, data: data as T };
 }

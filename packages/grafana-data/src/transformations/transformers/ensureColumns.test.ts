@@ -1,11 +1,10 @@
+import { DataTransformerID } from './ids';
 import { toDataFrame } from '../../dataframe/processDataFrame';
 import { FieldType } from '../../types/dataFrame';
 import { mockTransformationsRegistry } from '../../utils/tests/mockTransformationsRegistry';
 import { transformDataFrame } from '../transformDataFrame';
-
 import { ensureColumnsTransformer } from './ensureColumns';
-import { DataTransformerID } from './ids';
-import { joinByFieldTransformer } from './joinByField';
+import { seriesToColumnsTransformer } from './seriesToColumns';
 
 const seriesA = toDataFrame({
   fields: [
@@ -33,7 +32,7 @@ const seriesNoTime = toDataFrame({
 
 describe('ensureColumns transformer', () => {
   beforeAll(() => {
-    mockTransformationsRegistry([ensureColumnsTransformer, joinByFieldTransformer]);
+    mockTransformationsRegistry([ensureColumnsTransformer, seriesToColumnsTransformer]);
   });
 
   it('will transform to columns if time field exists and multiple frames', async () => {
@@ -51,66 +50,68 @@ describe('ensureColumns transformer', () => {
       const frame = filtered[0];
       expect(frame.fields.length).toEqual(5);
       expect(filtered[0]).toMatchInlineSnapshot(`
-        {
-          "fields": [
-            {
-              "config": {},
+        Object {
+          "fields": Array [
+            Object {
+              "config": Object {},
               "name": "TheTime",
-              "state": {},
+              "state": Object {
+                "displayName": "TheTime",
+              },
               "type": "time",
-              "values": [
+              "values": Array [
                 1000,
                 2000,
               ],
             },
-            {
-              "config": {},
-              "labels": {},
+            Object {
+              "config": Object {},
+              "labels": Object {},
               "name": "A",
-              "state": {},
+              "state": Object {},
               "type": "number",
-              "values": [
+              "values": Array [
                 1,
                 100,
               ],
             },
-            {
-              "config": {},
-              "labels": {},
+            Object {
+              "config": Object {},
+              "labels": Object {},
               "name": "B",
-              "state": {},
+              "state": Object {},
               "type": "number",
-              "values": [
+              "values": Array [
                 2,
                 200,
               ],
             },
-            {
-              "config": {},
-              "labels": {},
+            Object {
+              "config": Object {},
+              "labels": Object {},
               "name": "C",
-              "state": {},
+              "state": Object {},
               "type": "number",
-              "values": [
+              "values": Array [
                 3,
                 300,
               ],
             },
-            {
-              "config": {},
-              "labels": {},
+            Object {
+              "config": Object {},
+              "labels": Object {},
               "name": "D",
-              "state": {},
+              "state": Object {},
               "type": "string",
-              "values": [
+              "values": Array [
                 "first",
                 "second",
               ],
             },
           ],
           "length": 2,
-          "meta": {
-            "transformations": [
+          "meta": Object {
+            "transformations": Array [
               "ensureColumns",
             ],
           },

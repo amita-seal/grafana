@@ -1,12 +1,10 @@
 import { Registry } from '@grafana/data';
-
-import { fieldNameByRegexMatcherItem } from './FieldNameByRegexMatcherEditor';
-import { fieldNameMatcherItem } from './FieldNameMatcherEditor';
-import { fieldNamesMatcherItem } from './FieldNamesMatcherEditor';
-import { fieldTypeMatcherItem } from './FieldTypeMatcherEditor';
-import { fieldValueMatcherItem } from './FieldValueMatcher';
-import { fieldsByFrameRefIdItem } from './FieldsByFrameRefIdMatcher';
 import { FieldMatcherUIRegistryItem } from './types';
+import { fieldNameMatcherItem } from './FieldNameMatcherEditor';
+import { fieldNameByRegexMatcherItem } from './FieldNameByRegexMatcherEditor';
+import { fieldTypeMatcherItem } from './FieldTypeMatcherEditor';
+import { fieldsByFrameRefIdItem } from './FieldsByFrameRefIdMatcher';
+import { fieldNamesMatcherItem } from './FieldNamesMatcherEditor';
 
 export const fieldMatchersUI = new Registry<FieldMatcherUIRegistryItem<any>>(() => [
   fieldNameMatcherItem,
@@ -14,5 +12,4 @@ export const fieldMatchersUI = new Registry<FieldMatcherUIRegistryItem<any>>(() 
   fieldTypeMatcherItem,
   fieldsByFrameRefIdItem,
   fieldNamesMatcherItem,
-  fieldValueMatcherItem,
 ]);

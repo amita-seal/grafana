@@ -1,13 +1,12 @@
 package commandstest
 
 import (
-	"io/fs"
 	"os"
 	"time"
 )
 
 type FakeIoUtil struct {
-	FakeReadDir     []fs.DirEntry
+	FakeReadDir     []os.FileInfo
 	FakeIsDirectory bool
 }
 
@@ -19,7 +18,7 @@ func (util *FakeIoUtil) RemoveAll(path string) error {
 	return nil
 }
 
-func (util *FakeIoUtil) ReadDir(path string) ([]fs.DirEntry, error) {
+func (util *FakeIoUtil) ReadDir(path string) ([]os.FileInfo, error) {
 	return util.FakeReadDir, nil
 }
 

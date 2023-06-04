@@ -1,33 +1,21 @@
-import { cx, css } from '@emotion/css';
 import React, { PureComponent } from 'react';
-
-import { SelectableValue, GrafanaTheme2 } from '@grafana/data';
-import { getTemplateSrv } from '@grafana/runtime';
+import coreModule from 'app/core/core_module';
+import { InfluxQuery } from '../types';
+import { SelectableValue, QueryEditorProps } from '@grafana/data';
+import { cx, css } from 'emotion';
 import {
   InlineFormLabel,
   LinkButton,
   Segment,
   CodeEditor,
-  MonacoEditor,
   CodeEditorSuggestionItem,
   CodeEditorSuggestionItemKind,
-  withTheme2,
-  Themeable2,
 } from '@grafana/ui';
-
+import { getTemplateSrv } from '@grafana/runtime';
 import InfluxDatasource from '../datasource';
-import { InfluxQuery } from '../types';
 
-interface Props extends Themeable2 {
-  onChange: (query: InfluxQuery) => void;
-  onRunQuery: () => void;
-  query: InfluxQuery;
-  // `datasource` is not used internally, but this component is used at some places
-  // directly, where the `datasource` prop has to exist. later, when the whole
-  // query-editor gets converted to react we can stop using this component directly
-  // and then we can probably remove the datasource attribute.
-  datasource: InfluxDatasource;
-}
+// @ts-ignore -- complicated since the datasource is not really reactified yet!
+type Props = QueryEditorProps<InfluxDatasource, InfluxQuery>;
 
 const samples: Array<SelectableValue<string>> = [
   { label: 'Show buckets', description: 'List the available buckets (table)', value: 'buckets()' },
@@ -95,7 +83,7 @@ v1.tagValues(
   },
 ];
 
-class UnthemedFluxQueryEditor extends PureComponent<Props> {
+export class FluxQueryEditor extends PureComponent<Props> {
   onFluxQueryChange = (query: string) => {
     this.props.onChange({ ...this.props.query, query });
     this.props.onRunQuery();
@@ -161,26 +149,24 @@ class UnthemedFluxQueryEditor extends PureComponent<Props> {
   // For some reason in angular, when this component gets re-mounted, the width
   // is not set properly.  This forces the layout shortly after mount so that it
   // displays OK.  Note: this is not an issue when used directly in react
-  editorDidMountCallbackHack = (editor: MonacoEditor) => {
+  editorDidMountCallbackHack = (editor: any) => {
     setTimeout(() => editor.layout(), 100);
   };
 
   render() {
-    const { query, theme } = this.props;
-    const styles = getStyles(theme);
+    const { query } = this.props;
 
     const helpTooltip = (
       <div>
         Type: <i>ctrl+space</i> to show template variable suggestions <br />
-        Many queries can be copied from Chronograf
+        Many queries can be copied from chronograph
       </div>
     );
 
     return (
       <>
         <CodeEditor
-          height={'100%'}
-          containerStyles={styles.editorContainerStyles}
+          height={'200px'}
           language="sql"
           value={query.query || ''}
           onBlur={this.onFluxQueryChange}
@@ -190,7 +176,14 @@ class UnthemedFluxQueryEditor extends PureComponent<Props> {
           getSuggestions={this.getSuggestions}
           onEditorDidMount={this.editorDidMountCallbackHack}
         />
-        <div className={cx('gf-form-inline', styles.editorActions)}>
+        <div
+          className={cx(
+            'gf-form-inline',
+            css`
+              margin-top: 6px;
+            `
+          )}
+        >
           <LinkButton
             icon="external-link-alt"
             variant="secondary"
@@ -199,15 +192,7 @@ class UnthemedFluxQueryEditor extends PureComponent<Props> {
           >
             Flux language syntax
           </LinkButton>
-          <Segment
-            options={samples}
-            value="Sample query"
-            onChange={this.onSampleChange}
-            className={css`
-              margin-top: -${theme.spacing(0.5)};
-              margin-left: ${theme.spacing(0.5)};
-            `}
-          />
+          <Segment options={samples} value="Sample Query" onChange={this.onSampleChange} />
           <div className="gf-form gf-form--grow">
             <div className="gf-form-label gf-form-label--grow"></div>
           </div>
@@ -220,18 +205,9 @@ class UnthemedFluxQueryEditor extends PureComponent<Props> {
   }
 }
 
-const getStyles = (theme: GrafanaTheme2) => ({
-  editorContainerStyles: css`
-    height: 200px;
-    max-width: 100%;
-    resize: vertical;
-    overflow: auto;
-    background-color: ${theme.isDark ? theme.colors.background.canvas : theme.colors.background.primary};
-    padding-bottom: ${theme.spacing(1)};
-  `,
-  editorActions: css`
-    margin-top: 6px;
-  `,
-});
-
-export const FluxQueryEditor = withTheme2(UnthemedFluxQueryEditor);
+coreModule.directive('fluxQueryEditor', [
+  'reactDirective',
+  (reactDirective: any) => {
+    return reactDirective(FluxQueryEditor, ['query', 'onChange', 'onRunQuery']);
+  },
+]);

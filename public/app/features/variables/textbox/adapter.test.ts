@@ -1,8 +1,7 @@
 import { variableAdapters } from '../adapters';
+import { createTextBoxVariableAdapter } from './adapter';
 import { textboxBuilder } from '../shared/testing/builders';
 import { VariableHide } from '../types';
-
-import { createTextBoxVariableAdapter } from './adapter';
 
 variableAdapters.setInit(() => [createTextBoxVariableAdapter()]);
 
@@ -12,7 +11,6 @@ describe('createTextBoxVariableAdapter', () => {
       it('then the model should be correct', () => {
         const text = textboxBuilder()
           .withId('text')
-          .withRootStateKey('key')
           .withName('text')
           .withQuery('query')
           .withOriginalQuery('original')
@@ -30,6 +28,7 @@ describe('createTextBoxVariableAdapter', () => {
           current: { selected: false, text: 'original', value: 'original' },
           options: [{ selected: false, text: 'original', value: 'original' }],
           type: 'textbox',
+          label: null,
           hide: VariableHide.dontHide,
           skipUrlSync: false,
           error: null,
@@ -42,7 +41,6 @@ describe('createTextBoxVariableAdapter', () => {
       it('then the model should be correct', () => {
         const text = textboxBuilder()
           .withId('text')
-          .withRootStateKey('key')
           .withName('text')
           .withQuery('query')
           .withOriginalQuery('original')
@@ -60,6 +58,7 @@ describe('createTextBoxVariableAdapter', () => {
           current: { selected: true, text: 'query', value: 'query' },
           options: [{ selected: false, text: 'query', value: 'query' }],
           type: 'textbox',
+          label: null,
           hide: VariableHide.dontHide,
           skipUrlSync: false,
           error: null,

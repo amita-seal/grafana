@@ -15,8 +15,6 @@ You can contribute to Grafana in several ways. Here are some examples:
 - Organize meetups and user groups in your local area.
 - Help others by answering questions about Grafana.
 
-**Please note:** We do not currently accept contributions for translations. Please do not submit pull requests translating grafana.json files - they will be rejected. We do accept contributions to mark up phrases for translation. See [Internationalization](contribute/internationalization.md).
-
 For more ways to contribute, check out the [Open Source Guides](https://opensource.guide/how-to-contribute/).
 
 ### Report bugs
@@ -28,12 +26,10 @@ Report a bug by submitting a [bug report](https://github.com/grafana/grafana/iss
 Follow the issue template and add additional information that will help us replicate the problem.
 
 For data visualization issues:
-
 - Query results from the inspect drawer (data tab & query inspector)
 - Panel settings can be extracted in the panel inspect drawer JSON tab
 
 For a dashboard related issues:
-
 - Dashboard JSON can be found in the dashboard settings JSON model view
 
 For authentication and alerting Grafana server logs are useful.
@@ -44,13 +40,9 @@ If you believe you've found a security vulnerability, please read our [security 
 
 ### Suggest enhancements
 
-If you have an idea of how to improve Grafana, submit an [enhancement request](https://github.com/grafana/grafana/discussions/new).
+If you have an idea of how to improve Grafana, submit an [enhancement request](https://github.com/grafana/grafana/issues/new?labels=type%3A+feature+request&template=2-feature_request.md).
 
 We want to make Grafana accessible to even more people. Submit an [accessibility issue](https://github.com/grafana/grafana/issues/new?labels=type%3A+accessibility&template=3-accessibility.md) to help us understand what we can improve.
-
-### Write documentation
-
-To edit or write technical content, refer to [Contribute to our documentation](/contribute/documentation/README.md). We welcome your expertise and input as our body of technical content grows.
 
 ### Triage issues
 
@@ -82,6 +74,6 @@ Before we can accept your pull request, you need to [sign our CLA](https://grafa
 ## Where do I go from here?
 
 - Set up your [development environment](contribute/developer-guide.md).
-- Learn how to [contribute documentation](contribute/README.md).
+- Learn how to [contribute documentation](contribute/documentation.md).
 - Get started [developing plugins](https://grafana.com/docs/grafana/latest/developers/plugins/) for Grafana.
-- Look through the resources in the [contribute](contribute) folder.
+- Look through the resources in the [contribute](https://github.com/grafana/grafana/tree/master/contribute) folder.

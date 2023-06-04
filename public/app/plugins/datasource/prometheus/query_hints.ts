@@ -1,7 +1,5 @@
-import { size } from 'lodash';
-
+import _ from 'lodash';
 import { QueryHint, QueryFix } from '@grafana/data';
-
 import { PrometheusDatasource } from './datasource';
 
 /**
@@ -13,14 +11,14 @@ export function getQueryHints(query: string, series?: any[], datasource?: Promet
   const hints = [];
 
   // ..._bucket metric needs a histogram_quantile()
-  const histogramMetric = query.trim().match(/^\w+_bucket$|^\w+_bucket{.*}$/);
+  const histogramMetric = query.trim().match(/^\w+_bucket$/);
   if (histogramMetric) {
-    const label = 'Selected metric has buckets.';
+    const label = 'Time series has buckets, you probably wanted a histogram.';
     hints.push({
       type: 'HISTOGRAM_QUANTILE',
       label,
       fix: {
-        label: 'Consider calculating aggregated quantile by adding histogram_quantile().',
+        label: 'Fix by adding histogram_quantile().',
         action: {
           type: 'ADD_HISTOGRAM_QUANTILE',
           query,
@@ -34,48 +32,42 @@ export function getQueryHints(query: string, series?: any[], datasource?: Promet
     // Use metric metadata for exact types
     const nameMatch = query.match(/\b(\w+_(total|sum|count))\b/);
     let counterNameMetric = nameMatch ? nameMatch[1] : '';
-    const metricsMetadata = datasource?.languageProvider?.metricsMetadata;
+    const metricsMetadata = datasource?.languageProvider?.metricsMetadata ?? {};
+    const metricMetadataKeys = Object.keys(metricsMetadata);
     let certain = false;
 
-    if (metricsMetadata) {
-      // Tokenize the query into its identifiers (see https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels)
-      const queryTokens = Array.from(query.matchAll(/\$?[a-zA-Z_:][a-zA-Z0-9_:]*/g))
-        .map(([match]) => match)
-        // Exclude variable identifiers
-        .filter((token) => !token.startsWith('$'))
-        // Split composite keys to match the tokens returned by the language provider
-        .flatMap((token) => token.split(':'));
-      // Determine whether any of the query identifier tokens refers to a counter metric
+    if (metricMetadataKeys.length > 0) {
       counterNameMetric =
-        queryTokens.find((metricName) => {
+        metricMetadataKeys.find((metricName) => {
           // Only considering first type information, could be non-deterministic
-          const metadata = metricsMetadata[metricName];
-          if (metadata && metadata.type.toLowerCase() === 'counter') {
-            certain = true;
-            return true;
-          } else {
-            return false;
+          const metadata = metricsMetadata[metricName][0];
+          if (metadata.type.toLowerCase() === 'counter') {
+            const metricRegex = new RegExp(`\\b${metricName}\\b`);
+            if (query.match(metricRegex)) {
+              certain = true;
+              return true;
+            }
           }
+          return false;
         }) ?? '';
     }
 
     if (counterNameMetric) {
-      // FixableQuery consists of metric name and optionally label-value pairs. We are not offering fix for complex queries yet.
-      const fixableQuery = query.trim().match(/^\w+$|^\w+{.*}$/);
+      const simpleMetric = query.trim().match(/^\w+$/);
       const verb = certain ? 'is' : 'looks like';
-      let label = `Selected metric ${verb} a counter.`;
+      let label = `Metric ${counterNameMetric} ${verb} a counter.`;
       let fix: QueryFix | undefined;
 
-      if (fixableQuery) {
+      if (simpleMetric) {
         fix = {
-          label: 'Consider calculating rate of counter by adding rate().',
+          label: 'Fix by adding rate().',
           action: {
             type: 'ADD_RATE',
             query,
           },
         };
       } else {
-        label = `${label} Consider calculating rate of counter by adding rate().`;
+        label = `${label} Try applying a rate() function.`;
       }
 
       hints.push({
@@ -98,19 +90,19 @@ export function getQueryHints(query: string, series?: any[], datasource?: Promet
       }
       return acc;
     }, {});
-    if (size(mappingForQuery) > 0) {
+    if (_.size(mappingForQuery) > 0) {
       const label = 'Query contains recording rules.';
       hints.push({
         type: 'EXPAND_RULES',
         label,
-        fix: {
+        fix: ({
           label: 'Expand rules',
           action: {
             type: 'EXPAND_RULES',
             query,
-            options: mappingForQuery,
+            mapping: mappingForQuery,
           },
-        } as unknown as QueryFix,
+        } as any) as QueryFix,
       });
     }
   }
@@ -131,27 +123,6 @@ export function getQueryHints(query: string, series?: any[], datasource?: Promet
         } as QueryFix,
       });
     }
-  }
-
-  return hints;
-}
-
-export function getInitHints(datasource: PrometheusDatasource): QueryHint[] {
-  const hints = [];
-  // Hint if using Loki as Prometheus data source
-  if (datasource.directUrl.includes('/loki') && !datasource.languageProvider.metrics.length) {
-    hints.push({
-      label: `Using Loki as a Prometheus data source is no longer supported. You must use the Loki data source for your Loki instance.`,
-      type: 'INFO',
-    });
-  }
-
-  // Hint for big disabled lookups
-  if (datasource.lookupsDisabled) {
-    hints.push({
-      label: `Labels and metrics lookup was disabled in data source settings.`,
-      type: 'INFO',
-    });
   }
 
   return hints;

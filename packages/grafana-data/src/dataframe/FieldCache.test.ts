@@ -1,6 +1,5 @@
-import { FieldType } from '../types/dataFrame';
-
 import { FieldCache } from './FieldCache';
+import { FieldType } from '../types/dataFrame';
 import { toDataFrame } from './processDataFrame';
 
 describe('FieldCache', () => {
@@ -70,33 +69,24 @@ describe('FieldCache', () => {
   });
 
   describe('field retrieval', () => {
-    let fieldCache: FieldCache;
-
-    beforeEach(() => {
-      const frame = toDataFrame({
-        fields: [
-          { name: 'time', type: FieldType.time, values: [100, 200, 300] },
-          { name: 'name', type: FieldType.string, values: ['a', 'b', 'c'] },
-          { name: 'value', type: FieldType.number, values: [1, 2, 3] },
-          { name: 'value', type: FieldType.number, values: [4, 5, 6] },
-        ],
-      });
-
-      // Because we're using duplicate field names in the test case, we need to disable the warning,
-      // so it doesn't show up in the test output
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
-      fieldCache = new FieldCache(frame);
-      consoleWarnSpy.mockRestore();
+    const frame = toDataFrame({
+      fields: [
+        { name: 'time', type: FieldType.time, values: [100, 200, 300] },
+        { name: 'name', type: FieldType.string, values: ['a', 'b', 'c'] },
+        { name: 'value', type: FieldType.number, values: [1, 2, 3] },
+        { name: 'value', type: FieldType.number, values: [4, 5, 6] },
+      ],
     });
+    const ext = new FieldCache(frame);
 
     it('should get the first field with a duplicate name', () => {
-      const field = fieldCache.getFieldByName('value');
+      const field = ext.getFieldByName('value');
       expect(field!.name).toEqual('value');
-      expect(field!.values).toEqual([1, 2, 3]);
+      expect(field!.values.toArray()).toEqual([1, 2, 3]);
     });
 
     it('should return index of the field', () => {
-      const field = fieldCache.getFirstFieldOfType(FieldType.number);
+      const field = ext.getFirstFieldOfType(FieldType.number);
       expect(field!.index).toEqual(2);
     });
   });

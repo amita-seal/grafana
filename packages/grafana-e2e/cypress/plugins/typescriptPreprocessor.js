@@ -1,5 +1,5 @@
-const wp = require('@cypress/webpack-preprocessor');
 const { resolve } = require('path');
+const wp = require('@cypress/webpack-preprocessor');
 
 const anyNodeModules = /node_modules/;
 const packageRoot = resolve(`${__dirname}/../../`);
@@ -22,9 +22,6 @@ const webpackOptions = {
         use: [
           {
             loader: 'ts-loader',
-            options: {
-              transpileOnly: true,
-            },
           },
         ],
       },

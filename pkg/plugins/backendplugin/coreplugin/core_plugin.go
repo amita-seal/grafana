@@ -4,9 +4,10 @@ import (
 	"context"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
-
+	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/plugins/backendplugin"
-	"github.com/grafana/grafana/pkg/plugins/log"
+	"github.com/grafana/grafana/pkg/tsdb"
 )
 
 // corePlugin represents a plugin that's part of Grafana core.
@@ -16,21 +17,19 @@ type corePlugin struct {
 	backend.CheckHealthHandler
 	backend.CallResourceHandler
 	backend.QueryDataHandler
-	backend.StreamHandler
 }
 
 // New returns a new backendplugin.PluginFactoryFunc for creating a core (built-in) backendplugin.Plugin.
 func New(opts backend.ServeOpts) backendplugin.PluginFactoryFunc {
-	return func(pluginID string, logger log.Logger, env []string) (backendplugin.Plugin, error) {
+	return backendplugin.PluginFactoryFunc(func(pluginID string, logger log.Logger, env []string) (backendplugin.Plugin, error) {
 		return &corePlugin{
 			pluginID:            pluginID,
 			logger:              logger,
 			CheckHealthHandler:  opts.CheckHealthHandler,
 			CallResourceHandler: opts.CallResourceHandler,
 			QueryDataHandler:    opts.QueryDataHandler,
-			StreamHandler:       opts.StreamHandler,
 		}, nil
-	}
+	})
 }
 
 func (cp *corePlugin) PluginID() string {
@@ -42,6 +41,11 @@ func (cp *corePlugin) Logger() log.Logger {
 }
 
 func (cp *corePlugin) Start(ctx context.Context) error {
+	if cp.QueryDataHandler != nil {
+		tsdb.RegisterTsdbQueryEndpoint(cp.pluginID, func(dsInfo *models.DataSource) (tsdb.TsdbQueryEndpoint, error) {
+			return newQueryEndpointAdapter(cp.pluginID, cp.logger, backendplugin.InstrumentQueryDataHandler(cp.QueryDataHandler)), nil
+		})
+	}
 	return nil
 }
 
@@ -57,19 +61,7 @@ func (cp *corePlugin) Exited() bool {
 	return false
 }
 
-func (cp *corePlugin) Decommission() error {
-	return nil
-}
-
-func (cp *corePlugin) IsDecommissioned() bool {
-	return false
-}
-
-func (cp *corePlugin) Target() backendplugin.Target {
-	return backendplugin.TargetInMemory
-}
-
-func (cp *corePlugin) CollectMetrics(_ context.Context, _ *backend.CollectMetricsRequest) (*backend.CollectMetricsResult, error) {
+func (cp *corePlugin) CollectMetrics(ctx context.Context) (*backend.CollectMetricsResult, error) {
 	return nil, backendplugin.ErrMethodNotImplemented
 }
 
@@ -81,39 +73,10 @@ func (cp *corePlugin) CheckHealth(ctx context.Context, req *backend.CheckHealthR
 	return nil, backendplugin.ErrMethodNotImplemented
 }
 
-func (cp *corePlugin) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	if cp.QueryDataHandler != nil {
-		return cp.QueryDataHandler.QueryData(ctx, req)
-	}
-
-	return nil, backendplugin.ErrMethodNotImplemented
-}
-
 func (cp *corePlugin) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
 	if cp.CallResourceHandler != nil {
 		return cp.CallResourceHandler.CallResource(ctx, req, sender)
 	}
 
-	return backendplugin.ErrMethodNotImplemented
-}
-
-func (cp *corePlugin) SubscribeStream(ctx context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
-	if cp.StreamHandler != nil {
-		return cp.StreamHandler.SubscribeStream(ctx, req)
-	}
-	return nil, backendplugin.ErrMethodNotImplemented
-}
-
-func (cp *corePlugin) PublishStream(ctx context.Context, req *backend.PublishStreamRequest) (*backend.PublishStreamResponse, error) {
-	if cp.StreamHandler != nil {
-		return cp.StreamHandler.PublishStream(ctx, req)
-	}
-	return nil, backendplugin.ErrMethodNotImplemented
-}
-
-func (cp *corePlugin) RunStream(ctx context.Context, req *backend.RunStreamRequest, sender *backend.StreamSender) error {
-	if cp.StreamHandler != nil {
-		return cp.StreamHandler.RunStream(ctx, req, sender)
-	}
 	return backendplugin.ErrMethodNotImplemented
 }

@@ -3,29 +3,26 @@ package grpcplugin
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/grpcplugin"
 	"github.com/grafana/grafana-plugin-sdk-go/genproto/pluginv2"
-	"github.com/hashicorp/go-plugin"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
+	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/plugins/backendplugin"
 	"github.com/grafana/grafana/pkg/plugins/backendplugin/pluginextensionv2"
-	"github.com/grafana/grafana/pkg/plugins/backendplugin/secretsmanagerplugin"
-	"github.com/grafana/grafana/pkg/plugins/log"
+	"github.com/grafana/grafana/pkg/util/errutil"
+	"github.com/hashicorp/go-plugin"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-type ClientV2 struct {
+type clientV2 struct {
 	grpcplugin.DiagnosticsClient
 	grpcplugin.ResourceClient
 	grpcplugin.DataClient
-	grpcplugin.StreamClient
 	pluginextensionv2.RendererPlugin
-	secretsmanagerplugin.SecretsManagerPlugin
 }
 
 func newClientV2(descriptor PluginDescriptor, logger log.Logger, rpcClient plugin.ClientProtocol) (pluginClient, error) {
@@ -44,66 +41,42 @@ func newClientV2(descriptor PluginDescriptor, logger log.Logger, rpcClient plugi
 		return nil, err
 	}
 
-	rawStream, err := rpcClient.Dispense("stream")
-	if err != nil {
-		return nil, err
-	}
-
 	rawRenderer, err := rpcClient.Dispense("renderer")
 	if err != nil {
 		return nil, err
 	}
 
-	rawSecretsManager, err := rpcClient.Dispense("secretsmanager")
-	if err != nil {
-		return nil, err
-	}
-
-	c := ClientV2{}
+	c := clientV2{}
 	if rawDiagnostics != nil {
-		if diagnosticsClient, ok := rawDiagnostics.(grpcplugin.DiagnosticsClient); ok {
-			c.DiagnosticsClient = diagnosticsClient
+		if plugin, ok := rawDiagnostics.(grpcplugin.DiagnosticsClient); ok {
+			c.DiagnosticsClient = plugin
 		}
 	}
 
 	if rawResource != nil {
-		if resourceClient, ok := rawResource.(grpcplugin.ResourceClient); ok {
-			c.ResourceClient = resourceClient
+		if plugin, ok := rawResource.(grpcplugin.ResourceClient); ok {
+			c.ResourceClient = plugin
 		}
 	}
 
 	if rawData != nil {
-		if dataClient, ok := rawData.(grpcplugin.DataClient); ok {
-			c.DataClient = dataClient
-		}
-	}
-
-	if rawStream != nil {
-		if streamClient, ok := rawStream.(grpcplugin.StreamClient); ok {
-			c.StreamClient = streamClient
+		if plugin, ok := rawData.(grpcplugin.DataClient); ok {
+			c.DataClient = instrumentDataClient(plugin)
 		}
 	}
 
 	if rawRenderer != nil {
-		if rendererPlugin, ok := rawRenderer.(pluginextensionv2.RendererPlugin); ok {
-			c.RendererPlugin = rendererPlugin
+		if plugin, ok := rawRenderer.(pluginextensionv2.RendererPlugin); ok {
+			c.RendererPlugin = plugin
 		}
 	}
 
-	if rawSecretsManager != nil {
-		if secretsManagerPlugin, ok := rawSecretsManager.(secretsmanagerplugin.SecretsManagerPlugin); ok {
-			c.SecretsManagerPlugin = secretsManagerPlugin
+	if descriptor.startFns.OnStart != nil {
+		client := &Client{
+			DataPlugin:     c.DataClient,
+			RendererPlugin: c.RendererPlugin,
 		}
-	}
-
-	if descriptor.startRendererFn != nil {
-		if err := descriptor.startRendererFn(descriptor.pluginID, c.RendererPlugin, logger); err != nil {
-			return nil, err
-		}
-	}
-
-	if descriptor.startSecretsManagerFn != nil {
-		if err := descriptor.startSecretsManagerFn(descriptor.pluginID, c.SecretsManagerPlugin, logger); err != nil {
+		if err := descriptor.startFns.OnStart(descriptor.pluginID, client, logger); err != nil {
 			return nil, err
 		}
 	}
@@ -111,12 +84,12 @@ func newClientV2(descriptor PluginDescriptor, logger log.Logger, rpcClient plugi
 	return &c, nil
 }
 
-func (c *ClientV2) CollectMetrics(ctx context.Context, req *backend.CollectMetricsRequest) (*backend.CollectMetricsResult, error) {
+func (c *clientV2) CollectMetrics(ctx context.Context) (*backend.CollectMetricsResult, error) {
 	if c.DiagnosticsClient == nil {
 		return &backend.CollectMetricsResult{}, nil
 	}
 
-	protoResp, err := c.DiagnosticsClient.CollectMetrics(ctx, backend.ToProto().CollectMetricsRequest(req))
+	protoResp, err := c.DiagnosticsClient.CollectMetrics(ctx, &pluginv2.CollectMetricsRequest{})
 	if err != nil {
 		if status.Code(err) == codes.Unimplemented {
 			return &backend.CollectMetricsResult{}, nil
@@ -128,13 +101,13 @@ func (c *ClientV2) CollectMetrics(ctx context.Context, req *backend.CollectMetri
 	return backend.FromProto().CollectMetricsResponse(protoResp), nil
 }
 
-func (c *ClientV2) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
+func (c *clientV2) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
 	if c.DiagnosticsClient == nil {
 		return nil, backendplugin.ErrMethodNotImplemented
 	}
 
 	protoContext := backend.ToProto().PluginContext(req.PluginContext)
-	protoResp, err := c.DiagnosticsClient.CheckHealth(ctx, &pluginv2.CheckHealthRequest{PluginContext: protoContext, Headers: req.Headers})
+	protoResp, err := c.DiagnosticsClient.CheckHealth(ctx, &pluginv2.CheckHealthRequest{PluginContext: protoContext})
 
 	if err != nil {
 		if status.Code(err) == codes.Unimplemented {
@@ -149,26 +122,7 @@ func (c *ClientV2) CheckHealth(ctx context.Context, req *backend.CheckHealthRequ
 	return backend.FromProto().CheckHealthResponse(protoResp), nil
 }
 
-func (c *ClientV2) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	if c.DataClient == nil {
-		return nil, backendplugin.ErrMethodNotImplemented
-	}
-
-	protoReq := backend.ToProto().QueryDataRequest(req)
-	protoResp, err := c.DataClient.QueryData(ctx, protoReq)
-
-	if err != nil {
-		if status.Code(err) == codes.Unimplemented {
-			return nil, backendplugin.ErrMethodNotImplemented
-		}
-
-		return nil, fmt.Errorf("%v: %w", "Failed to query data", err)
-	}
-
-	return backend.FromProto().QueryDataResponse(protoResp)
-}
-
-func (c *ClientV2) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
+func (c *clientV2) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
 	if c.ResourceClient == nil {
 		return backendplugin.ErrMethodNotImplemented
 	}
@@ -180,7 +134,7 @@ func (c *ClientV2) CallResource(ctx context.Context, req *backend.CallResourceRe
 			return backendplugin.ErrMethodNotImplemented
 		}
 
-		return fmt.Errorf("%v: %w", "Failed to call resource", err)
+		return errutil.Wrap("Failed to call resource", err)
 	}
 
 	for {
@@ -194,7 +148,7 @@ func (c *ClientV2) CallResource(ctx context.Context, req *backend.CallResourceRe
 				return nil
 			}
 
-			return fmt.Errorf("%v: %w", "failed to receive call resource response", err)
+			return errutil.Wrap("failed to receive call resource response", err)
 		}
 
 		if err := sender.Send(backend.FromProto().CallResourceResponse(protoResp)); err != nil {
@@ -203,57 +157,23 @@ func (c *ClientV2) CallResource(ctx context.Context, req *backend.CallResourceRe
 	}
 }
 
-func (c *ClientV2) SubscribeStream(ctx context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
-	if c.StreamClient == nil {
-		return nil, backendplugin.ErrMethodNotImplemented
-	}
-	protoResp, err := c.StreamClient.SubscribeStream(ctx, backend.ToProto().SubscribeStreamRequest(req))
-	if err != nil {
-		return nil, err
-	}
-	return backend.FromProto().SubscribeStreamResponse(protoResp), nil
+type dataClientQueryDataFunc func(ctx context.Context, req *pluginv2.QueryDataRequest, opts ...grpc.CallOption) (*pluginv2.QueryDataResponse, error)
+
+func (fn dataClientQueryDataFunc) QueryData(ctx context.Context, req *pluginv2.QueryDataRequest, opts ...grpc.CallOption) (*pluginv2.QueryDataResponse, error) {
+	return fn(ctx, req, opts...)
 }
 
-func (c *ClientV2) PublishStream(ctx context.Context, req *backend.PublishStreamRequest) (*backend.PublishStreamResponse, error) {
-	if c.StreamClient == nil {
-		return nil, backendplugin.ErrMethodNotImplemented
-	}
-	protoResp, err := c.StreamClient.PublishStream(ctx, backend.ToProto().PublishStreamRequest(req))
-	if err != nil {
-		return nil, err
-	}
-	return backend.FromProto().PublishStreamResponse(protoResp), nil
-}
-
-func (c *ClientV2) RunStream(ctx context.Context, req *backend.RunStreamRequest, sender *backend.StreamSender) error {
-	if c.StreamClient == nil {
-		return backendplugin.ErrMethodNotImplemented
+func instrumentDataClient(plugin grpcplugin.DataClient) grpcplugin.DataClient {
+	if plugin == nil {
+		return nil
 	}
 
-	protoReq := backend.ToProto().RunStreamRequest(req)
-	protoStream, err := c.StreamClient.RunStream(ctx, protoReq)
-	if err != nil {
-		if status.Code(err) == codes.Unimplemented {
-			return backendplugin.ErrMethodNotImplemented
-		}
-		return fmt.Errorf("%v: %w", "Failed to call resource", err)
-	}
-
-	for {
-		p, err := protoStream.Recv()
-		if err != nil {
-			if status.Code(err) == codes.Unimplemented {
-				return backendplugin.ErrMethodNotImplemented
-			}
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			return fmt.Errorf("error running stream: %w", err)
-		}
-		// From GRPC connection we receive already prepared JSON.
-		err = sender.SendJSON(p.Data)
-		if err != nil {
-			return err
-		}
-	}
+	return dataClientQueryDataFunc(func(ctx context.Context, req *pluginv2.QueryDataRequest, opts ...grpc.CallOption) (*pluginv2.QueryDataResponse, error) {
+		var resp *pluginv2.QueryDataResponse
+		err := backendplugin.InstrumentQueryDataRequest(req.PluginContext.PluginId, func() (innerErr error) {
+			resp, innerErr = plugin.QueryData(ctx, req)
+			return
+		})
+		return resp, err
+	})
 }

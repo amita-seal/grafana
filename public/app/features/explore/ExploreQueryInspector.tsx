@@ -1,39 +1,30 @@
-import React, { useEffect } from 'react';
-import { connect, ConnectedProps } from 'react-redux';
-
-import { CoreApp, TimeZone } from '@grafana/data';
-import { reportInteraction } from '@grafana/runtime/src';
+import React from 'react';
 import { TabbedContainer, TabConfig } from '@grafana/ui';
-import { ExploreDrawer } from 'app/features/explore/ExploreDrawer';
-import { InspectDataTab } from 'app/features/inspector/InspectDataTab';
-import { InspectErrorTab } from 'app/features/inspector/InspectErrorTab';
-import { InspectJSONTab } from 'app/features/inspector/InspectJSONTab';
-import { InspectStatsTab } from 'app/features/inspector/InspectStatsTab';
-import { QueryInspector } from 'app/features/inspector/QueryInspector';
-import { StoreState, ExploreItemState, ExploreId } from 'app/types';
-
+import { PanelData, TimeZone } from '@grafana/data';
 import { runQueries } from './state/query';
+import { StoreState, ExploreItemState, ExploreId } from 'app/types';
+import { hot } from 'react-hot-loader';
+import { connect } from 'react-redux';
+import { ExploreDrawer } from 'app/features/explore/ExploreDrawer';
+import { InspectJSONTab } from 'app/features/inspector/InspectJSONTab';
+import { QueryInspector } from 'app/features/inspector/QueryInspector';
+import { InspectStatsTab } from 'app/features/inspector/InspectStatsTab';
+import { InspectDataTab } from 'app/features/inspector/InspectDataTab';
 
 interface DispatchProps {
+  runQueries: typeof runQueries;
+}
+interface Props extends DispatchProps {
+  loading: boolean;
   width: number;
   exploreId: ExploreId;
-  timeZone: TimeZone;
+  queryResponse?: PanelData;
   onClose: () => void;
 }
 
-type Props = DispatchProps & ConnectedProps<typeof connector>;
-
 export function ExploreQueryInspector(props: Props) {
-  const { loading, width, onClose, queryResponse, timeZone } = props;
+  const { loading, width, onClose, queryResponse } = props;
   const dataFrames = queryResponse?.series || [];
-  let errors = queryResponse?.errors;
-  if (!errors?.length && queryResponse?.error) {
-    errors = [queryResponse.error];
-  }
-
-  useEffect(() => {
-    reportInteraction('grafana_explore_query_inspector_opened');
-  }, []);
 
   const statsTab: TabConfig = {
     label: 'Stats',
@@ -58,31 +49,20 @@ export function ExploreQueryInspector(props: Props) {
         data={dataFrames}
         isLoading={loading}
         options={{ withTransforms: false, withFieldConfig: false }}
-        timeZone={timeZone}
-        app={CoreApp.Explore}
       />
     ),
   };
 
-  const queryTab: TabConfig = {
-    label: 'Query',
-    value: 'query',
+  const queryInspectorTab: TabConfig = {
+    label: 'Query Inspector',
+    value: 'query_inspector',
     icon: 'info-circle',
     content: <QueryInspector data={dataFrames} onRefreshQuery={() => props.runQueries(props.exploreId)} />,
   };
 
-  const tabs = [statsTab, queryTab, jsonTab, dataTab];
-  if (errors?.length) {
-    const errorTab: TabConfig = {
-      label: 'Error',
-      value: 'error',
-      icon: 'exclamation-triangle',
-      content: <InspectErrorTab errors={errors} />,
-    };
-    tabs.push(errorTab);
-  }
+  const tabs = [statsTab, queryInspectorTab, jsonTab, dataTab];
   return (
-    <ExploreDrawer width={width}>
+    <ExploreDrawer width={width} onResize={() => {}}>
       <TabbedContainer tabs={tabs} onClose={onClose} closeIconTooltip="Close query inspector" />
     </ExploreDrawer>
   );
@@ -90,7 +70,7 @@ export function ExploreQueryInspector(props: Props) {
 
 function mapStateToProps(state: StoreState, { exploreId }: { exploreId: ExploreId }) {
   const explore = state.explore;
-  const item: ExploreItemState = explore.panes[exploreId]!;
+  const item: ExploreItemState = explore[exploreId]!;
   const { loading, queryResponse } = item;
 
   return {
@@ -99,10 +79,8 @@ function mapStateToProps(state: StoreState, { exploreId }: { exploreId: ExploreI
   };
 }
 
-const mapDispatchToProps = {
+const mapDispatchToProps: DispatchProps = {
   runQueries,
 };
 
-const connector = connect(mapStateToProps, mapDispatchToProps);
-
-export default connector(ExploreQueryInspector);
+export default hot(module)(connect(mapStateToProps, mapDispatchToProps)(ExploreQueryInspector));

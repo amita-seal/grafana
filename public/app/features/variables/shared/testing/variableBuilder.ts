@@ -1,5 +1,4 @@
-import { cloneDeep } from 'lodash';
-
+import cloneDeep from 'lodash/cloneDeep';
 import { VariableModel } from 'app/features/variables/types';
 
 export class VariableBuilder<T extends VariableModel> {
@@ -17,11 +16,6 @@ export class VariableBuilder<T extends VariableModel> {
 
   withId(id: string) {
     this.variable.id = id;
-    return this;
-  }
-
-  withRootStateKey(key: string) {
-    this.variable.rootStateKey = key;
     return this;
   }
 

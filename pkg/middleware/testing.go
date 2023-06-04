@@ -6,49 +6,34 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"gopkg.in/macaron.v1"
 
-	"github.com/grafana/grafana/pkg/infra/db"
-	"github.com/grafana/grafana/pkg/infra/db/dbtest"
 	"github.com/grafana/grafana/pkg/infra/remotecache"
-	"github.com/grafana/grafana/pkg/services/apikey/apikeytest"
-	"github.com/grafana/grafana/pkg/services/auth/authtest"
-	"github.com/grafana/grafana/pkg/services/auth/jwt"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/auth"
 	"github.com/grafana/grafana/pkg/services/contexthandler"
-	"github.com/grafana/grafana/pkg/services/contexthandler/ctxkey"
-	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
-	"github.com/grafana/grafana/pkg/services/login/loginservice"
-	"github.com/grafana/grafana/pkg/services/org/orgtest"
-	"github.com/grafana/grafana/pkg/services/user/usertest"
+	"github.com/grafana/grafana/pkg/services/sqlstore"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/web"
+	"github.com/stretchr/testify/require"
 )
 
 type scenarioContext struct {
 	t                    *testing.T
-	m                    *web.Mux
-	context              *contextmodel.ReqContext
+	m                    *macaron.Macaron
+	context              *models.ReqContext
 	resp                 *httptest.ResponseRecorder
 	apiKey               string
 	authHeader           string
-	jwtAuthHeader        string
 	tokenSessionCookie   string
 	respJson             map[string]interface{}
 	handlerFunc          handlerFunc
-	defaultHandler       web.Handler
+	defaultHandler       macaron.Handler
 	url                  string
-	userAuthTokenService *authtest.FakeUserAuthTokenService
-	jwtAuthService       *jwt.FakeJWTService
+	userAuthTokenService *auth.FakeUserAuthTokenService
 	remoteCacheService   *remotecache.RemoteCache
 	cfg                  *setting.Cfg
-	sqlStore             db.DB
-	mockSQLStore         *dbtest.FakeDB
+	sqlStore             *sqlstore.SQLStore
 	contextHandler       *contexthandler.ContextHandler
-	loginService         *loginservice.LoginServiceMock
-	apiKeyService        *apikeytest.Service
-	userService          *usertest.FakeUserService
-	oauthTokenService    *authtest.FakeOAuthTokenService
-	orgService           *orgtest.FakeOrgService
 
 	req *http.Request
 }
@@ -68,22 +53,13 @@ func (sc *scenarioContext) withAuthorizationHeader(authHeader string) *scenarioC
 	return sc
 }
 
-func (sc *scenarioContext) withJWTAuthHeader(jwtAuthHeader string) *scenarioContext {
-	sc.jwtAuthHeader = jwtAuthHeader
-	return sc
-}
-
 func (sc *scenarioContext) fakeReq(method, url string) *scenarioContext {
 	sc.t.Helper()
 
 	sc.resp = httptest.NewRecorder()
 	req, err := http.NewRequest(method, url, nil)
 	require.NoError(sc.t, err)
-
-	reqCtx := &contextmodel.ReqContext{
-		Context: web.FromContext(req.Context()),
-	}
-	sc.req = req.WithContext(ctxkey.Set(req.Context(), reqCtx))
+	sc.req = req
 
 	return sc
 }
@@ -99,16 +75,9 @@ func (sc *scenarioContext) fakeReqWithParams(method, url string, queryParams map
 	for k, v := range queryParams {
 		q.Add(k, v)
 	}
-
 	req.URL.RawQuery = q.Encode()
-	req.RequestURI = req.URL.RequestURI()
-
 	require.NoError(sc.t, err)
-
-	reqCtx := &contextmodel.ReqContext{
-		Context: web.FromContext(req.Context()),
-	}
-	sc.req = req.WithContext(ctxkey.Set(req.Context(), reqCtx))
+	sc.req = req
 
 	return sc
 }
@@ -124,11 +93,6 @@ func (sc *scenarioContext) exec() {
 	if sc.authHeader != "" {
 		sc.t.Logf(`Adding header "Authorization: %s"`, sc.authHeader)
 		sc.req.Header.Set("Authorization", sc.authHeader)
-	}
-
-	if sc.jwtAuthHeader != "" {
-		sc.t.Logf(`Adding header "%s: %s"`, sc.cfg.JWTAuthHeaderName, sc.jwtAuthHeader)
-		sc.req.Header.Set(sc.cfg.JWTAuthHeaderName, sc.jwtAuthHeader)
 	}
 
 	if sc.tokenSessionCookie != "" {
@@ -151,4 +115,4 @@ func (sc *scenarioContext) exec() {
 }
 
 type scenarioFunc func(t *testing.T, c *scenarioContext)
-type handlerFunc func(c *contextmodel.ReqContext)
+type handlerFunc func(c *models.ReqContext)

@@ -1,23 +1,25 @@
----
-title: Add query editor help
----
++++
+title = "Add query editor help"
++++
 
-# Add query editor help
+# Add a query editor help component
 
-Query editors support the addition of a help component to display examples of potential queries. When the user clicks on one of the examples, the query editor is automatically updated. This helps the user to make faster queries.
+By adding a help component to your plugin, you can for example create "cheat sheets" with commonly used queries. When the user clicks on one of the examples, it automatically updates the query editor. It's a great way to increase productivity for your users.
 
-1. In the `src` directory of your plugin, create a file `QueryEditorHelp.tsx` with the following content:
+1. Create a file `QueryEditorHelp.tsx` in the `src` directory of your plugin, with the following content:
 
    ```ts
    import React from 'react';
    import { QueryEditorHelpProps } from '@grafana/data';
 
    export default (props: QueryEditorHelpProps) => {
-     return <h2>My cheat sheet</h2>;
+     return (
+       <h2>My cheat sheet</h2>
+     );
    };
    ```
 
-1. Configure the plugin to use `QueryEditorHelp`:
+1. Configure the plugin to use the `QueryEditorHelp`.
 
    ```ts
    import QueryEditorHelp from './QueryEditorHelp';
@@ -27,10 +29,11 @@ Query editors support the addition of a help component to display examples of po
    export const plugin = new DataSourcePlugin<DataSource, MyQuery, MyDataSourceOptions>(DataSource)
      .setConfigEditor(ConfigEditor)
      .setQueryEditor(QueryEditor)
+     .setExploreQueryField(ExploreQueryEditor)
      .setQueryEditorHelp(QueryEditorHelp);
    ```
 
-1. Create a few examples of potential queries:
+1. Create a few examples.
 
    ```ts
    import React from 'react';
@@ -59,7 +62,7 @@ Query editors support the addition of a help component to display examples of po
              {item.expression ? (
                <div
                  className="cheat-sheet-item__example"
-                 onClick={(e) => props.onClickExample({ refId: 'A', queryText: item.expression } as DataQuery)}
+                 onClick={e => props.onClickExample({ refId: 'A', queryText: item.expression } as DataQuery)}
                >
                  <code>{item.expression}</code>
                </div>

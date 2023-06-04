@@ -1,32 +1,22 @@
-import { css, cx } from '@emotion/css';
 import React, { PureComponent } from 'react';
-import { lastValueFrom } from 'rxjs';
 
-import {
-  AnnotationEventMappings,
-  AnnotationQuery,
-  DataQuery,
-  DataSourceApi,
-  DataSourceInstanceSettings,
-  DataSourcePluginContextProvider,
-  LoadingState,
-} from '@grafana/data';
-import { Button, Icon, IconName, Spinner } from '@grafana/ui';
+import { AnnotationEventMappings, DataQuery, LoadingState, DataSourceApi, AnnotationQuery } from '@grafana/data';
+import { Spinner, Icon, IconName, Button } from '@grafana/ui';
+
 import { getDashboardSrv } from 'app/features/dashboard/services/DashboardSrv';
 import { getTimeSrv } from 'app/features/dashboard/services/TimeSrv';
+import { cx, css } from 'emotion';
+import { standardAnnotationSupport } from '../standardAnnotationSupport';
+import { executeAnnotationQuery } from '../annotations_srv';
 import { PanelModel } from 'app/features/dashboard/state';
-
-import { executeAnnotationQuery } from '../executeAnnotationQuery';
-import { shouldUseLegacyRunner, shouldUseMappingUI, standardAnnotationSupport } from '../standardAnnotationSupport';
 import { AnnotationQueryResponse } from '../types';
-
 import { AnnotationFieldMapper } from './AnnotationResultMapper';
+import coreModule from 'app/core/core_module';
 
-export interface Props {
+interface Props {
   datasource: DataSourceApi;
-  datasourceInstanceSettings: DataSourceInstanceSettings;
   annotation: AnnotationQuery<DataQuery>;
-  onChange: (annotation: AnnotationQuery<DataQuery>) => void;
+  change: (annotation: AnnotationQuery<DataQuery>) => void;
 }
 
 interface State {
@@ -35,14 +25,14 @@ interface State {
 }
 
 export default class StandardAnnotationQueryEditor extends PureComponent<Props, State> {
-  state: State = {};
+  state = {} as State;
 
   componentDidMount() {
     this.verifyDataSource();
   }
 
   componentDidUpdate(oldProps: Props) {
-    if (this.props.annotation !== oldProps.annotation && !shouldUseLegacyRunner(this.props.datasource)) {
+    if (this.props.annotation !== oldProps.annotation) {
       this.verifyDataSource();
     }
   }
@@ -58,7 +48,7 @@ export default class StandardAnnotationQueryEditor extends PureComponent<Props, 
 
     const fixed = processor.prepareAnnotation!(annotation);
     if (fixed !== annotation) {
-      this.props.onChange(fixed);
+      this.props.change(fixed);
     } else {
       this.onRunQuery();
     }
@@ -66,32 +56,18 @@ export default class StandardAnnotationQueryEditor extends PureComponent<Props, 
 
   onRunQuery = async () => {
     const { datasource, annotation } = this.props;
-    if (shouldUseLegacyRunner(datasource)) {
-      // In the new UI the running of query is done so the data can be mapped. In the legacy annotations this does
-      // not exist as the annotationQuery already returns annotation events which cannot be mapped. This means that
-      // right now running a query for data source with legacy runner does not make much sense.
-      return;
-    }
-
-    const dashboard = getDashboardSrv().getCurrent();
-    if (!dashboard) {
-      return;
-    }
-
     this.setState({
       running: true,
     });
-    const response = await lastValueFrom(
-      executeAnnotationQuery(
-        {
-          range: getTimeSrv().timeRange(),
-          panel: new PanelModel({}),
-          dashboard,
-        },
-        datasource,
-        annotation
-      )
-    );
+    const response = await executeAnnotationQuery(
+      {
+        range: getTimeSrv().timeRange(),
+        panel: {} as PanelModel,
+        dashboard: getDashboardSrv().getCurrent(),
+      },
+      datasource,
+      annotation
+    ).toPromise();
     this.setState({
       running: false,
       response,
@@ -99,14 +75,14 @@ export default class StandardAnnotationQueryEditor extends PureComponent<Props, 
   };
 
   onQueryChange = (target: DataQuery) => {
-    this.props.onChange({
+    this.props.change({
       ...this.props.annotation,
       target,
     });
   };
 
-  onMappingChange = (mappings?: AnnotationEventMappings) => {
-    this.props.onChange({
+  onMappingChange = (mappings: AnnotationEventMappings) => {
+    this.props.change({
       ...this.props.annotation,
       mappings,
     });
@@ -132,7 +108,7 @@ export default class StandardAnnotationQueryEditor extends PureComponent<Props, 
         icon = 'exclamation-triangle';
         text = 'No events found';
       } else {
-        const frame = panelData?.series?.[0] ?? panelData?.annotations?.[0];
+        const frame = panelData?.series[0];
 
         text = `${events.length} events (from ${frame?.fields.length} fields)`;
       }
@@ -172,47 +148,41 @@ export default class StandardAnnotationQueryEditor extends PureComponent<Props, 
     );
   }
 
-  onAnnotationChange = (annotation: AnnotationQuery) => {
-    this.props.onChange(annotation);
-  };
-
   render() {
-    const { datasource, annotation, datasourceInstanceSettings } = this.props;
+    const { datasource, annotation } = this.props;
     const { response } = this.state;
 
-    // Find the annotation runner
+    // Find the annotaiton runner
     let QueryEditor = datasource.annotations?.QueryEditor || datasource.components?.QueryEditor;
     if (!QueryEditor) {
       return <div>Annotations are not supported. This datasource needs to export a QueryEditor</div>;
     }
 
-    const query = {
-      ...datasource.annotations?.getDefaultQuery?.(),
-      ...(annotation.target ?? { refId: 'Anno' }),
-    };
-
+    const query = annotation.target ?? { refId: 'Anno' };
     return (
       <>
-        <DataSourcePluginContextProvider instanceSettings={datasourceInstanceSettings}>
-          <QueryEditor
-            key={datasource?.name}
-            query={query}
-            datasource={datasource}
-            onChange={this.onQueryChange}
-            onRunQuery={this.onRunQuery}
-            data={response?.panelData}
-            range={getTimeSrv().timeRange()}
-            annotation={annotation}
-            onAnnotationChange={this.onAnnotationChange}
-          />
-        </DataSourcePluginContextProvider>
-        {shouldUseMappingUI(datasource) && (
-          <>
-            {this.renderStatus()}
-            <AnnotationFieldMapper response={response} mappings={annotation.mappings} change={this.onMappingChange} />
-          </>
-        )}
+        <QueryEditor
+          key={datasource?.name}
+          query={query}
+          datasource={datasource}
+          onChange={this.onQueryChange}
+          onRunQuery={this.onRunQuery}
+          data={response?.panelData}
+          range={getTimeSrv().timeRange()}
+        />
+        {this.renderStatus()}
+
+        <AnnotationFieldMapper response={response} mappings={annotation.mappings} change={this.onMappingChange} />
+        <br />
       </>
     );
   }
 }
+
+// Careful to use a unique directive name!  many plugins already use "annotationEditor" and have conflicts
+coreModule.directive('standardAnnotationEditor', [
+  'reactDirective',
+  (reactDirective: any) => {
+    return reactDirective(StandardAnnotationQueryEditor, ['annotation', 'datasource', 'change']);
+  },
+]);

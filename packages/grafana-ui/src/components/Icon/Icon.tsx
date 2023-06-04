@@ -1,78 +1,82 @@
-import { css, cx } from '@emotion/css';
-import React from 'react';
-import SVG from 'react-inlinesvg';
-
-import { GrafanaTheme2, isIconName } from '@grafana/data';
-
-import { useStyles2 } from '../../themes/ThemeContext';
+import React, { ComponentType } from 'react';
+import { css, cx } from 'emotion';
+import { GrafanaTheme, toPascalCase } from '@grafana/data';
+import { stylesFactory } from '../../themes/stylesFactory';
+import { useTheme } from '../../themes/ThemeContext';
 import { IconName, IconType, IconSize } from '../../types/icon';
+//@ts-ignore
+import * as DefaultIcon from '@iconscout/react-unicons';
+import * as MonoIcon from './assets';
+import { customIcons } from './custom';
+import { SvgProps } from './assets/types';
 
-import { cacheInitialized, initIconCache, iconRoot } from './iconBundle';
-import { getIconSubDir, getSvgSize } from './utils';
+const alwaysMonoIcons: IconName[] = ['grafana', 'favorite', 'heart-break', 'heart', 'panel-add', 'reusable-panel'];
 
 export interface IconProps extends React.HTMLAttributes<HTMLDivElement> {
   name: IconName;
   size?: IconSize;
   type?: IconType;
-  title?: string;
 }
 
-const getIconStyles = (theme: GrafanaTheme2) => {
+const getIconStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
-    // line-height: 0; is needed for correct icon alignment in Safari
     container: css`
       label: Icon;
       display: inline-block;
-      line-height: 0;
     `,
     icon: css`
       vertical-align: middle;
       display: inline-block;
+      margin-bottom: ${theme.spacing.xxs};
       fill: currentColor;
     `,
     orange: css`
-      fill: ${theme.v1.palette.orange};
+      fill: ${theme.palette.orange};
     `,
   };
-};
+});
+
+function getIconComponent(name: IconName, type: string): ComponentType<SvgProps> {
+  if (alwaysMonoIcons.includes(name)) {
+    type = 'mono';
+  }
+
+  if (name?.startsWith('gf-')) {
+    return customIcons[name];
+  }
+
+  const iconName = type === 'default' ? `Uil${toPascalCase(name)}` : toPascalCase(name);
+
+  /* Unicons don't have type definitions */
+  //@ts-ignore
+  const Component = type === 'default' ? DefaultIcon[iconName] : MonoIcon[iconName];
+
+  return Component ?? customIcons.notFoundDummy;
+}
 
 export const Icon = React.forwardRef<HTMLDivElement, IconProps>(
-  ({ size = 'md', type = 'default', name, className, style, title = '', ...divElementProps }, ref) => {
-    const styles = useStyles2(getIconStyles);
+  ({ size = 'md', type = 'default', name, className, style, ...divElementProps }, ref) => {
+    const theme = useTheme();
+    const styles = getIconStyles(theme);
+    const svgSize = getSvgSize(size);
 
     /* Temporary solution to display also font awesome icons */
     if (name?.startsWith('fa fa-')) {
       return <i className={getFontAwesomeIconStyles(name, className)} {...divElementProps} style={style} />;
     }
 
-    if (!cacheInitialized) {
-      initIconCache();
-    }
-
-    if (!isIconName(name)) {
-      console.warn('Icon component passed an invalid icon name', name);
-    }
-
-    if (!name || name.includes('..')) {
-      return <div ref={ref}>invalid icon name</div>;
-    }
-
-    const svgSize = getSvgSize(size);
-    const svgHgt = svgSize;
-    const svgWid = name.startsWith('gf-bar-align') ? 16 : name.startsWith('gf-interp') ? 30 : svgSize;
-    const subDir = getIconSubDir(name, type);
-    const svgPath = `${iconRoot}${subDir}/${name}.svg`;
+    const Component = getIconComponent(name, type);
 
     return (
       <div className={styles.container} {...divElementProps} ref={ref}>
-        <SVG
-          src={svgPath}
-          width={svgWid}
-          height={svgHgt}
-          title={title}
-          className={cx(styles.icon, className, type === 'mono' ? { [styles.orange]: name === 'favorite' } : '')}
-          style={style}
-        />
+        {type === 'default' && <Component size={svgSize} className={cx(styles.icon, className)} style={style} />}
+        {type === 'mono' && (
+          <Component
+            size={svgSize}
+            className={cx(styles.icon, { [styles.orange]: name === 'favorite' }, className)}
+            style={style}
+          />
+        )}
       </div>
     );
   }
@@ -89,3 +93,23 @@ function getFontAwesomeIconStyles(iconName: string, className?: string): string 
     className
   );
 }
+
+/* Transform string with px to number and add 2 pxs as path in svg is 2px smaller */
+export const getSvgSize = (size: IconSize) => {
+  switch (size) {
+    case 'xs':
+      return 12;
+    case 'sm':
+      return 14;
+    case 'md':
+      return 16;
+    case 'lg':
+      return 18;
+    case 'xl':
+      return 24;
+    case 'xxl':
+      return 36;
+    case 'xxxl':
+      return 48;
+  }
+};

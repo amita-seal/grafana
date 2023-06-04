@@ -2,121 +2,90 @@ package api
 
 import (
 	"errors"
-	"net/http"
 	"time"
 
-	"github.com/grafana/grafana/pkg/api/apierrors"
 	"github.com/grafana/grafana/pkg/api/dtos"
 	"github.com/grafana/grafana/pkg/api/response"
-	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+	"github.com/grafana/grafana/pkg/bus"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/dashboards"
-	"github.com/grafana/grafana/pkg/services/folder"
 	"github.com/grafana/grafana/pkg/services/guardian"
 	"github.com/grafana/grafana/pkg/util"
-	"github.com/grafana/grafana/pkg/web"
 )
 
-// swagger:route GET /folders/{folder_uid}/permissions folder_permissions getFolderPermissionList
-//
-// Gets all existing permissions for the folder with the given `uid`.
-//
-// Responses:
-// 200: getFolderPermissionListResponse
-// 401: unauthorisedError
-// 403: forbiddenError
-// 404: notFoundError
-// 500: internalServerError
-func (hs *HTTPServer) GetFolderPermissionList(c *contextmodel.ReqContext) response.Response {
-	uid := web.Params(c.Req)[":uid"]
-	folder, err := hs.folderService.Get(c.Req.Context(), &folder.GetFolderQuery{OrgID: c.OrgID, UID: &uid, SignedInUser: c.SignedInUser})
+func (hs *HTTPServer) GetFolderPermissionList(c *models.ReqContext) response.Response {
+	s := dashboards.NewFolderService(c.OrgId, c.SignedInUser)
+	folder, err := s.GetFolderByUID(c.Params(":uid"))
 
 	if err != nil {
-		return apierrors.ToFolderErrorResponse(err)
+		return toFolderError(err)
 	}
 
-	g, err := guardian.New(c.Req.Context(), folder.ID, c.OrgID, c.SignedInUser)
-	if err != nil {
-		return response.Err(err)
-	}
+	g := guardian.New(folder.Id, c.OrgId, c.SignedInUser)
 
 	if canAdmin, err := g.CanAdmin(); err != nil || !canAdmin {
-		return apierrors.ToFolderErrorResponse(dashboards.ErrFolderAccessDenied)
+		return toFolderError(models.ErrFolderAccessDenied)
 	}
 
-	acl, err := g.GetACL()
+	acl, err := g.GetAcl()
 	if err != nil {
 		return response.Error(500, "Failed to get folder permissions", err)
 	}
 
-	filteredACLs := make([]*dashboards.DashboardACLInfoDTO, 0, len(acl))
+	filteredAcls := make([]*models.DashboardAclInfoDTO, 0, len(acl))
 	for _, perm := range acl {
-		if perm.UserID > 0 && dtos.IsHiddenUser(perm.UserLogin, c.SignedInUser, hs.Cfg) {
+		if perm.UserId > 0 && dtos.IsHiddenUser(perm.UserLogin, c.SignedInUser, hs.Cfg) {
 			continue
 		}
 
-		perm.FolderID = folder.ID
-		perm.DashboardID = 0
+		perm.FolderId = folder.Id
+		perm.DashboardId = 0
 
-		perm.UserAvatarURL = dtos.GetGravatarUrl(perm.UserEmail)
+		perm.UserAvatarUrl = dtos.GetGravatarUrl(perm.UserEmail)
 
-		if perm.TeamID > 0 {
-			perm.TeamAvatarURL = dtos.GetGravatarUrlWithDefault(perm.TeamEmail, perm.Team)
+		if perm.TeamId > 0 {
+			perm.TeamAvatarUrl = dtos.GetGravatarUrlWithDefault(perm.TeamEmail, perm.Team)
 		}
 
 		if perm.Slug != "" {
-			perm.URL = dashboards.GetDashboardFolderURL(perm.IsFolder, perm.UID, perm.Slug)
+			perm.Url = models.GetDashboardFolderUrl(perm.IsFolder, perm.Uid, perm.Slug)
 		}
 
-		filteredACLs = append(filteredACLs, perm)
+		filteredAcls = append(filteredAcls, perm)
 	}
 
-	return response.JSON(http.StatusOK, filteredACLs)
+	return response.JSON(200, filteredAcls)
 }
 
-// swagger:route POST /folders/{folder_uid}/permissions folder_permissions updateFolderPermissions
-//
-// Updates permissions for a folder. This operation will remove existing permissions if they’re not included in the request.
-//
-// Responses:
-// 200: okResponse
-// 401: unauthorisedError
-// 403: forbiddenError
-// 404: notFoundError
-// 500: internalServerError
-func (hs *HTTPServer) UpdateFolderPermissions(c *contextmodel.ReqContext) response.Response {
-	apiCmd := dtos.UpdateDashboardACLCommand{}
-	if err := web.Bind(c.Req, &apiCmd); err != nil {
-		return response.Error(http.StatusBadRequest, "bad request data", err)
-	}
+func (hs *HTTPServer) UpdateFolderPermissions(c *models.ReqContext, apiCmd dtos.UpdateDashboardAclCommand) response.Response {
 	if err := validatePermissionsUpdate(apiCmd); err != nil {
 		return response.Error(400, err.Error(), err)
 	}
 
-	uid := web.Params(c.Req)[":uid"]
-	folder, err := hs.folderService.Get(c.Req.Context(), &folder.GetFolderQuery{OrgID: c.OrgID, UID: &uid, SignedInUser: c.SignedInUser})
+	s := dashboards.NewFolderService(c.OrgId, c.SignedInUser)
+	folder, err := s.GetFolderByUID(c.Params(":uid"))
+
 	if err != nil {
-		return apierrors.ToFolderErrorResponse(err)
+		return toFolderError(err)
 	}
 
-	g, err := guardian.New(c.Req.Context(), folder.ID, c.OrgID, c.SignedInUser)
-	if err != nil {
-		return response.Err(err)
-	}
-
+	g := guardian.New(folder.Id, c.OrgId, c.SignedInUser)
 	canAdmin, err := g.CanAdmin()
 	if err != nil {
-		return apierrors.ToFolderErrorResponse(err)
+		return toFolderError(err)
 	}
 
 	if !canAdmin {
-		return apierrors.ToFolderErrorResponse(dashboards.ErrFolderAccessDenied)
+		return toFolderError(models.ErrFolderAccessDenied)
 	}
 
-	items := make([]*dashboards.DashboardACL, 0, len(apiCmd.Items))
+	cmd := models.UpdateDashboardAclCommand{}
+	cmd.DashboardID = folder.Id
+
 	for _, item := range apiCmd.Items {
-		items = append(items, &dashboards.DashboardACL{
-			OrgID:       c.OrgID,
-			DashboardID: folder.ID,
+		cmd.Items = append(cmd.Items, &models.DashboardAcl{
+			OrgID:       c.OrgId,
+			DashboardID: folder.Id,
 			UserID:      item.UserID,
 			TeamID:      item.TeamID,
 			Role:        item.Role,
@@ -130,9 +99,9 @@ func (hs *HTTPServer) UpdateFolderPermissions(c *contextmodel.ReqContext) respon
 	if err != nil {
 		return response.Error(500, "Error while retrieving hidden permissions", err)
 	}
-	items = append(items, hiddenACL...)
+	cmd.Items = append(cmd.Items, hiddenACL...)
 
-	if okToUpdate, err := g.CheckPermissionBeforeUpdate(dashboards.PERMISSION_ADMIN, items); err != nil || !okToUpdate {
+	if okToUpdate, err := g.CheckPermissionBeforeUpdate(models.PERMISSION_ADMIN, cmd.Items); err != nil || !okToUpdate {
 		if err != nil {
 			if errors.Is(err, guardian.ErrGuardianPermissionExists) ||
 				errors.Is(err, guardian.ErrGuardianOverride) {
@@ -145,58 +114,24 @@ func (hs *HTTPServer) UpdateFolderPermissions(c *contextmodel.ReqContext) respon
 		return response.Error(403, "Cannot remove own admin permission for a folder", nil)
 	}
 
-	if !hs.AccessControl.IsDisabled() {
-		old, err := g.GetACL()
-		if err != nil {
-			return response.Error(500, "Error while checking dashboard permissions", err)
+	if err := bus.Dispatch(&cmd); err != nil {
+		if errors.Is(err, models.ErrDashboardAclInfoMissing) {
+			err = models.ErrFolderAclInfoMissing
 		}
-		if err := hs.updateDashboardAccessControl(c.Req.Context(), c.OrgID, folder.UID, true, items, old); err != nil {
-			return response.Error(500, "Failed to create permission", err)
-		}
-		return response.Success("Dashboard permissions updated")
-	}
-
-	if err := hs.DashboardService.UpdateDashboardACL(c.Req.Context(), folder.ID, items); err != nil {
-		if errors.Is(err, dashboards.ErrDashboardACLInfoMissing) {
-			err = dashboards.ErrFolderACLInfoMissing
-		}
-		if errors.Is(err, dashboards.ErrDashboardPermissionDashboardEmpty) {
-			err = dashboards.ErrFolderPermissionFolderEmpty
+		if errors.Is(err, models.ErrDashboardPermissionDashboardEmpty) {
+			err = models.ErrFolderPermissionFolderEmpty
 		}
 
-		if errors.Is(err, dashboards.ErrFolderACLInfoMissing) || errors.Is(err, dashboards.ErrFolderPermissionFolderEmpty) {
+		if errors.Is(err, models.ErrFolderAclInfoMissing) || errors.Is(err, models.ErrFolderPermissionFolderEmpty) {
 			return response.Error(409, err.Error(), err)
 		}
 
 		return response.Error(500, "Failed to create permission", err)
 	}
 
-	return response.JSON(http.StatusOK, util.DynMap{
+	return response.JSON(200, util.DynMap{
 		"message": "Folder permissions updated",
-		"id":      folder.ID,
+		"id":      folder.Id,
 		"title":   folder.Title,
 	})
-}
-
-// swagger:parameters getFolderPermissionList
-type GetFolderPermissionListParams struct {
-	// in:path
-	// required:true
-	FolderUID string `json:"folder_uid"`
-}
-
-// swagger:parameters updateFolderPermissions
-type UpdateFolderPermissionsParams struct {
-	// in:path
-	// required:true
-	FolderUID string `json:"folder_uid"`
-	// in:body
-	// required:true
-	Body dtos.UpdateDashboardACLCommand
-}
-
-// swagger:response getFolderPermissionListResponse
-type GetFolderPermissionsResponse struct {
-	// in: body
-	Body []*dashboards.DashboardACLInfoDTO `json:"body"`
 }

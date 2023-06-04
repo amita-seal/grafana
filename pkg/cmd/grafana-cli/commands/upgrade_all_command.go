@@ -1,23 +1,15 @@
 package commands
 
 import (
-	"context"
-
-	"github.com/hashicorp/go-version"
-
 	"github.com/grafana/grafana/pkg/cmd/grafana-cli/logger"
 	"github.com/grafana/grafana/pkg/cmd/grafana-cli/models"
 	"github.com/grafana/grafana/pkg/cmd/grafana-cli/services"
 	"github.com/grafana/grafana/pkg/cmd/grafana-cli/utils"
-	"github.com/grafana/grafana/pkg/plugins"
+	"github.com/hashicorp/go-version"
 )
 
-func shouldUpgrade(installed plugins.FoundPlugin, remote models.Plugin) bool {
-	installedVer := installed.JSONData.Info.Version
-	if installedVer == "" {
-		installedVer = "0.0.0"
-	}
-	installedVersion, err := version.NewVersion(installedVer)
+func shouldUpgrade(installed string, remote *models.Plugin) bool {
+	installedVersion, err := version.NewVersion(installed)
 	if err != nil {
 		return false
 	}
@@ -30,47 +22,42 @@ func shouldUpgrade(installed plugins.FoundPlugin, remote models.Plugin) bool {
 	return installedVersion.LessThan(latestVersion)
 }
 
-func upgradeAllCommand(c utils.CommandLine) error {
+func (cmd Command) upgradeAllCommand(c utils.CommandLine) error {
 	pluginsDir := c.PluginDirectory()
 
 	localPlugins := services.GetLocalPlugins(pluginsDir)
 
-	remotePlugins, err := services.ListAllPlugins(c.String("repo"))
+	remotePlugins, err := cmd.Client.ListAllPlugins(c.String("repo"))
 	if err != nil {
 		return err
 	}
 
-	pluginsToUpgrade := make([]plugins.FoundPlugin, 0)
+	pluginsToUpgrade := make([]models.InstalledPlugin, 0)
 
 	for _, localPlugin := range localPlugins {
 		for _, p := range remotePlugins.Plugins {
 			remotePlugin := p
-			if localPlugin.Primary.JSONData.ID != remotePlugin.ID {
+			if localPlugin.ID != remotePlugin.ID {
 				continue
 			}
-			if shouldUpgrade(localPlugin.Primary, remotePlugin) {
-				pluginsToUpgrade = append(pluginsToUpgrade, localPlugin.Primary)
+			if shouldUpgrade(localPlugin.Info.Version, &remotePlugin) {
+				pluginsToUpgrade = append(pluginsToUpgrade, localPlugin)
 			}
 		}
 	}
 
-	ctx := context.Background()
 	for _, p := range pluginsToUpgrade {
-		logger.Infof("Updating %v \n", p.JSONData.ID)
+		logger.Infof("Updating %v \n", p.ID)
 
-		err = uninstallPlugin(ctx, p.JSONData.ID, c)
+		err := services.RemoveInstalledPlugin(pluginsDir, p.ID)
 		if err != nil {
 			return err
 		}
 
-		err = installPlugin(ctx, p.JSONData.ID, "", c)
+		err = InstallPlugin(p.ID, "", c, cmd.Client)
 		if err != nil {
 			return err
 		}
-	}
-
-	if len(pluginsToUpgrade) > 0 {
-		logRestartNotice()
 	}
 
 	return nil

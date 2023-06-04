@@ -60,11 +60,6 @@
   }
 }
 
-.graph-legend-alias {
-  background: transparent;
-  border: none;
-}
-
 .graph-legend-content {
   position: relative;
 }
@@ -79,6 +74,7 @@
 .graph-legend-alias,
 .graph-legend-value {
   display: inline;
+  cursor: pointer;
   white-space: nowrap;
   font-size: 12px;
   text-align: left;
@@ -240,7 +236,7 @@
     position: relative;
     top: -3px;
     padding: $space-xxs;
-    font-weight: $font-weight-semi-bold;
+    font-weight: bold;
     color: $text-color;
   }
 
@@ -249,7 +245,7 @@
 
     &--highlight {
       color: $text-color-emphasis;
-      font-weight: $font-weight-semi-bold;
+      font-weight: bold;
     }
   }
 
@@ -263,7 +259,7 @@
 
   .graph-tooltip-value {
     display: table-cell;
-    font-weight: $font-weight-semi-bold;
+    font-weight: bold;
     padding-left: 15px;
     text-align: right;
   }
@@ -277,9 +273,8 @@
 
   .graph-annotation__header {
     background: $popover-header-bg;
-    padding: 4px 8px;
+    padding: 6px 10px;
     display: flex;
-    flex-wrap: nowrap;
   }
 
   .graph-annotation__title {

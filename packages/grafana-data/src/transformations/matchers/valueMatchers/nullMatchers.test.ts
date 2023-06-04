@@ -9,7 +9,7 @@ describe('value null matcher', () => {
       fields: [
         {
           name: 'temp',
-          values: [23, null, 10, undefined],
+          values: [23, null, 10],
         },
       ],
     }),
@@ -35,14 +35,6 @@ describe('value null matcher', () => {
 
     expect(matcher(valueIndex, field, frame, data)).toBeFalsy();
   });
-
-  it('should match undefined values', () => {
-    const frame = data[0];
-    const field = frame.fields[0];
-    const valueIndex = 3;
-
-    expect(matcher(valueIndex, field, frame, data)).toBeTruthy();
-  });
 });
 
 describe('value not null matcher', () => {
@@ -51,7 +43,7 @@ describe('value not null matcher', () => {
       fields: [
         {
           name: 'temp',
-          values: [23, null, 10, undefined],
+          values: [23, null, 10],
         },
       ],
     }),
@@ -70,18 +62,10 @@ describe('value not null matcher', () => {
     expect(matcher(valueIndex, field, frame, data)).toBeTruthy();
   });
 
-  it('should not match null values', () => {
+  it('should match non-null values', () => {
     const frame = data[0];
     const field = frame.fields[0];
     const valueIndex = 1;
-
-    expect(matcher(valueIndex, field, frame, data)).toBeFalsy();
-  });
-
-  it('should not match undefined values', () => {
-    const frame = data[0];
-    const field = frame.fields[0];
-    const valueIndex = 3;
 
     expect(matcher(valueIndex, field, frame, data)).toBeFalsy();
   });

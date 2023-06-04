@@ -1,11 +1,9 @@
-import { findIndex, isObject, map } from 'lodash';
-
-import { Column, TableData } from '@grafana/data';
-import TableModel, { mergeTablesIntoModel } from 'app/core/TableModel';
-import TimeSeries from 'app/core/time_series2';
+import _ from 'lodash';
 import flatten from 'app/core/utils/flatten';
-
+import TimeSeries from 'app/core/time_series2';
+import TableModel, { mergeTablesIntoModel } from 'app/core/table_model';
 import { TableTransform } from './types';
+import { Column, TableData } from '@grafana/data';
 
 const transformers: { [key: string]: TableTransform } = {};
 export const timeSeriesFormatFilterer = (data: any): any[] => {
@@ -196,7 +194,7 @@ transformers['table'] = {
       return;
     }
     const filteredData = tableDataFormatFilterer(data);
-    const noTableIndex = findIndex(filteredData, (d) => 'columns' in d && 'rows' in d);
+    const noTableIndex = _.findIndex(filteredData, (d) => 'columns' in d && 'rows' in d);
     if (noTableIndex < 0) {
       throw {
         message: `Result of query #${String.fromCharCode(
@@ -234,7 +232,7 @@ transformers['json'] = {
       }
     }
 
-    return map(names, (value, key) => {
+    return _.map(names, (value, key) => {
       return { text: key, value: key };
     });
   },
@@ -263,7 +261,7 @@ transformers['json'] = {
         const dp = series.datapoints[y];
         const values = [];
 
-        if (isObject(dp) && panel.columns.length > 0) {
+        if (_.isObject(dp) && panel.columns.length > 0) {
           const flattened = flatten(dp);
           for (z = 0; z < panel.columns.length; z++) {
             values.push(flattened[panel.columns[z].value]);

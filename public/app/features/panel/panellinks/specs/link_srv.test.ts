@@ -1,52 +1,60 @@
-import { FieldType, GrafanaConfig, locationUtil, toDataFrame, VariableOrigin } from '@grafana/data';
+import { FieldType, locationUtil, toDataFrame, VariableOrigin } from '@grafana/data';
 import { setTemplateSrv } from '@grafana/runtime';
-import { ContextSrv } from 'app/core/services/context_srv';
-import { getTimeSrv, setTimeSrv, TimeSrv } from 'app/features/dashboard/services/TimeSrv';
-import { TimeModel } from 'app/features/dashboard/state/TimeModel';
+import { getDataFrameVars, LinkSrv } from '../link_srv';
+import { TimeSrv } from 'app/features/dashboard/services/TimeSrv';
 import { TemplateSrv } from 'app/features/templating/template_srv';
 import { variableAdapters } from 'app/features/variables/adapters';
 import { createQueryVariableAdapter } from 'app/features/variables/query/adapter';
-
-import { initTemplateSrv } from '../../../../../test/helpers/initTemplateSrv';
 import { updateConfig } from '../../../../core/config';
-import { getDataFrameVars, LinkSrv } from '../link_srv';
+import { initTemplateSrv } from '../../../../../test/helpers/initTemplateSrv';
 
 jest.mock('app/core/core', () => ({
   appEvents: {
-    subscribe: () => {},
+    on: () => {},
   },
 }));
 
 describe('linkSrv', () => {
   let linkSrv: LinkSrv;
   let templateSrv: TemplateSrv;
-  let originalTimeService: TimeSrv;
 
   function initLinkSrv() {
-    const _dashboard = {
+    const rootScope = {
+      $on: jest.fn(),
+      onAppEvent: jest.fn(),
+      appEvent: jest.fn(),
+    };
+
+    const timer = {
+      register: jest.fn(),
+      cancel: jest.fn(),
+      cancelAll: jest.fn(),
+    };
+
+    const location = {
+      search: jest.fn(() => ({})),
+    };
+
+    const _dashboard: any = {
       time: { from: 'now-6h', to: 'now' },
       getTimezone: jest.fn(() => 'browser'),
-      timeRangeUpdated: () => {},
-    } as unknown as TimeModel;
+    };
 
-    const timeSrv = new TimeSrv({} as ContextSrv);
+    const timeSrv = new TimeSrv(rootScope as any, jest.fn() as any, location as any, timer, {} as any);
     timeSrv.init(_dashboard);
     timeSrv.setTime({ from: 'now-1h', to: 'now' });
     _dashboard.refresh = false;
-    setTimeSrv(timeSrv);
-
-    templateSrv = initTemplateSrv('key', [
+    templateSrv = initTemplateSrv([
       { type: 'query', name: 'home', current: { value: '127.0.0.1' } },
       { type: 'query', name: 'server1', current: { value: '192.168.0.100' } },
     ]);
 
     setTemplateSrv(templateSrv);
 
-    linkSrv = new LinkSrv();
+    linkSrv = new LinkSrv(templateSrv, timeSrv);
   }
 
   beforeAll(() => {
-    originalTimeService = getTimeSrv();
     variableAdapters.register(createQueryVariableAdapter());
   });
 
@@ -54,10 +62,6 @@ describe('linkSrv', () => {
     initLinkSrv();
 
     jest.resetAllMocks();
-  });
-
-  afterAll(() => {
-    setTimeSrv(originalTimeService);
   });
 
   describe('getDataLinkUIModel', () => {
@@ -129,9 +133,13 @@ describe('linkSrv', () => {
         "when link '$url' and config.appSubUrl set to '$appSubUrl' then result should be '$expected'",
         ({ url, appSubUrl, expected }) => {
           locationUtil.initialize({
-            config: { appSubUrl } as GrafanaConfig,
-            getVariablesUrlParams: jest.fn(),
-            getTimeRangeForUrl: jest.fn(),
+            getConfig: () => {
+              return { appSubUrl } as any;
+            },
+            // @ts-ignore
+            buildParamsFromVariables: () => {},
+            // @ts-ignore
+            getTimeRangeForUrl: () => {},
           });
 
           const link = linkSrv.getDataLinkUIModel(

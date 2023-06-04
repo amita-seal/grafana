@@ -1,10 +1,9 @@
 /* eslint-disable max-len */
 
-import { GrafanaTheme2 } from '@grafana/data';
-
+import { GrafanaThemeCommons } from '@grafana/data';
 import { renderGeneratedFileBanner } from '../utils/generatedFileBanner';
 
-export const commonThemeVarsTemplate = (theme: GrafanaTheme2) =>
+export const commonThemeVarsTemplate = (theme: GrafanaThemeCommons) =>
   `${renderGeneratedFileBanner('grafana-ui/src/themes/default.ts', 'grafana-ui/src/themes/_variables.scss.tmpl.ts')}
 // Options
 //
@@ -18,16 +17,16 @@ $enable-hover-media-query: false !default;
 // Control the default styling of most Bootstrap elements by modifying these
 // variables. Mostly focused on spacing.
 
-$space-inset-squish-md: ${theme.spacing(0.5, 1)} !default;
+$space-inset-squish-md: ${theme.spacing.insetSquishMd} !default;
 
-$space-xxs: ${theme.spacing(0.25)} !default;
-$space-xs: ${theme.spacing(0.5)} !default;
-$space-sm: ${theme.spacing(1)} !default;
-$space-md: ${theme.spacing(2)} !default;
-$space-lg: ${theme.spacing(3)} !default;
-$space-xl: ${theme.spacing(4)} !default;
+$space-xxs: ${theme.spacing.xxs} !default;
+$space-xs: ${theme.spacing.xs} !default;
+$space-sm: ${theme.spacing.sm} !default;
+$space-md: ${theme.spacing.md} !default;
+$space-lg: ${theme.spacing.lg} !default;
+$space-xl: ${theme.spacing.xl} !default;
 
-$spacer: ${theme.spacing(2)} !default;
+$spacer: ${theme.spacing.d} !default;
 $spacer-x: $spacer !default;
 $spacer-y: $spacer !default;
 $spacers: (
@@ -63,11 +62,11 @@ $spacers: (
 // adapting to different screen sizes, for use in media queries.
 
 $grid-breakpoints: (
-  xs: ${theme.breakpoints.values.xs}px,
-  sm: ${theme.breakpoints.values.sm}px,
-  md: ${theme.breakpoints.values.md}px,
-  lg: ${theme.breakpoints.values.lg}px,
-  xl: ${theme.breakpoints.values.xl}px,
+  xs: ${theme.breakpoints.xs},
+  sm: ${theme.breakpoints.sm},
+  md: ${theme.breakpoints.md},
+  lg: ${theme.breakpoints.lg},
+  xl: ${theme.breakpoints.xl},
 ) !default;
 
 // Grid containers
@@ -86,53 +85,50 @@ $container-max-widths: (
 // Set the number of columns and specify the width of the gutters.
 
 $grid-columns: 12 !default;
-$grid-gutter-width: ${theme.spacing(4)} !default;
+$grid-gutter-width: ${theme.spacing.gutter} !default;
 
 // Component heights
 // -------------------------
-$height-sm: ${theme.spacing.gridSize * theme.components.height.sm};
-$height-md: ${theme.spacing.gridSize * theme.components.height.md};
-$height-lg: ${theme.spacing.gridSize * theme.components.height.lg};
+$height-sm: ${theme.height.sm};
+$height-md: ${theme.height.md};
+$height-lg: ${theme.height.lg};
 
 // Typography
 // -------------------------
-/* stylelint-disable-next-line string-quotes */
-$font-family-sans-serif: ${theme.typography.fontFamily};
-/* stylelint-disable-next-line string-quotes */
-$font-family-monospace: ${theme.typography.fontFamilyMonospace};
 
-$font-file-path: '../fonts' !default;
+$font-family-sans-serif: ${theme.typography.fontFamily.sansSerif};
+$font-family-monospace: ${theme.typography.fontFamily.monospace};
 
-$font-size-base: ${theme.typography.fontSize}px !default;
+$font-size-base: ${theme.typography.size.base} !default;
 
 $font-size-lg: ${theme.typography.size.lg} !default;
 $font-size-md: ${theme.typography.size.md} !default;
 $font-size-sm: ${theme.typography.size.sm} !default;
 $font-size-xs: ${theme.typography.size.xs} !default;
 
-$line-height-base: ${theme.typography.body.lineHeight} !default;
+$line-height-base: ${theme.typography.lineHeight.md} !default;
 
-$font-weight-regular: ${theme.typography.fontWeightRegular} !default;
-$font-weight-semi-bold: ${theme.typography.fontWeightMedium} !default;
+$font-weight-regular: ${theme.typography.weight.regular} !default;
+$font-weight-semi-bold: ${theme.typography.weight.semibold} !default;
 
-$font-size-h1: ${theme.typography.h1.fontSize} !default;
-$font-size-h2: ${theme.typography.h2.fontSize} !default;
-$font-size-h3: ${theme.typography.h3.fontSize} !default;
-$font-size-h4: ${theme.typography.h4.fontSize} !default;
-$font-size-h5: ${theme.typography.h5.fontSize} !default;
-$font-size-h6: ${theme.typography.h6.fontSize} !default;
+$font-size-h1: ${theme.typography.heading.h1} !default;
+$font-size-h2: ${theme.typography.heading.h2} !default;
+$font-size-h3: ${theme.typography.heading.h3} !default;
+$font-size-h4: ${theme.typography.heading.h4} !default;
+$font-size-h5: ${theme.typography.heading.h5} !default;
+$font-size-h6: ${theme.typography.heading.h6} !default;
 
-$headings-line-height: ${theme.typography.bodySmall.lineHeight} !default;
+$headings-line-height: ${theme.typography.lineHeight.sm} !default;
 
 // Components
 //
 // Define common padding and border radius sizes and more.
 
-$border-width: 1px !default;
+$border-width: ${theme.border.width.sm} !default;
 
-$border-radius: ${theme.shape.borderRadius(1)} !default;
-$border-radius-lg: ${theme.shape.borderRadius(3)} !default;
-$border-radius-sm: ${theme.shape.borderRadius(1)} !default;
+$border-radius: ${theme.border.radius.md} !default;
+$border-radius-lg: ${theme.border.radius.lg} !default;
+$border-radius-sm: ${theme.border.radius.sm} !default;
 
 // Page
 
@@ -141,13 +137,13 @@ $page-sidebar-margin: 56px;
 
 // Links
 // -------------------------
-$link-decoration: none !default;
-$link-hover-decoration: none !default;
+$link-decoration: ${theme.typography.link.decoration} !default;
+$link-hover-decoration: ${theme.typography.link.hoverDecoration} !default;
 
 // Forms
 $input-line-height: 18px !default;
 $input-border-radius: $border-radius;
-$input-padding: 0 ${theme.spacing(1)};
+$input-padding: 0 ${theme.spacing.sm};
 $input-height: 32px !default;
 
 $cursor-disabled: not-allowed !default;
@@ -175,7 +171,7 @@ $zindex-typeahead: ${theme.zIndex.typeahead};
 $btn-padding-x: 14px !default;
 $btn-padding-y: 0 !default;
 $btn-line-height: $line-height-base;
-$btn-font-weight: ${theme.typography.fontWeightMedium} !default;
+$btn-font-weight: ${theme.typography.weight.semibold} !default;
 
 $btn-padding-x-sm: 7px !default;
 $btn-padding-y-sm: 4px !default;
@@ -194,8 +190,8 @@ $navbar-padding: 20px;
 
 // dashboard
 $dashboard-padding: $space-md;
-$panel-padding: ${theme.components.panel.padding * theme.spacing.gridSize}px;
-$panel-header-height: ${theme.spacing.gridSize * theme.components.panel.headerHeight}px;
+$panel-padding: ${theme.panelPadding}px;
+$panel-header-height: ${theme.panelHeaderHeight}px;
 $panel-header-z-index: 10;
 
 // tabs

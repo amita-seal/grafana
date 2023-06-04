@@ -1,41 +1,34 @@
-import * as emotion from '@emotion/css';
-import * as emotionReact from '@emotion/react';
-import * as d3 from 'd3';
-import jquery from 'jquery';
-import _ from 'lodash'; // eslint-disable-line lodash/import-scope
+import _ from 'lodash';
+import * as sdk from 'app/plugins/sdk';
+import kbn from 'app/core/utils/kbn';
 import moment from 'moment'; // eslint-disable-line no-restricted-imports
+import angular from 'angular';
+import jquery from 'jquery';
+
+// Experimental module exports
 import prismjs from 'prismjs';
+import slate from 'slate';
+import slateReact from 'slate-react';
+import slatePlain from 'slate-plain-serializer';
 import react from 'react';
 import reactDom from 'react-dom';
-import * as reactRedux from 'react-redux'; // eslint-disable-line no-restricted-imports
-import * as reactRouterDom from 'react-router-dom';
-import * as reactRouterCompat from 'react-router-dom-v5-compat';
+import * as reactRedux from 'react-redux';
 import * as redux from 'redux';
-import * as rxjs from 'rxjs';
-import * as rxjsOperators from 'rxjs/operators';
-import slate from 'slate';
-import slatePlain from 'slate-plain-serializer';
-import slateReact from 'slate-react';
-
-import * as grafanaData from '@grafana/data';
-import * as grafanaRuntime from '@grafana/runtime';
-import * as grafanaUIraw from '@grafana/ui';
-import TableModel from 'app/core/TableModel';
 import config from 'app/core/config';
-import { appEvents, contextSrv } from 'app/core/core';
-import { BackendSrv, getBackendSrv } from 'app/core/services/backend_srv';
-import impressionSrv from 'app/core/services/impression_srv';
 import TimeSeries from 'app/core/time_series2';
+import TableModel from 'app/core/table_model';
+import { coreModule, appEvents, contextSrv } from 'app/core/core';
 import * as flatten from 'app/core/utils/flatten';
-import kbn from 'app/core/utils/kbn';
 import * as ticks from 'app/core/utils/ticks';
-
-import { GenericDataSourcePlugin } from '../datasources/types';
-
+import { BackendSrv, getBackendSrv } from 'app/core/services/backend_srv';
+import { promiseToDigest } from 'app/core/utils/promiseToDigest';
+import impressionSrv from 'app/core/services/impression_srv';
 import builtInPlugins from './built_in_plugins';
-import { locateFromCDN, translateForCDN } from './systemjsPlugins/pluginCDN';
-import { fetchCSS, locateCSS } from './systemjsPlugins/pluginCSS';
-import { locateWithCache, registerPluginInCache } from './systemjsPlugins/pluginCacheBuster';
+import * as d3 from 'd3';
+import * as emotion from 'emotion';
+import * as grafanaData from '@grafana/data';
+import * as grafanaUIraw from '@grafana/ui';
+import * as grafanaRuntime from '@grafana/runtime';
 
 // Help the 6.4 to 6.5 migration
 // The base classes were moved from @grafana/ui to @grafana/data
@@ -46,12 +39,16 @@ grafanaUI.DataSourcePlugin = grafanaData.DataSourcePlugin;
 grafanaUI.AppPlugin = grafanaData.AppPlugin;
 grafanaUI.DataSourceApi = grafanaData.DataSourceApi;
 
-grafanaRuntime.SystemJS.registry.set('css', grafanaRuntime.SystemJS.newModule({ locate: locateCSS, fetch: fetchCSS }));
-grafanaRuntime.SystemJS.registry.set('plugin-loader', grafanaRuntime.SystemJS.newModule({ locate: locateWithCache }));
-grafanaRuntime.SystemJS.registry.set(
-  'cdn-loader',
-  grafanaRuntime.SystemJS.newModule({ locate: locateFromCDN, translate: translateForCDN })
-);
+// rxjs
+import * as rxjs from 'rxjs';
+import * as rxjsOperators from 'rxjs/operators';
+
+// add cache busting
+const bust = `?_cache=${Date.now()}`;
+function locate(load: { address: string }) {
+  return load.address + bust;
+}
+grafanaRuntime.SystemJS.registry.set('plugin-loader', grafanaRuntime.SystemJS.newModule({ locate: locate }));
 
 grafanaRuntime.SystemJS.config({
   baseURL: 'public',
@@ -60,12 +57,10 @@ grafanaRuntime.SystemJS.config({
     plugins: {
       defaultExtension: 'js',
     },
-    'plugin-cdn': {
-      defaultExtension: 'js',
-    },
   },
   map: {
     text: 'vendor/plugin-text/text.js',
+    css: 'vendor/plugin-css/css.js',
   },
   meta: {
     '/*': {
@@ -73,18 +68,10 @@ grafanaRuntime.SystemJS.config({
       authorization: true,
       loader: 'plugin-loader',
     },
-    '*.css': {
-      loader: 'css',
-    },
-    'plugin-cdn/*': {
-      esModule: true,
-      authorization: false,
-      loader: 'cdn-loader',
-    },
   },
 });
 
-export function exposeToPlugin(name: string, component: any) {
+function exposeToPlugin(name: string, component: any) {
   grafanaRuntime.SystemJS.registerDynamic(name, [], true, (require: any, exports: any, module: { exports: any }) => {
     module.exports = component;
   });
@@ -96,24 +83,10 @@ exposeToPlugin('@grafana/runtime', grafanaRuntime);
 exposeToPlugin('lodash', _);
 exposeToPlugin('moment', moment);
 exposeToPlugin('jquery', jquery);
+exposeToPlugin('angular', angular);
 exposeToPlugin('d3', d3);
 exposeToPlugin('rxjs', rxjs);
 exposeToPlugin('rxjs/operators', rxjsOperators);
-
-// Migration - React Router v5 -> v6
-// =================================
-// Plugins that still use "react-router-dom@v5" don't depend on react-router directly, so they will not use this import.
-// (The react-router-dom@v5 that we expose for them depends on the "react-router" package internally from core.)
-//
-// Plugins that would like update to "react-router-dom@v6" will need to bundle "react-router-dom",
-// however they cannot bundle "react-router" - this would mean that we have two instances of "react-router"
-// in the app, which would casue issues. As the "react-router-dom-v5-compat" package re-exports everything from "react-router-dom@v6"
-// which then re-exports everything from "react-router@v6", we are in the lucky state to be able to expose a compatible v6 version of the router to plugins by
-// just exposing "react-router-dom-v5-compat".
-//
-// (This means that we are exposing two versions of the same package).
-exposeToPlugin('react-router', reactRouterCompat); // react-router-dom@v6, react-router@v6 (included)
-exposeToPlugin('react-router-dom', reactRouterDom); // react-router-dom@v5
 
 // Experimental modules
 exposeToPlugin('prismjs', prismjs);
@@ -126,8 +99,6 @@ exposeToPlugin('react-dom', reactDom);
 exposeToPlugin('react-redux', reactRedux);
 exposeToPlugin('redux', redux);
 exposeToPlugin('emotion', emotion);
-exposeToPlugin('@emotion/css', emotion);
-exposeToPlugin('@emotion/react', emotionReact);
 
 exposeToPlugin('app/features/dashboard/impression_store', {
   impressions: impressionSrv,
@@ -144,16 +115,24 @@ exposeToPlugin('app/core/services/backend_srv', {
   getBackendSrv,
 });
 
+exposeToPlugin('app/plugins/sdk', sdk);
 exposeToPlugin('app/core/utils/datemath', grafanaData.dateMath);
 exposeToPlugin('app/core/utils/flatten', flatten);
 exposeToPlugin('app/core/utils/kbn', kbn);
 exposeToPlugin('app/core/utils/ticks', ticks);
+exposeToPlugin('app/core/utils/promiseToDigest', {
+  promiseToDigest: promiseToDigest,
+  __esModule: true,
+});
+
 exposeToPlugin('app/core/config', config);
 exposeToPlugin('app/core/time_series', TimeSeries);
 exposeToPlugin('app/core/time_series2', TimeSeries);
 exposeToPlugin('app/core/table_model', TableModel);
 exposeToPlugin('app/core/app_events', appEvents);
+exposeToPlugin('app/core/core_module', coreModule);
 exposeToPlugin('app/core/core', {
+  coreModule: coreModule,
   appEvents: appEvents,
   contextSrv: contextSrv,
   __esModule: true,
@@ -186,25 +165,21 @@ for (const flotDep of flotDeps) {
   exposeToPlugin(flotDep, { fakeDep: 1 });
 }
 
-export async function importPluginModule(path: string, version?: string): Promise<any> {
-  if (version) {
-    registerPluginInCache({ path, version });
-  }
-
+export async function importPluginModule(path: string): Promise<any> {
   const builtIn = builtInPlugins[path];
   if (builtIn) {
     // for handling dynamic imports
     if (typeof builtIn === 'function') {
       return await builtIn();
     } else {
-      return builtIn;
+      return Promise.resolve(builtIn);
     }
   }
   return grafanaRuntime.SystemJS.import(path);
 }
 
 export function importDataSourcePlugin(meta: grafanaData.DataSourcePluginMeta): Promise<GenericDataSourcePlugin> {
-  return importPluginModule(meta.module, meta.info?.version).then((pluginExports) => {
+  return importPluginModule(meta.module).then((pluginExports) => {
     if (pluginExports.plugin) {
       const dsPlugin = pluginExports.plugin as GenericDataSourcePlugin;
       dsPlugin.meta = meta;
@@ -227,11 +202,56 @@ export function importDataSourcePlugin(meta: grafanaData.DataSourcePluginMeta): 
 }
 
 export function importAppPlugin(meta: grafanaData.PluginMeta): Promise<grafanaData.AppPlugin> {
-  return importPluginModule(meta.module, meta.info?.version).then((pluginExports) => {
+  return importPluginModule(meta.module).then((pluginExports) => {
     const plugin = pluginExports.plugin ? (pluginExports.plugin as grafanaData.AppPlugin) : new grafanaData.AppPlugin();
     plugin.init(meta);
     plugin.meta = meta;
     plugin.setComponentsFromLegacyExports(pluginExports);
     return plugin;
   });
+}
+
+import { getPanelPluginNotFound, getPanelPluginLoadError } from '../dashboard/dashgrid/PanelPluginError';
+import { GenericDataSourcePlugin } from '../datasources/settings/PluginSettings';
+
+interface PanelCache {
+  [key: string]: Promise<grafanaData.PanelPlugin>;
+}
+const panelCache: PanelCache = {};
+
+export function importPanelPlugin(id: string): Promise<grafanaData.PanelPlugin> {
+  const loaded = panelCache[id];
+
+  if (loaded) {
+    return loaded;
+  }
+
+  const meta = config.panels[id];
+
+  if (!meta) {
+    return Promise.resolve(getPanelPluginNotFound(id));
+  }
+
+  panelCache[id] = importPluginModule(meta.module)
+    .then((pluginExports) => {
+      if (pluginExports.plugin) {
+        return pluginExports.plugin as grafanaData.PanelPlugin;
+      } else if (pluginExports.PanelCtrl) {
+        const plugin = new grafanaData.PanelPlugin(null);
+        plugin.angularPanelCtrl = pluginExports.PanelCtrl;
+        return plugin;
+      }
+      throw new Error('missing export: plugin or PanelCtrl');
+    })
+    .then((plugin) => {
+      plugin.meta = meta;
+      return plugin;
+    })
+    .catch((err) => {
+      // TODO, maybe a different error plugin
+      console.warn('Error loading panel plugin: ' + id, err);
+      return getPanelPluginLoadError(meta, err);
+    });
+
+  return panelCache[id];
 }

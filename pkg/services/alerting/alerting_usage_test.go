@@ -1,40 +1,27 @@
 package alerting
 
 import (
-	"context"
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/datasources"
-	fd "github.com/grafana/grafana/pkg/services/datasources/fakes"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAlertingUsageStats(t *testing.T) {
-	store := &AlertStoreMock{}
-	dsMock := &fd.FakeDataSourceService{
-		DataSources: []*datasources.DataSource{
-			{ID: 1, Type: datasources.DS_INFLUXDB},
-			{ID: 2, Type: datasources.DS_GRAPHITE},
-			{ID: 3, Type: datasources.DS_PROMETHEUS},
-			{ID: 4, Type: datasources.DS_PROMETHEUS},
-		},
-	}
 	ae := &AlertEngine{
-		AlertStore:        store,
-		datasourceService: dsMock,
+		Bus: bus.New(),
 	}
 
-	store.getAllAlerts = func(ctx context.Context, query *models.GetAllAlertsQuery) (res []*models.Alert, err error) {
+	ae.Bus.AddHandler(func(query *models.GetAllAlertsQuery) error {
 		var createFake = func(file string) *simplejson.Json {
 			// Ignore gosec warning G304 since it's a test
 			// nolint:gosec
-			content, err := os.ReadFile(file)
+			content, err := ioutil.ReadFile(file)
 			require.NoError(t, err, "expected to be able to read file")
 
 			j, err := simplejson.NewJson(content)
@@ -42,15 +29,36 @@ func TestAlertingUsageStats(t *testing.T) {
 			return j
 		}
 
-		return []*models.Alert{
-			{ID: 1, Settings: createFake("testdata/settings/one_condition.json")},
-			{ID: 2, Settings: createFake("testdata/settings/two_conditions.json")},
-			{ID: 2, Settings: createFake("testdata/settings/three_conditions.json")},
-			{ID: 3, Settings: createFake("testdata/settings/empty.json")},
-		}, nil
-	}
+		query.Result = []*models.Alert{
+			{Id: 1, Settings: createFake("testdata/settings/one_condition.json")},
+			{Id: 2, Settings: createFake("testdata/settings/two_conditions.json")},
+			{Id: 2, Settings: createFake("testdata/settings/three_conditions.json")},
+			{Id: 3, Settings: createFake("testdata/settings/empty.json")},
+		}
+		return nil
+	})
 
-	result, err := ae.QueryUsageStats(context.Background())
+	ae.Bus.AddHandler(func(query *models.GetDataSourceQuery) error {
+		ds := map[int64]*models.DataSource{
+			1: {Type: "influxdb"},
+			2: {Type: "graphite"},
+			3: {Type: "prometheus"},
+			4: {Type: "prometheus"},
+		}
+
+		r, exist := ds[query.Id]
+		if !exist {
+			return models.ErrDataSourceNotFound
+		}
+
+		query.Result = r
+		return nil
+	})
+
+	err := ae.Init()
+	require.NoError(t, err, "Init should not return error")
+
+	result, err := ae.QueryUsageStats()
 	require.NoError(t, err, "getAlertingUsage should not return error")
 
 	expected := map[string]int{
@@ -98,12 +106,14 @@ func TestParsingAlertRuleSettings(t *testing.T) {
 	}
 
 	ae := &AlertEngine{}
+	err := ae.Init()
+	require.NoError(t, err, "Init should not return an error")
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			var settings json.Marshaler
 			if tc.file != "" {
-				content, err := os.ReadFile(tc.file)
+				content, err := ioutil.ReadFile(tc.file)
 				require.NoError(t, err, "expected to be able to read file")
 
 				settings, err = simplejson.NewJson(content)

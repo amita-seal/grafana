@@ -1,17 +1,15 @@
 import React from 'react';
-
-import { InlineField } from '../..';
+import { HttpSettingsProps } from './types';
 import { FormField } from '../FormField/FormField';
 import { SecretFormField } from '../SecretFormField/SecretFormField';
 
-import { HttpSettingsProps } from './types';
-
-export const BasicAuthSettings = ({ dataSourceConfig, onChange }: HttpSettingsProps) => {
+export const BasicAuthSettings: React.FC<HttpSettingsProps> = ({ dataSourceConfig, onChange }) => {
   const password = dataSourceConfig.secureJsonData ? dataSourceConfig.secureJsonData.basicAuthPassword : '';
 
   const onPasswordReset = () => {
     onChange({
       ...dataSourceConfig,
+      basicAuthPassword: '',
       secureJsonData: {
         ...dataSourceConfig.secureJsonData,
         basicAuthPassword: '',
@@ -35,7 +33,7 @@ export const BasicAuthSettings = ({ dataSourceConfig, onChange }: HttpSettingsPr
 
   return (
     <>
-      <InlineField disabled={dataSourceConfig.readOnly}>
+      <div className="gf-form">
         <FormField
           label="User"
           labelWidth={10}
@@ -44,17 +42,20 @@ export const BasicAuthSettings = ({ dataSourceConfig, onChange }: HttpSettingsPr
           value={dataSourceConfig.basicAuthUser}
           onChange={(event) => onChange({ ...dataSourceConfig, basicAuthUser: event.currentTarget.value })}
         />
-      </InlineField>
-      <InlineField disabled={dataSourceConfig.readOnly}>
+      </div>
+      <div className="gf-form">
         <SecretFormField
-          isConfigured={!!(dataSourceConfig.secureJsonFields && dataSourceConfig.secureJsonFields.basicAuthPassword)}
+          isConfigured={
+            !!dataSourceConfig.basicAuthPassword ||
+            !!(dataSourceConfig.secureJsonFields && dataSourceConfig.secureJsonFields.basicAuthPassword)
+          }
           value={password || ''}
           inputWidth={18}
           labelWidth={10}
           onReset={onPasswordReset}
           onChange={onPasswordChange}
         />
-      </InlineField>
+      </div>
     </>
   );
 };

@@ -6,16 +6,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/grafana/grafana/pkg/services/contexthandler"
-	"github.com/grafana/grafana/pkg/services/user"
+	"github.com/grafana/grafana/pkg/bus"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/web"
+	"gopkg.in/macaron.v1"
 )
 
 // OrgRedirect changes org and redirects users if the
 // querystring `orgId` doesn't match the active org.
-func OrgRedirect(cfg *setting.Cfg, userSvc user.Service) web.Handler {
-	return func(res http.ResponseWriter, req *http.Request, c *web.Context) {
+func OrgRedirect(cfg *setting.Cfg) macaron.Handler {
+	return func(res http.ResponseWriter, req *http.Request, c *macaron.Context) {
 		orgIdValue := req.URL.Query().Get("orgId")
 		orgId, err := strconv.ParseInt(orgIdValue, 10, 64)
 
@@ -23,36 +23,27 @@ func OrgRedirect(cfg *setting.Cfg, userSvc user.Service) web.Handler {
 			return
 		}
 
-		ctx := contexthandler.FromContext(req.Context())
-		if !ctx.IsSignedIn {
+		ctx, ok := c.Data["ctx"].(*models.ReqContext)
+		if !ok || !ctx.IsSignedIn {
 			return
 		}
 
-		if orgId == ctx.OrgID {
+		if orgId == ctx.OrgId {
 			return
 		}
 
-		cmd := user.SetUsingOrgCommand{UserID: ctx.UserID, OrgID: orgId}
-		if err := userSvc.SetUsingOrg(ctx.Req.Context(), &cmd); err != nil {
+		cmd := models.SetUsingOrgCommand{UserId: ctx.UserId, OrgId: orgId}
+		if err := bus.Dispatch(&cmd); err != nil {
 			if ctx.IsApiRequest() {
 				ctx.JsonApiErr(404, "Not found", nil)
 			} else {
-				http.Error(ctx.Resp, "Not found", http.StatusNotFound)
+				ctx.Error(404, "Not found")
 			}
 
 			return
 		}
 
-		urlParams := c.Req.URL.Query()
-		qs := urlParams.Encode()
-
-		if urlParams.Has("kiosk") && urlParams.Get("kiosk") == "" {
-			urlParams.Del("kiosk")
-			qs = fmt.Sprintf("%s&kiosk", urlParams.Encode())
-		}
-
-		newURL := fmt.Sprintf("%s%s?%s", cfg.AppURL, strings.TrimPrefix(c.Req.URL.Path, "/"), qs)
-
+		newURL := fmt.Sprintf("%s%s?%s", cfg.AppURL, strings.TrimPrefix(c.Req.URL.Path, "/"), c.Req.URL.Query().Encode())
 		c.Redirect(newURL, 302)
 	}
 }

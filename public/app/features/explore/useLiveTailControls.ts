@@ -1,12 +1,10 @@
 import React, { useCallback } from 'react';
-
+import { useDispatch } from 'react-redux';
 import { RefreshPicker } from '@grafana/ui';
-import { useDispatch } from 'app/types';
 
-import { ExploreId } from '../../types';
-
-import { setPausedStateAction, runQueries, clearLogs } from './state/query';
 import { changeRefreshInterval } from './state/time';
+import { setPausedStateAction, runQueries } from './state/query';
+import { ExploreId } from '../../types';
 
 /**
  * Hook that gives you all the functions needed to control the live tailing.
@@ -38,16 +36,11 @@ export function useLiveTailControls(exploreId: ExploreId) {
     dispatch(changeRefreshInterval(exploreId, RefreshPicker.liveOption.value));
   }, [exploreId, dispatch]);
 
-  const clear = useCallback(() => {
-    dispatch(clearLogs({ exploreId }));
-  }, [exploreId, dispatch]);
-
   return {
     pause,
     resume,
     stop,
     start,
-    clear,
   };
 }
 

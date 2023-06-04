@@ -1,20 +1,17 @@
-import { css, cx } from '@emotion/css';
-import React, { HTMLProps } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { stylesFactory, useTheme2 } from '../../themes';
-
+import React, { FC, HTMLProps } from 'react';
+import { css, cx } from 'emotion';
+import { GrafanaTheme } from '@grafana/data';
+import { stylesFactory, useTheme } from '../../themes';
 import { Legend } from './Legend';
 
-export interface Props extends Omit<HTMLProps<HTMLFieldSetElement>, 'label'> {
+export interface Props extends HTMLProps<HTMLFieldSetElement> {
   children: React.ReactNode[] | React.ReactNode;
-  /** Label for the fieldset's legend */
-  label?: React.ReactNode;
+  /** Text for the fieldset's legend */
+  label?: string;
 }
 
-export const FieldSet = ({ label, children, className, ...rest }: Props) => {
-  const theme = useTheme2();
+export const FieldSet: FC<Props> = ({ label, children, className, ...rest }) => {
+  const theme = useTheme();
   const styles = getStyles(theme);
 
   return (
@@ -25,14 +22,10 @@ export const FieldSet = ({ label, children, className, ...rest }: Props) => {
   );
 };
 
-const getStyles = stylesFactory((theme: GrafanaTheme2) => {
+const getStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
     wrapper: css`
-      margin-bottom: ${theme.spacing(4)};
-
-      &:last-child {
-        margin-bottom: 0;
-      }
+      margin-bottom: ${theme.spacing.formSpacingBase * 4}px;
     `,
   };
 });

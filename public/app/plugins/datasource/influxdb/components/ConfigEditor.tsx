@@ -1,41 +1,35 @@
-import { uniqueId } from 'lodash';
 import React, { PureComponent } from 'react';
-
 import {
   DataSourcePluginOptionsEditorProps,
+  SelectableValue,
+  onUpdateDatasourceOption,
+  updateDatasourcePluginResetOption,
   onUpdateDatasourceJsonDataOption,
   onUpdateDatasourceJsonDataOptionSelect,
-  onUpdateDatasourceOption,
   onUpdateDatasourceSecureJsonDataOption,
-  SelectableValue,
   updateDatasourcePluginJsonDataOption,
-  updateDatasourcePluginResetOption,
 } from '@grafana/data';
-import { Alert, DataSourceHttpSettings, InfoBox, InlineField, InlineFormLabel, LegacyForms, Select } from '@grafana/ui';
-import { config } from 'app/core/config';
-
-import { BROWSER_MODE_DISABLED_MESSAGE } from '../constants';
+import { DataSourceHttpSettings, InfoBox, InlineField, InlineFormLabel, LegacyForms } from '@grafana/ui';
+const { Select, Input, SecretFormField } = LegacyForms;
 import { InfluxOptions, InfluxSecureJsonData, InfluxVersion } from '../types';
 
-const { Input, SecretFormField } = LegacyForms;
-
-const httpModes: SelectableValue[] = [
+const httpModes = [
   { label: 'GET', value: 'GET' },
   { label: 'POST', value: 'POST' },
-];
+] as SelectableValue[];
 
-const versions: Array<SelectableValue<InfluxVersion>> = [
+const versions = [
   {
     label: 'InfluxQL',
     value: InfluxVersion.InfluxQL,
-    description: 'The InfluxDB SQL-like query language.',
+    description: 'The InfluxDB SQL-like query language.  Supported in InfluxDB 1.x',
   },
   {
     label: 'Flux',
     value: InfluxVersion.Flux,
-    description: 'Advanced data scripting and query language.  Supported in InfluxDB 2.x and 1.8+',
+    description: 'Advanced data scripting and query language.  Supported in InfluxDB 2.x and 1.8+ (beta)',
   },
-];
+] as Array<SelectableValue<InfluxVersion>>;
 
 export type Props = DataSourcePluginOptionsEditorProps<InfluxOptions>;
 type State = {
@@ -47,12 +41,9 @@ export class ConfigEditor extends PureComponent<Props, State> {
     maxSeries: '',
   };
 
-  htmlPrefix: string;
-
   constructor(props: Props) {
     super(props);
     this.state.maxSeries = props.options.jsonData.maxSeries?.toString() || '';
-    this.htmlPrefix = uniqueId('influxdb-config');
   }
 
   // 1x
@@ -92,18 +83,14 @@ export class ConfigEditor extends PureComponent<Props, State> {
     const { options } = this.props;
     const { secureJsonFields } = options;
     const secureJsonData = (options.secureJsonData || {}) as InfluxSecureJsonData;
-    const { htmlPrefix } = this;
 
     return (
       <>
         <div className="gf-form-inline">
           <div className="gf-form">
-            <InlineFormLabel htmlFor={`${htmlPrefix}-org`} className="width-10">
-              Organization
-            </InlineFormLabel>
+            <InlineFormLabel className="width-10">Organization</InlineFormLabel>
             <div className="width-10">
               <Input
-                id={`${htmlPrefix}-org`}
                 className="width-20"
                 value={options.jsonData.organization || ''}
                 onChange={onUpdateDatasourceJsonDataOption(this.props, 'organization')}
@@ -114,10 +101,9 @@ export class ConfigEditor extends PureComponent<Props, State> {
         <div className="gf-form-inline">
           <div className="gf-form">
             <SecretFormField
-              isConfigured={Boolean(secureJsonFields && secureJsonFields.token)}
+              isConfigured={(secureJsonFields && secureJsonFields.token) as boolean}
               value={secureJsonData.token || ''}
               label="Token"
-              aria-label="Token"
               labelWidth={10}
               inputWidth={20}
               onReset={this.onResetToken}
@@ -166,7 +152,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
     const { options } = this.props;
     const { secureJsonFields } = options;
     const secureJsonData = (options.secureJsonData || {}) as InfluxSecureJsonData;
-    const { htmlPrefix } = this;
 
     return (
       <>
@@ -184,36 +169,21 @@ export class ConfigEditor extends PureComponent<Props, State> {
         </InfoBox>
         <div className="gf-form-inline">
           <div className="gf-form">
-            <InlineFormLabel htmlFor={`${htmlPrefix}-db`} className="width-10">
-              Database
-            </InlineFormLabel>
+            <InlineFormLabel className="width-10">Database</InlineFormLabel>
             <div className="width-20">
               <Input
-                id={`${htmlPrefix}-db`}
                 className="width-20"
-                value={options.jsonData.dbName ?? options.database}
-                onChange={(event) => {
-                  this.props.onOptionsChange({
-                    ...options,
-                    database: '',
-                    jsonData: {
-                      ...options.jsonData,
-                      dbName: event.target.value,
-                    },
-                  });
-                }}
+                value={options.database || ''}
+                onChange={onUpdateDatasourceOption(this.props, 'database')}
               />
             </div>
           </div>
         </div>
         <div className="gf-form-inline">
           <div className="gf-form">
-            <InlineFormLabel htmlFor={`${htmlPrefix}-user`} className="width-10">
-              User
-            </InlineFormLabel>
+            <InlineFormLabel className="width-10">User</InlineFormLabel>
             <div className="width-10">
               <Input
-                id={`${htmlPrefix}-user`}
                 className="width-20"
                 value={options.user || ''}
                 onChange={onUpdateDatasourceOption(this.props, 'user')}
@@ -224,10 +194,9 @@ export class ConfigEditor extends PureComponent<Props, State> {
         <div className="gf-form-inline">
           <div className="gf-form">
             <SecretFormField
-              isConfigured={Boolean(secureJsonFields && secureJsonFields.password)}
+              isConfigured={(secureJsonFields && secureJsonFields.password) as boolean}
               value={secureJsonData.password || ''}
               label="Password"
-              aria-label="Password"
               labelWidth={10}
               inputWidth={20}
               onReset={this.onResetPassword}
@@ -238,7 +207,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
         <div className="gf-form-inline">
           <div className="gf-form">
             <InlineFormLabel
-              htmlFor={`${htmlPrefix}-http-method`}
               className="width-10"
               tooltip="You can use either GET or POST HTTP method to query your InfluxDB database. The POST
           method allows you to perform heavy requests (with a lots of WHERE clause) while the GET method
@@ -247,7 +215,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
               HTTP Method
             </InlineFormLabel>
             <Select
-              inputId={`${htmlPrefix}-http-method`}
               className="width-10"
               value={httpModes.find((httpMode) => httpMode.value === options.jsonData.httpMode)}
               options={httpModes}
@@ -282,7 +249,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
 
   render() {
     const { options, onOptionsChange } = this.props;
-    const isDirectAccess = options.access === 'direct';
 
     return (
       <>
@@ -291,7 +257,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
           <div className="gf-form-inline">
             <div className="gf-form">
               <Select
-                aria-label="Query language"
                 className="width-30"
                 value={options.jsonData.version === InfluxVersion.Flux ? versions[1] : versions[0]}
                 options={versions}
@@ -314,18 +279,11 @@ export class ConfigEditor extends PureComponent<Props, State> {
           </InfoBox>
         )}
 
-        {isDirectAccess && (
-          <Alert title="Error" severity="error">
-            {BROWSER_MODE_DISABLED_MESSAGE}
-          </Alert>
-        )}
-
         <DataSourceHttpSettings
-          showAccessOptions={isDirectAccess}
+          showAccessOptions={true}
           dataSourceConfig={options}
           defaultUrl="http://localhost:8086"
           onChange={onOptionsChange}
-          secureSocksDSProxyEnabled={config.secureSocksDSProxyEnabled}
         />
 
         <div className="gf-form-group">

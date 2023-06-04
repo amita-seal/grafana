@@ -1,14 +1,9 @@
-import { Observable } from 'rxjs';
-
 import {
   DataQueryRequest,
   DataQueryResponse,
-  TestDataSourceResponse,
   DataSourceApi,
   DataSourceInstanceSettings,
   DataSourcePluginMeta,
-  DataSourceRef,
-  getDataSourceUID,
 } from '@grafana/data';
 
 export class DatasourceSrvMock {
@@ -16,28 +11,22 @@ export class DatasourceSrvMock {
     //
   }
 
-  get(ref?: DataSourceRef | string): Promise<DataSourceApi> {
-    if (!ref) {
+  get(name?: string): Promise<DataSourceApi> {
+    if (!name) {
       return Promise.resolve(this.defaultDS);
     }
-    const uid = getDataSourceUID(ref) ?? '';
-    const ds = this.datasources[uid];
+    const ds = this.datasources[name];
     if (ds) {
       return Promise.resolve(ds);
     }
-    return Promise.reject(`Unknown Datasource: ${JSON.stringify(ref)}`);
+    return Promise.reject('Unknown Datasource: ' + name);
   }
 }
 
 export class MockDataSourceApi extends DataSourceApi {
   result: DataQueryResponse = { data: [] };
 
-  constructor(
-    name?: string,
-    result?: DataQueryResponse,
-    meta?: DataSourcePluginMeta,
-    public error: string | null = null
-  ) {
+  constructor(name?: string, result?: DataQueryResponse, meta?: any, private error: string | null = null) {
     super({ name: name ? name : 'MockDataSourceApi' } as DataSourceInstanceSettings);
     if (result) {
       this.result = result;
@@ -58,49 +47,7 @@ export class MockDataSourceApi extends DataSourceApi {
     });
   }
 
-  testDatasource(): Promise<TestDataSourceResponse> {
-    return Promise.resolve({ message: '', status: '' });
-  }
-
-  setupMixed(value: boolean) {
-    this.meta = this.meta || {};
-    this.meta.mixed = value;
-    return this;
-  }
-}
-
-export class MockObservableDataSourceApi extends DataSourceApi {
-  results: DataQueryResponse[] = [{ data: [] }];
-
-  constructor(
-    name?: string,
-    results?: DataQueryResponse[],
-    meta?: DataSourcePluginMeta,
-    private error: string | null = null
-  ) {
-    super({ name: name ? name : 'MockDataSourceApi' } as DataSourceInstanceSettings);
-
-    if (results) {
-      this.results = results;
-    }
-
-    this.meta = meta || ({} as DataSourcePluginMeta);
-  }
-
-  query(request: DataQueryRequest): Observable<DataQueryResponse> {
-    return new Observable((observer) => {
-      if (this.error) {
-        observer.error(this.error);
-      }
-
-      if (this.results) {
-        this.results.forEach((response) => observer.next(response));
-        observer.complete();
-      }
-    });
-  }
-
-  testDatasource(): Promise<TestDataSourceResponse> {
-    return Promise.resolve({ message: '', status: '' });
+  testDatasource() {
+    return Promise.resolve();
   }
 }

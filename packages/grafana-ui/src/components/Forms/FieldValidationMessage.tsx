@@ -1,43 +1,32 @@
-import { css, cx } from '@emotion/css';
 import React from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { stylesFactory, useTheme2 } from '../../themes';
+import { css, cx } from 'emotion';
+import { GrafanaTheme } from '@grafana/data';
 import { Icon } from '../Icon/Icon';
+import { useTheme, stylesFactory } from '../../themes';
 
 export interface FieldValidationMessageProps {
+  children: string;
   /** Override component style */
   className?: string;
   horizontal?: boolean;
 }
 
-export const getFieldValidationMessageStyles = stylesFactory((theme: GrafanaTheme2) => {
+export const getFieldValidationMessageStyles = stylesFactory((theme: GrafanaTheme) => {
   const baseStyle = `
       font-size: ${theme.typography.size.sm};
-      font-weight: ${theme.typography.fontWeightMedium};
-      padding: ${theme.spacing(0.5, 1)};
-      color: ${theme.colors.error.contrastText};
-      background: ${theme.colors.error.main};
-      border-radius: ${theme.shape.borderRadius()};
+      font-weight: ${theme.typography.weight.semibold};
+      padding: ${theme.spacing.formValidationMessagePadding};
+      color: ${theme.colors.formValidationMessageText};
+      background: ${theme.colors.formValidationMessageBg};
+      border-radius: ${theme.border.radius.sm};
       position: relative;
       display: inline-block;
-      align-self: flex-start;
-
-      a {
-        color: ${theme.colors.error.contrastText};
-        text-decoration: underline;
-      }
-
-      a:hover {
-        text-decoration: none;
-      }
     `;
 
   return {
     vertical: css`
       ${baseStyle}
-      margin: ${theme.spacing(0.5, 0, 0, 0)};
+      margin: ${theme.spacing.formValidationMessageMargin};
 
       &:before {
         content: '';
@@ -47,7 +36,7 @@ export const getFieldValidationMessageStyles = stylesFactory((theme: GrafanaThem
         width: 0;
         height: 0;
         border-width: 0 4px 5px 4px;
-        border-color: transparent transparent ${theme.colors.error.main} transparent;
+        border-color: transparent transparent ${theme.colors.formValidationMessageBg} transparent;
         border-style: solid;
       }
     `,
@@ -68,17 +57,13 @@ export const getFieldValidationMessageStyles = stylesFactory((theme: GrafanaThem
       }
     `,
     fieldValidationMessageIcon: css`
-      margin-right: ${theme.spacing()};
+      margin-right: ${theme.spacing.formSpacingBase}px;
     `,
   };
 });
 
-export const FieldValidationMessage = ({
-  children,
-  horizontal,
-  className,
-}: React.PropsWithChildren<FieldValidationMessageProps>) => {
-  const theme = useTheme2();
+export const FieldValidationMessage: React.FC<FieldValidationMessageProps> = ({ children, horizontal, className }) => {
+  const theme = useTheme();
   const styles = getFieldValidationMessageStyles(theme);
   const cssName = cx(horizontal ? styles.horizontal : styles.vertical, className);
 

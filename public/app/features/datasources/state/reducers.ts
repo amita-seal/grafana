@@ -1,12 +1,10 @@
 import { AnyAction, createAction } from '@reduxjs/toolkit';
+import { DataSourcePluginMeta, DataSourceSettings } from '@grafana/data';
 
-import { DataSourcePluginMeta, DataSourceSettings, LayoutMode, LayoutModes } from '@grafana/data';
-import { TestingStatus } from '@grafana/runtime';
 import { DataSourcesState, DataSourceSettingsState } from 'app/types';
-
-import { GenericDataSourcePlugin } from '../types';
-
+import { LayoutMode, LayoutModes } from 'app/core/components/LayoutSelector/LayoutSelector';
 import { DataSourceTypesLoadedPayload } from './actions';
+import { GenericDataSourcePlugin } from '../settings/PluginSettings';
 
 export const initialState: DataSourcesState = {
   dataSources: [],
@@ -17,14 +15,12 @@ export const initialState: DataSourcesState = {
   searchQuery: '',
   dataSourcesCount: 0,
   dataSourceTypeSearchQuery: '',
+  hasFetched: false,
   isLoadingDataSources: false,
-  isLoadingDataSourcePlugins: false,
   dataSourceMeta: {} as DataSourcePluginMeta,
-  isSortAscending: true,
 };
 
 export const dataSourceLoaded = createAction<DataSourceSettings>('dataSources/dataSourceLoaded');
-export const dataSourcesLoad = createAction<void>('dataSources/dataSourcesLoad');
 export const dataSourcesLoaded = createAction<DataSourceSettings[]>('dataSources/dataSourcesLoaded');
 export const dataSourceMetaLoaded = createAction<DataSourcePluginMeta>('dataSources/dataSourceMetaLoaded');
 export const dataSourcePluginsLoad = createAction('dataSources/dataSourcePluginsLoad');
@@ -36,7 +32,6 @@ export const setDataSourcesLayoutMode = createAction<LayoutMode>('dataSources/se
 export const setDataSourceTypeSearchQuery = createAction<string>('dataSources/setDataSourceTypeSearchQuery');
 export const setDataSourceName = createAction<string>('dataSources/setDataSourceName');
 export const setIsDefault = createAction<boolean>('dataSources/setIsDefault');
-export const setIsSortAscending = createAction<boolean>('dataSources/setIsSortAscending');
 
 // Redux Toolkit uses ImmerJs as part of their solution to ensure that state objects are not mutated.
 // ImmerJs has an autoFreeze option that freezes objects from change which means this reducer can't be migrated to createSlice
@@ -44,14 +39,10 @@ export const setIsSortAscending = createAction<boolean>('dataSources/setIsSortAs
 // the frozen state.
 // https://github.com/reduxjs/redux-toolkit/issues/242
 export const dataSourcesReducer = (state: DataSourcesState = initialState, action: AnyAction): DataSourcesState => {
-  if (dataSourcesLoad.match(action)) {
-    return { ...state, isLoadingDataSources: true };
-  }
-
   if (dataSourcesLoaded.match(action)) {
     return {
       ...state,
-      isLoadingDataSources: false,
+      hasFetched: true,
       dataSources: action.payload,
       dataSourcesCount: action.payload.length,
     };
@@ -70,7 +61,7 @@ export const dataSourcesReducer = (state: DataSourcesState = initialState, actio
   }
 
   if (dataSourcePluginsLoad.match(action)) {
-    return { ...state, plugins: [], isLoadingDataSourcePlugins: true };
+    return { ...state, plugins: [], isLoadingDataSources: true };
   }
 
   if (dataSourcePluginsLoaded.match(action)) {
@@ -78,7 +69,7 @@ export const dataSourcesReducer = (state: DataSourcesState = initialState, actio
       ...state,
       plugins: action.payload.plugins,
       categories: action.payload.categories,
-      isLoadingDataSourcePlugins: false,
+      isLoadingDataSources: false,
     };
   }
 
@@ -101,20 +92,15 @@ export const dataSourcesReducer = (state: DataSourcesState = initialState, actio
     };
   }
 
-  if (setIsSortAscending.match(action)) {
-    return {
-      ...state,
-      isSortAscending: action.payload,
-    };
-  }
-
   return state;
 };
 
 export const initialDataSourceSettingsState: DataSourceSettingsState = {
-  testingStatus: {},
+  testingStatus: {
+    status: null,
+    message: null,
+  },
   loadError: null,
-  loading: true,
   plugin: null,
 };
 
@@ -126,27 +112,30 @@ export const initDataSourceSettingsFailed = createAction<Error>('dataSourceSetti
 
 export const testDataSourceStarting = createAction<undefined>('dataSourceSettings/testDataSourceStarting');
 
-export const testDataSourceSucceeded = createAction<TestingStatus>('dataSourceSettings/testDataSourceSucceeded');
+export const testDataSourceSucceeded = createAction<{
+  status: string;
+  message: string;
+}>('dataSourceSettings/testDataSourceSucceeded');
 
-export const testDataSourceFailed = createAction<TestingStatus>('dataSourceSettings/testDataSourceFailed');
+export const testDataSourceFailed = createAction<{ message: string }>('dataSourceSettings/testDataSourceFailed');
 
 export const dataSourceSettingsReducer = (
   state: DataSourceSettingsState = initialDataSourceSettingsState,
   action: AnyAction
 ): DataSourceSettingsState => {
   if (initDataSourceSettingsSucceeded.match(action)) {
-    return { ...state, plugin: action.payload, loadError: null, loading: false };
+    return { ...state, plugin: action.payload, loadError: null };
   }
 
   if (initDataSourceSettingsFailed.match(action)) {
-    return { ...state, plugin: null, loadError: action.payload.message, loading: false };
+    return { ...state, plugin: null, loadError: action.payload.message };
   }
 
   if (testDataSourceStarting.match(action)) {
     return {
       ...state,
       testingStatus: {
-        message: 'Testing... this could take up to a couple of minutes',
+        message: 'Testing...',
         status: 'info',
       },
     };
@@ -156,9 +145,8 @@ export const dataSourceSettingsReducer = (
     return {
       ...state,
       testingStatus: {
-        status: action.payload?.status,
-        message: action.payload?.message,
-        details: action.payload?.details,
+        status: action.payload.status,
+        message: action.payload.message,
       },
     };
   }
@@ -168,8 +156,7 @@ export const dataSourceSettingsReducer = (
       ...state,
       testingStatus: {
         status: 'error',
-        message: action.payload?.message,
-        details: action.payload?.details,
+        message: action.payload.message,
       },
     };
   }

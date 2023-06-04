@@ -1,15 +1,19 @@
-import { debounce, DebouncedFuncLeading, isNil } from 'lodash';
+// Libraries
 import React, { Component } from 'react';
+import _, { debounce } from 'lodash';
 
-import { SelectableValue } from '@grafana/data';
-import { getBackendSrv } from '@grafana/runtime';
+// Components
 import { AsyncSelect } from '@grafana/ui';
-import { OrgUser } from 'app/types';
+
+// Utils & Services
+import { getBackendSrv } from '@grafana/runtime';
+
+// Types
+import { User } from 'app/types';
 
 export interface Props {
-  onSelected: (user: SelectableValue<OrgUser['userId']>) => void;
+  onSelected: (user: User) => void;
   className?: string;
-  inputId?: string;
 }
 
 export interface State {
@@ -17,7 +21,7 @@ export interface State {
 }
 
 export class UserPicker extends Component<Props, State> {
-  debouncedSearch: DebouncedFuncLeading<typeof this.search>;
+  debouncedSearch: any;
 
   constructor(props: Props) {
     super(props);
@@ -33,14 +37,14 @@ export class UserPicker extends Component<Props, State> {
   search(query?: string) {
     this.setState({ isLoading: true });
 
-    if (isNil(query)) {
+    if (_.isNil(query)) {
       query = '';
     }
 
     return getBackendSrv()
       .get(`/api/org/users/lookup?query=${query}&limit=100`)
-      .then((result: OrgUser[]) => {
-        return result.map((user) => ({
+      .then((result: any) => {
+        return result.map((user: any) => ({
           id: user.userId,
           value: user.userId,
           label: user.login,
@@ -54,7 +58,7 @@ export class UserPicker extends Component<Props, State> {
   }
 
   render() {
-    const { className, onSelected, inputId } = this.props;
+    const { className, onSelected } = this.props;
     const { isLoading } = this.state;
 
     return (
@@ -62,14 +66,12 @@ export class UserPicker extends Component<Props, State> {
         <AsyncSelect
           isClearable
           className={className}
-          inputId={inputId}
           isLoading={isLoading}
           defaultOptions={true}
           loadOptions={this.debouncedSearch}
           onChange={onSelected}
           placeholder="Start typing to search for user"
           noOptionsMessage="No users found"
-          aria-label="User picker"
         />
       </div>
     );

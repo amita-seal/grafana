@@ -2,6 +2,7 @@ import {
   GraphSeriesValue,
   Field,
   formattedValueToString,
+  getDisplayProcessor,
   getFieldDisplayName,
   TimeZone,
   dateTimeFormat,
@@ -24,7 +25,7 @@ export const findHoverIndexFromData = (xAxisDimension: Field, xPos: number) => {
       return Math.max(upper, 0);
     }
     middle = Math.floor((lower + upper) / 2);
-    const xPosition = xAxisDimension.values[middle];
+    const xPosition = xAxisDimension.values.get(middle);
 
     if (xPosition === xPos) {
       return middle;
@@ -72,8 +73,8 @@ export const getMultiSeriesGraphHoverInfo = (
     field = yAxisDimensions[i];
     const time = xAxisDimensions[i];
     hoverIndex = findHoverIndexFromData(time, xAxisPosition);
-    hoverDistance = xAxisPosition - time.values[hoverIndex];
-    pointTime = time.values[hoverIndex];
+    hoverDistance = xAxisPosition - time.values.get(hoverIndex);
+    pointTime = time.values.get(hoverIndex);
     // Take the closest point before the cursor, or if it does not exist, the closest after
     if (
       minDistance === undefined ||
@@ -84,7 +85,8 @@ export const getMultiSeriesGraphHoverInfo = (
       minTime = time.display ? formattedValueToString(time.display(pointTime)) : pointTime;
     }
 
-    const disp = field.display!(field.values[hoverIndex]);
+    const display = field.display ?? getDisplayProcessor({ field, timeZone });
+    const disp = display(field.values.get(hoverIndex));
 
     results.push({
       value: formattedValueToString(disp),
@@ -118,19 +120,16 @@ export const graphTimeFormat = (ticks: number | null, min: number | null, max: n
     const oneDay = 86400010;
     const oneYear = 31536000000;
 
-    if (secPerTick <= 10) {
-      return systemDateFormats.interval.millisecond;
-    }
     if (secPerTick <= 45) {
       return systemDateFormats.interval.second;
     }
-    if (range <= oneDay) {
+    if (secPerTick <= 7200 || range <= oneDay) {
       return systemDateFormats.interval.minute;
     }
     if (secPerTick <= 80000) {
       return systemDateFormats.interval.hour;
     }
-    if (range <= oneYear) {
+    if (secPerTick <= 2419200 || range <= oneYear) {
       return systemDateFormats.interval.day;
     }
     if (secPerTick <= 31536000) {

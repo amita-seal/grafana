@@ -1,39 +1,34 @@
-import { css } from '@emotion/css';
-import { uniqueId } from 'lodash';
-import React, { useEffect, useRef } from 'react';
-
 import { InlineField, Input, QueryField } from '@grafana/ui';
-
-import { useDispatch, useStatelessReducer } from '../../../../../hooks/useStatelessReducer';
-import { Filters } from '../../../../../types';
+import { css } from 'emotion';
+import React, { FunctionComponent, useEffect } from 'react';
 import { AddRemove } from '../../../../AddRemove';
+import { useDispatch, useStatelessReducer } from '../../../../../hooks/useStatelessReducer';
+import { Filters } from '../../aggregations';
 import { changeBucketAggregationSetting } from '../../state/actions';
-
+import { BucketAggregationAction } from '../../state/types';
 import { addFilter, changeFilter, removeFilter } from './state/actions';
 import { reducer as filtersReducer } from './state/reducer';
 
 interface Props {
-  bucketAgg: Filters;
+  value: Filters;
 }
 
-export const FiltersSettingsEditor = ({ bucketAgg }: Props) => {
-  const { current: baseId } = useRef(uniqueId('es-filters-'));
-
-  const upperStateDispatch = useDispatch();
+export const FiltersSettingsEditor: FunctionComponent<Props> = ({ value }) => {
+  const upperStateDispatch = useDispatch<BucketAggregationAction<Filters>>();
 
   const dispatch = useStatelessReducer(
-    (newValue) => upperStateDispatch(changeBucketAggregationSetting({ bucketAgg, settingName: 'filters', newValue })),
-    bucketAgg.settings?.filters,
+    (newState) => upperStateDispatch(changeBucketAggregationSetting(value, 'filters', newState)),
+    value.settings?.filters,
     filtersReducer
   );
 
   // The model might not have filters (or an empty array of filters) in it because of the way it was built in previous versions of the datasource.
   // If this is the case we add a default one.
   useEffect(() => {
-    if (!bucketAgg.settings?.filters?.length) {
+    if (!value.settings?.filters?.length) {
       dispatch(addFilter());
     }
-  }, [dispatch, bucketAgg.settings?.filters?.length]);
+  }, []);
 
   return (
     <>
@@ -43,40 +38,38 @@ export const FiltersSettingsEditor = ({ bucketAgg }: Props) => {
           flex-direction: column;
         `}
       >
-        {bucketAgg.settings?.filters!.map((filter, index) => (
+        {value.settings?.filters!.map((filter, index) => (
           <div
             key={index}
             className={css`
               display: flex;
             `}
           >
-            <InlineField label="Query" labelWidth={8}>
-              <div
-                className={css`
-                  width: 150px;
-                `}
-              >
+            <div
+              className={css`
+                width: 250px;
+              `}
+            >
+              <InlineField label="Query" labelWidth={10}>
                 <QueryField
                   placeholder="Lucene Query"
                   portalOrigin="elasticsearch"
                   onBlur={() => {}}
-                  onChange={(query) => dispatch(changeFilter({ index, filter: { ...filter, query } }))}
+                  onChange={(query) => dispatch(changeFilter(index, { ...filter, query }))}
                   query={filter.query}
                 />
-              </div>
-            </InlineField>
-            <InlineField label="Label" labelWidth={8}>
+              </InlineField>
+            </div>
+            <InlineField label="Label" labelWidth={10}>
               <Input
-                width={16}
-                id={`${baseId}-label-${index}`}
                 placeholder="Label"
-                onBlur={(e) => dispatch(changeFilter({ index, filter: { ...filter, label: e.target.value } }))}
+                onBlur={(e) => dispatch(changeFilter(index, { ...filter, label: e.target.value }))}
                 defaultValue={filter.label}
               />
             </InlineField>
             <AddRemove
               index={index}
-              elements={bucketAgg.settings?.filters || []}
+              elements={value.settings?.filters || []}
               onAdd={() => dispatch(addFilter())}
               onRemove={() => dispatch(removeFilter(index))}
             />

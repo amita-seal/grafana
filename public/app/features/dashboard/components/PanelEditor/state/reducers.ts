@@ -1,10 +1,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-
-import { getDefaultTimeRange, LoadingState, PanelData } from '@grafana/data';
-
-import store from '../../../../../core/store';
 import { PanelModel } from '../../../state/PanelModel';
+import { getDefaultTimeRange, LoadingState, PanelData } from '@grafana/data';
 import { DisplayMode } from '../types';
+import store from '../../../../../core/store';
 
 export const PANEL_EDITOR_UI_STATE_STORAGE_KEY = 'grafana.dashboard.editor.ui';
 
@@ -36,8 +34,6 @@ export interface PanelEditorState {
   shouldDiscardChanges: boolean;
   isOpen: boolean;
   ui: PanelEditorUIState;
-  isVizPickerOpen: boolean;
-  tableViewEnabled: boolean;
 }
 
 export const initialState = (): PanelEditorState => {
@@ -60,8 +56,6 @@ export const initialState = (): PanelEditorState => {
     initDone: false,
     shouldDiscardChanges: false,
     isOpen: false,
-    isVizPickerOpen: false,
-    tableViewEnabled: false,
     ui: {
       ...DEFAULT_PANEL_EDITOR_UI_STATE,
       ...migratedState,
@@ -93,28 +87,10 @@ const pluginsSlice = createSlice({
     },
     setPanelEditorUIState: (state, action: PayloadAction<Partial<PanelEditorUIState>>) => {
       state.ui = { ...state.ui, ...action.payload };
-      // Close viz picker if closing options pane
-      if (!state.ui.isPanelOptionsVisible && state.isVizPickerOpen) {
-        state.isVizPickerOpen = false;
-      }
     },
-    toggleVizPicker: (state, action: PayloadAction<boolean>) => {
-      state.isVizPickerOpen = action.payload;
-      // Ensure options pane is opened when viz picker is open
-      if (state.isVizPickerOpen) {
-        state.ui.isPanelOptionsVisible = true;
-      }
-    },
-    toggleTableView(state) {
-      state.tableViewEnabled = !state.tableViewEnabled;
-    },
-    closeEditor: (state) => {
-      state.getPanel = () => new PanelModel({});
-      state.getSourcePanel = () => new PanelModel({});
+    closeCompleted: (state) => {
       state.isOpen = false;
       state.initDone = false;
-      state.isVizPickerOpen = false;
-      state.tableViewEnabled = false;
     },
   },
 });
@@ -123,14 +99,8 @@ export const {
   updateEditorInitState,
   setEditorPanelData,
   setDiscardChanges,
-  closeEditor,
+  closeCompleted,
   setPanelEditorUIState,
-  toggleVizPicker,
-  toggleTableView,
 } = pluginsSlice.actions;
 
 export const panelEditorReducer = pluginsSlice.reducer;
-
-export default {
-  panelEditor: panelEditorReducer,
-};

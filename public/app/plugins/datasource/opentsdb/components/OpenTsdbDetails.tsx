@@ -1,12 +1,8 @@
 import React, { SyntheticEvent } from 'react';
-
-import { DataSourceSettings, SelectableValue } from '@grafana/data';
 import { InlineFormLabel, LegacyForms } from '@grafana/ui';
-
-import { useUniqueId } from '../../influxdb/components/useUniqueId';
-import { OpenTsdbOptions } from '../types';
-
 const { Select, Input } = LegacyForms;
+import { DataSourceSettings, SelectableValue } from '@grafana/data';
+import { OpenTsdbOptions } from '../types';
 
 const tsdbVersions = [
   { label: '<=2.1', value: 1 },
@@ -27,28 +23,20 @@ interface Props {
 export const OpenTsdbDetails = (props: Props) => {
   const { onChange, value } = props;
 
-  const idSuffix = useUniqueId();
-
   return (
     <>
       <h5>OpenTSDB settings</h5>
       <div className="gf-form">
-        <InlineFormLabel width={7} htmlFor={`select-version-${idSuffix}`}>
-          Version
-        </InlineFormLabel>
+        <InlineFormLabel width={7}>Version</InlineFormLabel>
         <Select
-          inputId={`select-version-${idSuffix}`}
           options={tsdbVersions}
           value={tsdbVersions.find((version) => version.value === value.jsonData.tsdbVersion) ?? tsdbVersions[0]}
           onChange={onSelectChangeHandler('tsdbVersion', value, onChange)}
         />
       </div>
       <div className="gf-form">
-        <InlineFormLabel width={7} htmlFor={`select-resolution-${idSuffix}`}>
-          Resolution
-        </InlineFormLabel>
+        <InlineFormLabel width={7}>Resolution</InlineFormLabel>
         <Select
-          inputId={`select-resolution-${idSuffix}`}
           options={tsdbResolutions}
           value={
             tsdbResolutions.find((resolution) => resolution.value === value.jsonData.tsdbResolution) ??
@@ -58,11 +46,8 @@ export const OpenTsdbDetails = (props: Props) => {
         />
       </div>
       <div className="gf-form">
-        <InlineFormLabel width={7} htmlFor={`lookup-input-${idSuffix}`}>
-          Lookup limit
-        </InlineFormLabel>
+        <InlineFormLabel width={7}>Lookup Limit</InlineFormLabel>
         <Input
-          id={`lookup-input-${idSuffix}`}
           type="number"
           value={value.jsonData.lookupLimit ?? 1000}
           onChange={onInputChangeHandler('lookupLimit', value, onChange)}
@@ -72,25 +57,26 @@ export const OpenTsdbDetails = (props: Props) => {
   );
 };
 
-const onSelectChangeHandler =
-  (key: keyof OpenTsdbOptions, value: Props['value'], onChange: Props['onChange']) => (newValue: SelectableValue) => {
-    onChange({
-      ...value,
-      jsonData: {
-        ...value.jsonData,
-        [key]: newValue.value,
-      },
-    });
-  };
+const onSelectChangeHandler = (key: keyof OpenTsdbOptions, value: Props['value'], onChange: Props['onChange']) => (
+  newValue: SelectableValue
+) => {
+  onChange({
+    ...value,
+    jsonData: {
+      ...value.jsonData,
+      [key]: newValue.value,
+    },
+  });
+};
 
-const onInputChangeHandler =
-  (key: keyof OpenTsdbOptions, value: Props['value'], onChange: Props['onChange']) =>
-  (event: SyntheticEvent<HTMLInputElement>) => {
-    onChange({
-      ...value,
-      jsonData: {
-        ...value.jsonData,
-        [key]: event.currentTarget.value,
-      },
-    });
-  };
+const onInputChangeHandler = (key: keyof OpenTsdbOptions, value: Props['value'], onChange: Props['onChange']) => (
+  event: SyntheticEvent<HTMLInputElement>
+) => {
+  onChange({
+    ...value,
+    jsonData: {
+      ...value.jsonData,
+      [key]: event.currentTarget.value,
+    },
+  });
+};

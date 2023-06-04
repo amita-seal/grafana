@@ -1,134 +1,66 @@
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import React from 'react';
-
-import { DataSourceInstanceSettings, DataSourcePluginMeta } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-import { setDataSourceSrv } from '@grafana/runtime';
-
+import { shallow } from 'enzyme';
 import { DerivedField } from './DerivedField';
+import { DataSourcePicker } from '../../../../core/components/Select/DataSourcePicker';
+import { DataSourceInstanceSettings } from '@grafana/data';
 
-const mockList = jest.fn();
-const validateMock = jest.fn();
+jest.mock('app/features/plugins/datasource_srv', () => ({
+  getDatasourceSrv() {
+    return {
+      getExternal(): DataSourceInstanceSettings[] {
+        return [
+          {
+            id: 1,
+            uid: 'metrics',
+            name: 'metrics_ds',
+            meta: {
+              tracing: false,
+            } as any,
+          } as any,
+
+          {
+            id: 2,
+            uid: 'tracing',
+            name: 'tracing_ds',
+            meta: {
+              tracing: true,
+            } as any,
+          } as any,
+        ];
+      },
+    };
+  },
+}));
 
 describe('DerivedField', () => {
-  beforeEach(() => {
-    setDataSourceSrv({
-      get: jest.fn(),
-      reload: jest.fn(),
-      getInstanceSettings: jest.fn(),
-      getList: mockList.mockImplementation(() => [
-        {
-          id: 1,
-          uid: 'metrics',
-          name: 'metrics_ds',
-          meta: {
-            tracing: false,
-            info: {
-              logos: {
-                small: '',
-              },
-            },
-          } as DataSourcePluginMeta,
-        } as DataSourceInstanceSettings,
-        {
-          id: 2,
-          uid: 'tracing',
-          name: 'tracing_ds',
-          meta: {
-            tracing: true,
-            info: {
-              logos: {
-                small: '',
-              },
-            },
-          } as DataSourcePluginMeta,
-        } as DataSourceInstanceSettings,
-      ]),
-    });
-  });
-
-  it('shows internal link if uid is set', async () => {
+  it('shows internal link if uid is set', () => {
     const value = {
       matcherRegex: '',
       name: '',
       datasourceUid: 'test',
     };
-    // Render and wait for the Name field to be visible
-    // using findBy to wait for asynchronous operations to complete
-    render(
-      <DerivedField
-        validateName={validateMock}
-        value={value}
-        onChange={() => {}}
-        onDelete={() => {}}
-        suggestions={[]}
-      />
-    );
-    expect(await screen.findByText('Name')).toBeInTheDocument();
+    const wrapper = shallow(<DerivedField value={value} onChange={() => {}} onDelete={() => {}} suggestions={[]} />);
 
-    expect(screen.getByLabelText(selectors.components.DataSourcePicker.inputV2)).toBeInTheDocument();
+    expect(wrapper.find(DataSourcePicker).length).toBe(1);
   });
 
-  it('shows url link if uid is not set', async () => {
+  it('shows url link if uid is not set', () => {
     const value = {
       matcherRegex: '',
       name: '',
       url: 'test',
     };
-    // Render and wait for the Name field to be visible
-    // using findBy to wait for asynchronous operations to complete
-    render(
-      <DerivedField
-        validateName={validateMock}
-        value={value}
-        onChange={() => {}}
-        onDelete={() => {}}
-        suggestions={[]}
-      />
-    );
-    expect(await screen.findByText('Name')).toBeInTheDocument();
-
-    expect(screen.queryByLabelText(selectors.components.DataSourcePicker.inputV2)).not.toBeInTheDocument();
+    const wrapper = shallow(<DerivedField value={value} onChange={() => {}} onDelete={() => {}} suggestions={[]} />);
+    expect(wrapper.find(DataSourcePicker).length).toBe(0);
   });
 
-  it('shows only tracing datasources for internal link', async () => {
+  it('shows only tracing datasources for internal link', () => {
     const value = {
       matcherRegex: '',
       name: '',
       datasourceUid: 'test',
     };
-    // Render and wait for the Name field to be visible
-    // using findBy to wait for asynchronous operations to complete
-    render(
-      <DerivedField
-        validateName={validateMock}
-        value={value}
-        onChange={() => {}}
-        onDelete={() => {}}
-        suggestions={[]}
-      />
-    );
-    expect(await screen.findByText('Name')).toBeInTheDocument();
-    expect(mockList).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tracing: true,
-      })
-    );
-  });
-
-  it('validates the field name', async () => {
-    const value = {
-      matcherRegex: '',
-      name: 'field-name',
-      datasourceUid: 'test',
-    };
-    const validate = jest.fn().mockReturnValue(false);
-    render(
-      <DerivedField validateName={validate} value={value} onChange={() => {}} onDelete={() => {}} suggestions={[]} />
-    );
-    userEvent.click(await screen.findByDisplayValue(value.name));
-
-    expect(await screen.findByText('The name is already in use')).toBeInTheDocument();
+    const wrapper = shallow(<DerivedField value={value} onChange={() => {}} onDelete={() => {}} suggestions={[]} />);
+    expect(wrapper.find(DataSourcePicker).props().tracing).toEqual(true);
   });
 });

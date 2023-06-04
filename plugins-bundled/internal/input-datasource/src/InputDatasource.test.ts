@@ -1,3 +1,5 @@
+import InputDatasource, { describeDataFrame } from './InputDatasource';
+import { InputOptions, InputQuery } from './types';
 import {
   DataFrame,
   DataFrameDTO,
@@ -7,9 +9,7 @@ import {
   readCSV,
 } from '@grafana/data';
 
-import InputDatasource, { describeDataFrame } from './InputDatasource';
 import { getQueryOptions } from './testHelpers';
-import { InputOptions, InputQuery } from './types';
 
 describe('InputDatasource', () => {
   const data = readCSV('a,b,c\n1,2,3\n4,5,6');
@@ -19,8 +19,6 @@ describe('InputDatasource', () => {
     type: 'x',
     name: 'xxx',
     meta: {} as PluginMeta,
-    access: 'proxy',
-    readOnly: false,
     jsonData: {
       data,
     },
@@ -45,7 +43,7 @@ describe('InputDatasource', () => {
 
   test('DataFrame descriptions', () => {
     expect(describeDataFrame([])).toEqual('');
-    expect(describeDataFrame(null as unknown as Array<DataFrameDTO | DataFrame>)).toEqual('');
+    expect(describeDataFrame((null as unknown) as Array<DataFrameDTO | DataFrame>)).toEqual('');
     expect(
       describeDataFrame([
         new MutableDataFrame({

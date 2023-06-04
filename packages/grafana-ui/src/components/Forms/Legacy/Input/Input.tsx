@@ -1,15 +1,14 @@
-import classNames from 'classnames';
 import React, { PureComponent, ChangeEvent } from 'react';
-
-import { ValidationEvents, ValidationRule } from '../../../../types';
+import classNames from 'classnames';
 import { validate, EventsWithValidation, hasValidationEvent } from '../../../../utils';
+import { ValidationEvents, ValidationRule } from '../../../../types';
 
 export enum LegacyInputStatus {
   Invalid = 'invalid',
   Valid = 'valid',
 }
 
-export interface Props extends React.HTMLProps<HTMLInputElement> {
+interface Props extends React.HTMLProps<HTMLInputElement> {
   validationEvents?: ValidationEvents;
   hideErrorMessage?: boolean;
   inputRef?: React.LegacyRef<HTMLInputElement>;

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { FC } from 'react';
 
-export const AnnotationsHelp = () => {
+export const AnnotationsHelp: FC = () => {
   return (
     <div className="gf-form grafana-info-box alert-info">
       <div>
@@ -19,7 +19,7 @@ export const AnnotationsHelp = () => {
         <p>
           Example Result: <code>monitoring.googleapis.com/uptime_check/http_status has this value: 502</code>
         </p>
-        <span>Patterns:</span>
+        <label>Patterns:</label>
         <p>
           <code>{`${'{{metric.value}}'}`}</code> = value of the metric/point
         </p>

@@ -1,51 +1,21 @@
-import { action } from '@storybook/addon-actions';
-import { useArgs } from '@storybook/client-api';
-import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
-import { CollapsableSection, Props } from './CollapsableSection';
+import { CollapsableSection } from './CollapsableSection';
 import mdx from './CollapsableSection.mdx';
 
-const meta: Meta<typeof CollapsableSection> = {
+export default {
   title: 'Layout/CollapsableSection',
   component: CollapsableSection,
-  decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
     },
-    controls: {
-      exclude: ['className', 'contentClassName', 'onToggle', 'labelId', 'isOpen'],
-    },
-  },
-  args: {
-    isOpen: false,
-    loading: false,
-    label: 'Collapsable section title',
-    children: 'Collapsed content data',
-  },
-  argTypes: {
-    label: { control: 'text' },
   },
 };
 
-export const Basic: StoryFn<typeof CollapsableSection> = ({ children, ...args }: Props) => {
-  const [, updateArgs] = useArgs();
-
-  const onToggle = (isOpen: boolean) => {
-    action('onToggle fired')({ isOpen });
-    updateArgs({ isOpen });
-  };
-
+export const simple = () => {
   return (
-    <div>
-      <CollapsableSection {...args} onToggle={onToggle}>
-        <>{children}</>
-      </CollapsableSection>
-    </div>
+    <CollapsableSection label="Collapsable section" isOpen>
+      <div>{"Here's some content"}</div>
+    </CollapsableSection>
   );
 };
-
-export default meta;

@@ -3,55 +3,51 @@ package notifiers
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
+	"github.com/grafana/grafana/pkg/models"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestDiscordNotifier(t *testing.T) {
-	encryptionService := encryptionservice.SetupTestService(t)
+	Convey("Discord notifier tests", t, func() {
+		Convey("Parsing alert notification from settings", func() {
+			Convey("empty settings should return error", func() {
+				json := `{ }`
 
-	t.Run("Parsing alert notification from settings", func(t *testing.T) {
-		t.Run("empty settings should return error", func(t *testing.T) {
-			json := `{ }`
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "discord_testing",
+					Type:     "discord",
+					Settings: settingsJSON,
+				}
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "discord_testing",
-				Type:     "discord",
-				Settings: settingsJSON,
-			}
+				_, err := newDiscordNotifier(model)
+				So(err, ShouldNotBeNil)
+			})
 
-			_, err := newDiscordNotifier(model, encryptionService.GetDecryptedValue, nil)
-			require.Error(t, err)
-		})
-
-		t.Run("settings should trigger incident", func(t *testing.T) {
-			json := `
+			Convey("settings should trigger incident", func() {
+				json := `
 				{
-					"avatar_url": "https://grafana.com/img/fav32.png",
 					"content": "@everyone Please check this notification",
 					"url": "https://web.hook/"
 				}`
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "discord_testing",
-				Type:     "discord",
-				Settings: settingsJSON,
-			}
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "discord_testing",
+					Type:     "discord",
+					Settings: settingsJSON,
+				}
 
-			not, err := newDiscordNotifier(model, encryptionService.GetDecryptedValue, nil)
-			discordNotifier := not.(*DiscordNotifier)
+				not, err := newDiscordNotifier(model)
+				discordNotifier := not.(*DiscordNotifier)
 
-			require.Nil(t, err)
-			require.Equal(t, "discord_testing", discordNotifier.Name)
-			require.Equal(t, "discord", discordNotifier.Type)
-			require.Equal(t, "https://grafana.com/img/fav32.png", discordNotifier.AvatarURL)
-			require.Equal(t, "@everyone Please check this notification", discordNotifier.Content)
-			require.Equal(t, "https://web.hook/", discordNotifier.WebhookURL)
+				So(err, ShouldBeNil)
+				So(discordNotifier.Name, ShouldEqual, "discord_testing")
+				So(discordNotifier.Type, ShouldEqual, "discord")
+				So(discordNotifier.Content, ShouldEqual, "@everyone Please check this notification")
+				So(discordNotifier.WebhookURL, ShouldEqual, "https://web.hook/")
+			})
 		})
 	})
 }

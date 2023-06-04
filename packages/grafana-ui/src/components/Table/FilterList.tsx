@@ -1,43 +1,34 @@
-import { css } from '@emotion/css';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { FC, useCallback, useMemo, useState } from 'react';
 import { FixedSizeList as List } from 'react-window';
+import { css } from 'emotion';
+import { GrafanaTheme, SelectableValue } from '@grafana/data';
 
-import { GrafanaTheme2, SelectableValue } from '@grafana/data';
-
-import { Checkbox, FilterInput, Label, VerticalGroup } from '..';
-import { stylesFactory, useTheme2 } from '../../themes';
+import { stylesFactory, useTheme } from '../../themes';
+import { Checkbox, Input, Label, VerticalGroup } from '..';
 
 interface Props {
   values: SelectableValue[];
   options: SelectableValue[];
   onChange: (options: SelectableValue[]) => void;
-  caseSensitive?: boolean;
 }
 
 const ITEM_HEIGHT = 28;
 const MIN_HEIGHT = ITEM_HEIGHT * 5;
 
-export const FilterList = ({ options, values, caseSensitive, onChange }: Props) => {
-  const theme = useTheme2();
+export const FilterList: FC<Props> = ({ options, values, onChange }) => {
+  const theme = useTheme();
   const styles = getStyles(theme);
   const [searchFilter, setSearchFilter] = useState('');
-  const regex = useMemo(() => new RegExp(searchFilter, caseSensitive ? undefined : 'i'), [searchFilter, caseSensitive]);
-  const items = useMemo(
-    () =>
-      options.filter((option) => {
-        if (option.label === undefined) {
-          return false;
-        }
-        return regex.test(option.label);
-      }),
-    [options, regex]
-  );
-  const gutter = theme.spacing.gridSize;
+  const items = useMemo(() => options.filter((option) => option.label?.indexOf(searchFilter) !== -1), [
+    options,
+    searchFilter,
+  ]);
+  const gutter = parseInt(theme.spacing.sm, 10);
   const height = useMemo(() => Math.min(items.length * ITEM_HEIGHT, MIN_HEIGHT) + gutter, [gutter, items.length]);
 
   const onInputChange = useCallback(
-    (v: string) => {
-      setSearchFilter(v);
+    (event: React.FormEvent<HTMLInputElement>) => {
+      setSearchFilter(event.currentTarget.value);
     },
     [setSearchFilter]
   );
@@ -55,7 +46,12 @@ export const FilterList = ({ options, values, caseSensitive, onChange }: Props) 
 
   return (
     <VerticalGroup spacing="md">
-      <FilterInput placeholder="Filter values" onChange={onInputChange} value={searchFilter} />
+      <Input
+        placeholder="filter values"
+        className={styles.filterListInput}
+        onChange={onInputChange}
+        value={searchFilter}
+      />
       {!items.length && <Label>No values</Label>}
       {items.length && (
         <List
@@ -82,7 +78,7 @@ export const FilterList = ({ options, values, caseSensitive, onChange }: Props) 
   );
 };
 
-const getStyles = stylesFactory((theme: GrafanaTheme2) => ({
+const getStyles = stylesFactory((theme: GrafanaTheme) => ({
   filterList: css`
     label: filterList;
   `,
@@ -92,10 +88,12 @@ const getStyles = stylesFactory((theme: GrafanaTheme2) => ({
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: ${theme.spacing(0.5)};
-
+    padding: ${theme.spacing.xs};
     :hover {
-      background-color: ${theme.colors.action.hover};
+      background-color: ${theme.colors.bg3};
     }
+  `,
+  filterListInput: css`
+    label: filterListInput;
   `,
 }));

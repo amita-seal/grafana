@@ -1,15 +1,11 @@
-import { Meta, StoryFn } from '@storybook/react';
-import React, { useState } from 'react';
-
+import React from 'react';
+import { Story } from '@storybook/react';
+import { FilterPill, FilterPillProps } from './FilterPill';
 import { withCenteredStory } from '@grafana/ui/src/utils/storybook/withCenteredStory';
-
-import { getAvailableIcons } from '../../types';
-import { HorizontalGroup } from '../Layout/Layout';
-
-import { FilterPill } from './FilterPill';
 import mdx from './FilterPill.mdx';
+import { getAvailableIcons } from '../../types';
 
-const meta: Meta<typeof FilterPill> = {
+export default {
   title: 'General/FilterPill',
   component: FilterPill,
   decorators: [withCenteredStory],
@@ -24,21 +20,8 @@ const meta: Meta<typeof FilterPill> = {
   },
 };
 
-export const Basic: StoryFn<typeof FilterPill> = (args) => {
+export const Basic: Story<FilterPillProps> = (args) => {
   return <FilterPill {...args} />;
-};
-
-export const Example = () => {
-  const [selected, setSelected] = useState('Stockholm');
-  const elements = ['Singapore', 'Paris', 'Stockholm', 'New York', 'London'];
-
-  return (
-    <HorizontalGroup>
-      {elements.map((item) => (
-        <FilterPill key={item} label={item} selected={item === selected} onClick={() => setSelected(item)} />
-      ))}
-    </HorizontalGroup>
-  );
 };
 
 Basic.args = {
@@ -46,5 +29,3 @@ Basic.args = {
   label: 'Test',
   icon: undefined,
 };
-
-export default meta;

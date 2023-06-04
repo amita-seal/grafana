@@ -1,18 +1,15 @@
 import React, { useState } from 'react';
-import { connect, ConnectedProps } from 'react-redux';
-
-import { TimeZone } from '@grafana/data';
-import { CollapsableSection, Field, Input, RadioButtonGroup, TagsInput } from '@grafana/ui';
-import { Page } from 'app/core/components/Page/Page';
+import { SelectableValue, TimeZone } from '@grafana/data';
+import { Select, TagsInput, Input, Field, CollapsableSection, RadioButtonGroup } from '@grafana/ui';
+import { selectors } from '@grafana/e2e-selectors';
 import { FolderPicker } from 'app/core/components/Select/FolderPicker';
-import { updateTimeZoneDashboard, updateWeekStartDashboard } from 'app/features/dashboard/state/actions';
-
+import { DashboardModel } from '../../state/DashboardModel';
 import { DeleteDashboardButton } from '../DeleteDashboard/DeleteDashboardButton';
-
 import { TimePickerSettings } from './TimePickerSettings';
-import { SettingsPageProps } from './types';
 
-export type Props = SettingsPageProps & ConnectedProps<typeof connector>;
+interface Props {
+  dashboard: DashboardModel;
+}
 
 const GRAPH_TOOLTIP_OPTIONS = [
   { value: 0, label: 'Default' },
@@ -20,28 +17,21 @@ const GRAPH_TOOLTIP_OPTIONS = [
   { value: 2, label: 'Shared Tooltip' },
 ];
 
-export function GeneralSettingsUnconnected({
-  dashboard,
-  updateTimeZone,
-  updateWeekStart,
-  sectionNav,
-}: Props): JSX.Element {
+export const GeneralSettings: React.FC<Props> = ({ dashboard }) => {
   const [renderCounter, setRenderCounter] = useState(0);
 
-  const onFolderChange = (folder: { uid: string; title: string }) => {
-    dashboard.meta.folderUid = folder.uid;
+  const onFolderChange = (folder: { id: number; title: string }) => {
+    dashboard.meta.folderId = folder.id;
     dashboard.meta.folderTitle = folder.title;
     dashboard.meta.hasUnsavedFolderChange = true;
   };
 
   const onBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-    if (event.currentTarget.name === 'title' || event.currentTarget.name === 'description') {
-      dashboard[event.currentTarget.name] = event.currentTarget.value;
-    }
+    dashboard[event.currentTarget.name as 'title' | 'description'] = event.currentTarget.value;
   };
 
-  const onTooltipChange = (graphTooltip: number) => {
-    dashboard.graphTooltip = graphTooltip;
+  const onTooltipChange = (graphTooltip: SelectableValue<number>) => {
+    dashboard.graphTooltip = graphTooltip.value;
     setRenderCounter(renderCounter + 1);
   };
 
@@ -58,21 +48,9 @@ export function GeneralSettingsUnconnected({
     setRenderCounter(renderCounter + 1);
   };
 
-  const onLiveNowChange = (v: boolean) => {
-    dashboard.liveNow = v;
-    setRenderCounter(renderCounter + 1);
-  };
-
   const onTimeZoneChange = (timeZone: TimeZone) => {
     dashboard.timezone = timeZone;
     setRenderCounter(renderCounter + 1);
-    updateTimeZone(timeZone);
-  };
-
-  const onWeekStartChange = (weekStart: string) => {
-    dashboard.weekStart = weekStart;
-    setRenderCounter(renderCounter + 1);
-    updateWeekStart(weekStart);
   };
 
   const onTagsChange = (tags: string[]) => {
@@ -91,80 +69,66 @@ export function GeneralSettingsUnconnected({
   ];
 
   return (
-    <Page navModel={sectionNav}>
-      <div style={{ maxWidth: '600px' }}>
-        <div className="gf-form-group">
-          <Field label="Name">
-            <Input id="title-input" name="title" onBlur={onBlur} defaultValue={dashboard.title} />
-          </Field>
-          <Field label="Description">
-            <Input id="description-input" name="description" onBlur={onBlur} defaultValue={dashboard.description} />
-          </Field>
-          <Field label="Tags">
-            <TagsInput id="tags-input" tags={dashboard.tags} onChange={onTagsChange} width={40} />
-          </Field>
-          <Field label="Folder">
-            <FolderPicker
-              inputId="dashboard-folder-input"
-              initialTitle={dashboard.meta.folderTitle}
-              initialFolderUid={dashboard.meta.folderUid}
-              onChange={onFolderChange}
-              enableCreateNew={true}
-              dashboardId={dashboard.id}
-              skipInitialLoad={true}
-            />
-          </Field>
+    <div style={{ maxWidth: '600px' }}>
+      <h3 className="dashboard-settings__header" aria-label={selectors.pages.Dashboard.Settings.General.title}>
+        General
+      </h3>
+      <div className="gf-form-group">
+        <Field label="Name">
+          <Input name="title" onBlur={onBlur} defaultValue={dashboard.title} />
+        </Field>
+        <Field label="Description">
+          <Input name="description" onBlur={onBlur} defaultValue={dashboard.description} />
+        </Field>
+        <Field label="Tags">
+          <TagsInput tags={dashboard.tags} onChange={onTagsChange} />
+        </Field>
+        <Field label="Folder">
+          <FolderPicker
+            initialTitle={dashboard.meta.folderTitle}
+            initialFolderId={dashboard.meta.folderId}
+            onChange={onFolderChange}
+            enableCreateNew={true}
+            dashboardId={dashboard.id}
+          />
+        </Field>
 
-          <Field
-            label="Editable"
-            description="Set to read-only to disable all editing. Reload the dashboard for changes to take effect"
-          >
-            <RadioButtonGroup value={dashboard.editable} options={editableOptions} onChange={onEditableChange} />
-          </Field>
-        </div>
-
-        <TimePickerSettings
-          onTimeZoneChange={onTimeZoneChange}
-          onWeekStartChange={onWeekStartChange}
-          onRefreshIntervalChange={onRefreshIntervalChange}
-          onNowDelayChange={onNowDelayChange}
-          onHideTimePickerChange={onHideTimePickerChange}
-          onLiveNowChange={onLiveNowChange}
-          refreshIntervals={dashboard.timepicker.refresh_intervals}
-          timePickerHidden={dashboard.timepicker.hidden}
-          nowDelay={dashboard.timepicker.nowDelay}
-          timezone={dashboard.timezone}
-          weekStart={dashboard.weekStart}
-          liveNow={dashboard.liveNow}
-        />
-
-        {/* @todo: Update "Graph tooltip" description to remove prompt about reloading when resolving #46581 */}
-        <CollapsableSection label="Panel options" isOpen={true}>
-          <Field
-            label="Graph tooltip"
-            description="Controls tooltip and hover highlight behavior across different panels. Reload the dashboard for changes to take effect"
-          >
-            <RadioButtonGroup
-              onChange={onTooltipChange}
-              options={GRAPH_TOOLTIP_OPTIONS}
-              value={dashboard.graphTooltip}
-            />
-          </Field>
-        </CollapsableSection>
-
-        <div className="gf-form-button-row">
-          {dashboard.meta.canDelete && <DeleteDashboardButton dashboard={dashboard} />}
-        </div>
+        <Field
+          label="Editable"
+          description="Set to read-only to disable all editing. Reload the dashboard for changes to take effect"
+        >
+          <RadioButtonGroup value={dashboard.editable} options={editableOptions} onChange={onEditableChange} />
+        </Field>
       </div>
-    </Page>
+
+      <TimePickerSettings
+        onTimeZoneChange={onTimeZoneChange}
+        onRefreshIntervalChange={onRefreshIntervalChange}
+        onNowDelayChange={onNowDelayChange}
+        onHideTimePickerChange={onHideTimePickerChange}
+        refreshIntervals={dashboard.timepicker.refresh_intervals}
+        timePickerHidden={dashboard.timepicker.hidden}
+        nowDelay={dashboard.timepicker.nowDelay}
+        timezone={dashboard.timezone}
+      />
+
+      <CollapsableSection label="Panel options" isOpen={true}>
+        <Field
+          label="Graph tooltip"
+          description="Controls tooltip and hover highlight behavior across different panels"
+        >
+          <Select
+            onChange={onTooltipChange}
+            options={GRAPH_TOOLTIP_OPTIONS}
+            width={40}
+            value={dashboard.graphTooltip}
+          />
+        </Field>
+      </CollapsableSection>
+
+      <div className="gf-form-button-row">
+        {dashboard.meta.canSave && <DeleteDashboardButton dashboard={dashboard} />}
+      </div>
+    </div>
   );
-}
-
-const mapDispatchToProps = {
-  updateTimeZone: updateTimeZoneDashboard,
-  updateWeekStart: updateWeekStartDashboard,
 };
-
-const connector = connect(null, mapDispatchToProps);
-
-export const GeneralSettings = connector(GeneralSettingsUnconnected);

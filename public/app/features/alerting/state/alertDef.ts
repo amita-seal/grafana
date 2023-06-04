@@ -1,7 +1,5 @@
-import { isArray, reduce } from 'lodash';
-
-import { IconName } from '@grafana/ui';
-import { QueryPartDef, QueryPart } from 'app/features/alerting/state/query_part';
+import _ from 'lodash';
+import { QueryPartDef, QueryPart } from 'app/core/components/query_part/query_part';
 
 const alertQueryDef = new QueryPartDef({
   type: 'query',
@@ -21,28 +19,18 @@ const conditionTypes = [{ text: 'Query', value: 'query' }];
 
 const alertStateSortScore = {
   alerting: 1,
-  firing: 1,
   no_data: 2,
   pending: 3,
   ok: 4,
   paused: 5,
-  inactive: 5,
 };
 
-export enum EvalFunction {
-  'IsAbove' = 'gt',
-  'IsBelow' = 'lt',
-  'IsOutsideRange' = 'outside_range',
-  'IsWithinRange' = 'within_range',
-  'HasNoValue' = 'no_value',
-}
-
 const evalFunctions = [
-  { value: EvalFunction.IsAbove, text: 'IS ABOVE' },
-  { value: EvalFunction.IsBelow, text: 'IS BELOW' },
-  { value: EvalFunction.IsOutsideRange, text: 'IS OUTSIDE RANGE' },
-  { value: EvalFunction.IsWithinRange, text: 'IS WITHIN RANGE' },
-  { value: EvalFunction.HasNoValue, text: 'HAS NO VALUE' },
+  { text: 'IS ABOVE', value: 'gt' },
+  { text: 'IS BELOW', value: 'lt' },
+  { text: 'IS OUTSIDE RANGE', value: 'outside_range' },
+  { text: 'IS WITHIN RANGE', value: 'within_range' },
+  { text: 'HAS NO VALUE', value: 'no_value' },
 ];
 
 const evalOperators = [
@@ -82,23 +70,8 @@ function createReducerPart(model: any) {
   return new QueryPart(model, def);
 }
 
-// state can also contain a "Reason", ie. "Alerting (NoData)" which indicates that the actual state is "Alerting" but
-// the reason it is set to "Alerting" is "NoData"; a lack of data points to evaluate.
-function normalizeAlertState(state: string) {
-  return state.toLowerCase().replace(/_/g, '').split(' ')[0];
-}
-
-interface AlertStateDisplayModel {
-  text: string;
-  iconClass: IconName;
-  stateClass: string;
-}
-
-function getStateDisplayModel(state: string): AlertStateDisplayModel {
-  const normalizedState = normalizeAlertState(state);
-
-  switch (normalizedState) {
-    case 'normal':
+function getStateDisplayModel(state: string) {
+  switch (state) {
     case 'ok': {
       return {
         text: 'OK',
@@ -113,7 +86,7 @@ function getStateDisplayModel(state: string): AlertStateDisplayModel {
         stateClass: 'alert-state-critical',
       };
     }
-    case 'nodata': {
+    case 'no_data': {
       return {
         text: 'NO DATA',
         iconClass: 'question-circle',
@@ -130,48 +103,24 @@ function getStateDisplayModel(state: string): AlertStateDisplayModel {
     case 'pending': {
       return {
         text: 'PENDING',
-        iconClass: 'hourglass',
+        iconClass: 'exclamation-triangle',
         stateClass: 'alert-state-warning',
       };
     }
-
-    case 'firing': {
-      return {
-        text: 'FIRING',
-        iconClass: 'fire',
-        stateClass: '',
-      };
-    }
-
-    case 'inactive': {
-      return {
-        text: 'INACTIVE',
-        iconClass: 'check',
-        stateClass: '',
-      };
-    }
-
-    case 'error': {
-      return {
-        text: 'ERROR',
-        iconClass: 'heart-break',
-        stateClass: 'alert-state-critical',
-      };
-    }
-
-    case 'unknown':
-    default: {
+    case 'unknown': {
       return {
         text: 'UNKNOWN',
         iconClass: 'question-circle',
-        stateClass: '.alert-state-paused',
+        stateClass: 'alert-state-paused',
       };
     }
   }
+
+  throw { message: 'Unknown alert state' };
 }
 
 function joinEvalMatches(matches: any, separator: string) {
-  return reduce(
+  return _.reduce(
     matches,
     (res, ev) => {
       if (ev.metric !== undefined && ev.value !== undefined) {
@@ -194,9 +143,9 @@ function getAlertAnnotationInfo(ah: any) {
   // old way stored evalMatches in data property directly,
   // new way stores it in evalMatches property on new data object
 
-  if (isArray(ah.data)) {
+  if (_.isArray(ah.data)) {
     return joinEvalMatches(ah.data, ', ');
-  } else if (isArray(ah.data.evalMatches)) {
+  } else if (_.isArray(ah.data.evalMatches)) {
     return joinEvalMatches(ah.data.evalMatches, ', ');
   }
 

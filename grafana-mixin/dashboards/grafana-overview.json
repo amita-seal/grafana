@@ -8,12 +8,6 @@
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
-        "target": {
-          "limit": 100,
-          "matchAny": false,
-          "tags": [],
-          "type": "dashboard"
-        },
         "type": "dashboard"
       }
     ]
@@ -21,14 +15,15 @@
   "editable": true,
   "gnetId": null,
   "graphTooltip": 0,
-  "id": 3085,
-  "iteration": 1631554945276,
+  "id": 35,
+  "iteration": 1602761142538,
   "links": [],
   "panels": [
     {
       "datasource": "$datasource",
       "fieldConfig": {
         "defaults": {
+          "custom": {},
           "mappings": [],
           "noValue": "0",
           "thresholds": {
@@ -63,11 +58,9 @@
           "calcs": ["mean"],
           "fields": "",
           "values": false
-        },
-        "text": {},
-        "textMode": "auto"
+        }
       },
-      "pluginVersion": "8.1.3",
+      "pluginVersion": "7.0.4",
       "targets": [
         {
           "expr": "grafana_alerting_result_total{job=~\"$job\", instance=~\"$instance\", state=\"alerting\"}",
@@ -86,6 +79,7 @@
       "datasource": "$datasource",
       "fieldConfig": {
         "defaults": {
+          "custom": {},
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -119,11 +113,9 @@
           "calcs": ["mean"],
           "fields": "",
           "values": false
-        },
-        "text": {},
-        "textMode": "auto"
+        }
       },
-      "pluginVersion": "8.1.3",
+      "pluginVersion": "7.0.4",
       "targets": [
         {
           "expr": "sum(grafana_stat_totals_dashboard{job=~\"$job\", instance=~\"$instance\"})",
@@ -142,8 +134,7 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "align": null,
-            "displayMode": "auto"
+            "align": null
           },
           "mappings": [],
           "thresholds": {
@@ -172,7 +163,7 @@
       "options": {
         "showHeader": true
       },
-      "pluginVersion": "8.1.3",
+      "pluginVersion": "7.0.4",
       "targets": [
         {
           "expr": "grafana_build_info{job=~\"$job\", instance=~\"$instance\"}",
@@ -231,7 +222,7 @@
       "datasource": "$datasource",
       "fieldConfig": {
         "defaults": {
-          "links": []
+          "custom": {}
         },
         "overrides": []
       },
@@ -258,10 +249,9 @@
       "linewidth": 1,
       "nullPointMode": "null",
       "options": {
-        "alertThreshold": true
+        "dataLinks": []
       },
       "percentage": false,
-      "pluginVersion": "8.1.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -271,9 +261,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum by (status_code) (irate(grafana_http_request_duration_seconds_count{job=~\"$job\", instance=~\"$instance\"}[1m])) ",
+          "expr": "sum by (statuscode) (irate(http_request_total{job=~\"$job\", instance=~\"$instance\"}[1m])) ",
           "interval": "",
-          "legendFormat": "{{status_code}}",
+          "legendFormat": "{{statuscode}}",
           "refId": "A"
         }
       ],
@@ -328,7 +318,7 @@
       "datasource": "$datasource",
       "fieldConfig": {
         "defaults": {
-          "links": []
+          "custom": {}
         },
         "overrides": []
       },
@@ -355,10 +345,9 @@
       "linewidth": 1,
       "nullPointMode": "null",
       "options": {
-        "alertThreshold": true
+        "dataLinks": []
       },
       "percentage": false,
-      "pluginVersion": "8.1.3",
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
@@ -368,24 +357,21 @@
       "steppedLine": false,
       "targets": [
         {
-          "exemplar": true,
-          "expr": "histogram_quantile(0.99, sum(irate(grafana_http_request_duration_seconds_bucket{instance=~\"$instance\", job=~\"$job\"}[$__rate_interval])) by (le)) * 1",
+          "expr": "max(http_request_duration_milliseconds{job=~\"$job\", instance=~\"$instance\", quantile=\"0.99\"})",
           "interval": "",
-          "legendFormat": "99th Percentile",
+          "legendFormat": "max-99th",
           "refId": "A"
         },
         {
-          "exemplar": true,
-          "expr": "histogram_quantile(0.50, sum(irate(grafana_http_request_duration_seconds_bucket{instance=~\"$instance\", job=~\"$job\"}[$__rate_interval])) by (le)) * 1",
+          "expr": "max(http_request_duration_milliseconds{job=~\"$job\", instance=~\"$instance\", quantile=\"0.9\"})",
           "interval": "",
-          "legendFormat": "50th Percentile",
+          "legendFormat": "max-90th",
           "refId": "B"
         },
         {
-          "exemplar": true,
-          "expr": "sum(irate(grafana_http_request_duration_seconds_sum{instance=~\"$instance\", job=~\"$job\"}[$__rate_interval])) * 1 / sum(irate(grafana_http_request_duration_seconds_count{instance=~\"$instance\", job=~\"$job\"}[$__rate_interval]))",
+          "expr": "sum(irate(http_request_duration_milliseconds_sum{job=~\"$job\", instance=~\"$instance\"}[$__interval])) / sum(irate(http_request_duration_milliseconds_count{job=~\"$job\", instance=~\"$instance\"}[$__interval])) ",
           "interval": "",
-          "legendFormat": "Average",
+          "legendFormat": "avg",
           "refId": "C"
         }
       ],
@@ -433,19 +419,17 @@
       }
     }
   ],
-  "schemaVersion": 30,
+  "schemaVersion": 25,
   "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
         "current": {
-          "selected": true,
-          "text": "dev-cortex",
-          "value": "dev-cortex"
+          "selected": false,
+          "text": "prometheus",
+          "value": "prometheus"
         },
-        "description": null,
-        "error": null,
         "hide": 0,
         "includeAll": false,
         "label": null,
@@ -462,29 +446,26 @@
       {
         "allValue": ".*",
         "current": {
-          "selected": false,
-          "text": ["default/grafana"],
-          "value": ["default/grafana"]
+          "selected": true,
+          "tags": [],
+          "text": "All",
+          "value": ["$__all"]
         },
         "datasource": "$datasource",
         "definition": "label_values(grafana_build_info, job)",
-        "description": null,
-        "error": null,
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": true,
         "name": "job",
         "options": [],
-        "query": {
-          "query": "label_values(grafana_build_info, job)",
-          "refId": "Billing Admin-job-Variable-Query"
-        },
+        "query": "label_values(grafana_build_info, job)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
+        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
@@ -498,23 +479,19 @@
         },
         "datasource": "$datasource",
         "definition": "label_values(grafana_build_info, instance)",
-        "description": null,
-        "error": null,
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": true,
         "name": "instance",
         "options": [],
-        "query": {
-          "query": "label_values(grafana_build_info, instance)",
-          "refId": "Billing Admin-instance-Variable-Query"
-        },
+        "query": "label_values(grafana_build_info, instance)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
         "tagValuesQuery": "",
+        "tags": [],
         "tagsQuery": "",
         "type": "query",
         "useTags": false
@@ -531,5 +508,5 @@
   "timezone": "",
   "title": "Grafana Overview",
   "uid": "6be0s85Mk",
-  "version": 2
+  "version": 4
 }

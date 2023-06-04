@@ -1,26 +1,22 @@
-import { css } from '@emotion/css';
 import React from 'react';
-import { connect } from 'react-redux';
-
-import { GrafanaTheme2, NavModel } from '@grafana/data';
-import { LinkButton, useStyles2 } from '@grafana/ui';
-import { Page } from 'app/core/components/Page/Page';
-
-import { getNavModel } from '../../core/selectors/navModel';
-import { StoreState } from '../../types';
-
+import { css } from 'emotion';
+import { NavModel } from '@grafana/data';
+import Page from '../../core/components/Page/Page';
 import { LicenseChrome } from './LicenseChrome';
-import { ServerStats } from './ServerStats';
+import { LinkButton } from '@grafana/ui';
+import { hot } from 'react-hot-loader';
+import { StoreState } from '../../types';
+import { getNavModel } from '../../core/selectors/navModel';
+import { connect } from 'react-redux';
 
 interface Props {
   navModel: NavModel;
 }
 
-export function UpgradePage({ navModel }: Props) {
+export const UpgradePage: React.FC<Props> = ({ navModel }) => {
   return (
     <Page navModel={navModel}>
       <Page.Contents>
-        <ServerStats />
         <UpgradeInfo
           editionNotice="You are running the open-source version of Grafana.
         You have to install the Enterprise edition in order enable Enterprise features."
@@ -28,7 +24,7 @@ export function UpgradePage({ navModel }: Props) {
       </Page.Contents>
     </Page>
   );
-}
+};
 
 const titleStyles = { fontWeight: 500, fontSize: '26px', lineHeight: '123%' };
 
@@ -36,54 +32,42 @@ interface UpgradeInfoProps {
   editionNotice?: string;
 }
 
-export const UpgradeInfo = ({ editionNotice }: UpgradeInfoProps) => {
-  const styles = useStyles2(getStyles);
+export const UpgradeInfo: React.FC<UpgradeInfoProps> = ({ editionNotice }) => {
+  const columnStyles = css`
+    display: grid;
+    grid-template-columns: 100%;
+    column-gap: 20px;
+    row-gap: 40px;
+
+    @media (min-width: 1050px) {
+      grid-template-columns: 50% 50%;
+    }
+  `;
 
   return (
-    <>
-      <h2 className={styles.title}>Enterprise license</h2>
-      <LicenseChrome header="Grafana Enterprise" subheader="Get your free trial" editionNotice={editionNotice}>
-        <div className={styles.column}>
-          <FeatureInfo />
-          <ServiceInfo />
-        </div>
-      </LicenseChrome>
-    </>
+    <LicenseChrome header="Grafana Enterprise" subheader="Get your free trial" editionNotice={editionNotice}>
+      <div className={columnStyles}>
+        <FeatureInfo />
+        <ServiceInfo />
+      </div>
+    </LicenseChrome>
   );
 };
 
-const getStyles = (theme: GrafanaTheme2) => {
-  return {
-    column: css`
-      display: grid;
-      grid-template-columns: 100%;
-      column-gap: 20px;
-      row-gap: 40px;
-
-      @media (min-width: 1050px) {
-        grid-template-columns: 50% 50%;
-      }
-    `,
-    title: css`
-      margin: ${theme.spacing(4)} 0;
-    `,
-  };
-};
-
-const GetEnterprise = () => {
+const GetEnterprise: React.FC = () => {
   return (
     <div style={{ marginTop: '40px', marginBottom: '30px' }}>
       <h2 style={titleStyles}>Get Grafana Enterprise</h2>
       <CallToAction />
       <p style={{ paddingTop: '12px' }}>
-        You can use the trial version for free for 30 days. We will remind you about it five days before the trial
-        period ends.
+        You can use the trial version for free for <strong>30 days</strong>. We will remind you about it{' '}
+        <strong>5 days before the trial period ends</strong>.
       </p>
     </div>
   );
 };
 
-const CallToAction = () => {
+const CallToAction: React.FC = () => {
   return (
     <LinkButton
       variant="primary"
@@ -95,7 +79,7 @@ const CallToAction = () => {
   );
 };
 
-const ServiceInfo = () => {
+const ServiceInfo: React.FC = () => {
   return (
     <div>
       <h4>At your service</h4>
@@ -104,10 +88,10 @@ const ServiceInfo = () => {
         <Item title="Enterprise Plugins" image="public/img/licensing/plugin_enterprise.svg" />
         <Item title="Critical SLA: 2 hours" image="public/img/licensing/sla.svg" />
         <Item title="Unlimited Expert Support" image="public/img/licensing/customer_support.svg">
-          24 x 7 x 365 support via
+          24x7x365 support via
           <List nested={true}>
             <Item title="Email" />
-            <Item title="Private Slack channel" />
+            <Item title="Private slack channel" />
             <Item title="Phone" />
           </List>
         </Item>
@@ -127,26 +111,25 @@ const ServiceInfo = () => {
   );
 };
 
-const FeatureInfo = () => {
+const FeatureInfo: React.FC = () => {
   return (
     <div style={{ paddingRight: '11px' }}>
-      <h4>Enhanced functionality</h4>
+      <h4>Enhanced Functionality</h4>
       <FeatureListing />
     </div>
   );
 };
 
-const FeatureListing = () => {
+const FeatureListing: React.FC = () => {
   return (
     <List>
       <Item title="Data source permissions" />
       <Item title="Reporting" />
-      <Item title="SAML authentication" />
-      <Item title="Enhanced LDAP integration" />
+      <Item title="SAML Authentication" />
+      <Item title="Enhanced LDAP Integration" />
       <Item title="Team Sync">LDAP, GitHub OAuth, Auth Proxy, Okta</Item>
       <Item title="White labeling" />
       <Item title="Auditing" />
-      <Item title="Settings updates at runtime" />
       <Item title="Grafana usage insights">
         <List nested={true}>
           <Item title="Sort dashboards by popularity in search" />
@@ -155,7 +138,7 @@ const FeatureListing = () => {
           <Item title="Dashboard presence indicators" />
         </List>
       </Item>
-      <Item title="Enterprise plugins">
+      <Item title="Enterprise Plugins">
         <List nested={true}>
           <Item title="Oracle" />
           <Item title="Splunk" />
@@ -164,14 +147,7 @@ const FeatureListing = () => {
           <Item title="New Relic" />
           <Item title="DataDog" />
           <Item title="AppDynamics" />
-          <Item title="SAP HANA®" />
-          <Item title="Gitlab" />
-          <Item title="Honeycomb" />
-          <Item title="Jira" />
-          <Item title="MongoDB" />
-          <Item title="Salesforce" />
-          <Item title="Snowflake" />
-          <Item title="Wavefront" />
+          <Item title="Amazon Timestream" />
         </List>
       </Item>
     </List>
@@ -182,7 +158,7 @@ interface ListProps {
   nested?: boolean;
 }
 
-const List = ({ children, nested }: React.PropsWithChildren<ListProps>) => {
+const List: React.FC<ListProps> = ({ children, nested }) => {
   const listStyle = css`
     display: flex;
     flex-direction: column;
@@ -201,7 +177,7 @@ interface ItemProps {
   image?: string;
 }
 
-const Item = ({ children, title, image }: React.PropsWithChildren<ItemProps>) => {
+const Item: React.FC<ItemProps> = ({ children, title, image }) => {
   const imageUrl = image ? image : 'public/img/licensing/checkmark.svg';
   const itemStyle = css`
     display: flex;
@@ -220,7 +196,7 @@ const Item = ({ children, title, image }: React.PropsWithChildren<ItemProps>) =>
 
   return (
     <div className={itemStyle}>
-      <img src={imageUrl} alt="" />
+      <img src={imageUrl} />
       <div>
         <div className={titleStyle}>{title}</div>
         {children}
@@ -233,4 +209,4 @@ const mapStateToProps = (state: StoreState) => ({
   navModel: getNavModel(state.navIndex, 'upgrading'),
 });
 
-export default connect(mapStateToProps)(UpgradePage);
+export default hot(module)(connect(mapStateToProps)(UpgradePage));

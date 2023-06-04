@@ -1,15 +1,11 @@
-import { action } from '@storybook/addon-actions';
-import { Meta, StoryFn } from '@storybook/react';
 import React, { useState } from 'react';
-
-import { Segment, Icon, SegmentSection } from '@grafana/ui';
-
-import { SegmentSyncProps } from './Segment';
+import { action } from '@storybook/addon-actions';
+import { Segment, Icon } from '@grafana/ui';
 
 const AddButton = (
-  <span className="gf-form-label query-part">
+  <a className="gf-form-label query-part">
     <Icon name="plus-circle" />
-  </span>
+  </a>
 );
 
 const toOption = (value: any) => ({ label: value, value: value });
@@ -21,10 +17,13 @@ const groupedOptions = [
 
 const SegmentFrame = ({ options, children }: any) => (
   <>
-    <SegmentSection label="Segment Name">
+    <div className="gf-form-inline">
+      <div className="gf-form">
+        <span className="gf-form-label width-8 query-keyword">Segment Name</span>
+      </div>
       {children}
       <Segment Component={AddButton} onChange={({ value }) => action('New value added')(value)} options={options} />
-    </SegmentSection>
+    </div>
   </>
 );
 
@@ -44,7 +43,7 @@ export const ArrayOptions = () => {
   );
 };
 
-const meta: Meta<typeof Segment> = {
+export default {
   title: 'Data Source/Segment/SegmentSync',
   component: Segment,
 };
@@ -150,43 +149,3 @@ export const HtmlAttributes = () => {
     </SegmentFrame>
   );
 };
-
-export const Basic: StoryFn<React.ComponentType<SegmentSyncProps<string>>> = (args: SegmentSyncProps<string>) => {
-  const [value, setValue] = useState(args.value);
-
-  const props: SegmentSyncProps<string> = {
-    ...args,
-    value,
-    onChange: ({ value }) => {
-      setValue(value);
-      action('onChange fired')(value);
-    },
-    onExpandedChange: (expanded) => action('onExpandedChange fired')({ expanded }),
-  };
-
-  return (
-    <SegmentSection label="Segment:">
-      <Segment<string> {...props} />
-    </SegmentSection>
-  );
-};
-
-Basic.parameters = {
-  controls: {
-    exclude: ['onChange', 'onExpandedChange', 'Component', 'className', 'value'],
-  },
-};
-
-Basic.args = {
-  value: undefined,
-  options,
-  inputMinWidth: 0,
-  allowCustomValue: false,
-  placeholder: 'Placeholder text',
-  disabled: false,
-  autofocus: false,
-  allowEmptyValue: false,
-  inputPlaceholder: 'Start typing...',
-};
-
-export default meta;

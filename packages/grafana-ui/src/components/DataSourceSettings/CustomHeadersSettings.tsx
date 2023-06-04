@@ -1,14 +1,12 @@
-import { css } from '@emotion/css';
-import { uniqueId } from 'lodash';
 import React, { PureComponent } from 'react';
-
+import { css } from 'emotion';
+import uniqueId from 'lodash/uniqueId';
 import { DataSourceSettings } from '@grafana/data';
-
-import { stylesFactory } from '../../themes';
 import { Button } from '../Button';
 import { FormField } from '../FormField/FormField';
 import { Icon } from '../Icon/Icon';
 import { SecretFormField } from '../SecretFormField/SecretFormField';
+import { stylesFactory } from '../../themes';
 
 export interface CustomHeader {
   id: string;
@@ -55,7 +53,7 @@ const getCustomHeaderRowStyles = stylesFactory(() => {
   };
 });
 
-const CustomHeaderRow = ({ header, onBlur, onChange, onRemove, onReset }: CustomHeaderRowProps) => {
+const CustomHeaderRow: React.FC<CustomHeaderRowProps> = ({ header, onBlur, onChange, onRemove, onReset }) => {
   const styles = getCustomHeaderRowStyles();
   return (
     <div className={styles.layout}>
@@ -70,7 +68,6 @@ const CustomHeaderRow = ({ header, onBlur, onChange, onRemove, onReset }: Custom
       />
       <SecretFormField
         label="Value"
-        aria-label="Value"
         name="value"
         isConfigured={header.configured}
         value={header.value}
@@ -81,13 +78,7 @@ const CustomHeaderRow = ({ header, onBlur, onChange, onRemove, onReset }: Custom
         onChange={(e) => onChange({ ...header, value: e.target.value })}
         onBlur={onBlur}
       />
-      <Button
-        type="button"
-        aria-label="Remove header"
-        variant="secondary"
-        size="xs"
-        onClick={(_e) => onRemove(header.id)}
-      >
+      <Button variant="secondary" size="xs" onClick={(_e) => onRemove(header.id)}>
         <Icon name="trash-alt" />
       </Button>
     </div>
@@ -121,31 +112,27 @@ export class CustomHeadersSettings extends PureComponent<Props, State> {
 
   updateSettings = () => {
     const { headers } = this.state;
-
-    // we remove every httpHeaderName* field
-    const newJsonData = Object.fromEntries(
-      Object.entries(this.props.dataSourceConfig.jsonData).filter(([key, val]) => !key.startsWith('httpHeaderName'))
-    );
-
-    // we remove every httpHeaderValue* field
-    const newSecureJsonData = Object.fromEntries(
-      Object.entries(this.props.dataSourceConfig.secureJsonData || {}).filter(
-        ([key, val]) => !key.startsWith('httpHeaderValue')
-      )
-    );
-
-    // then we add the current httpHeader-fields
+    const { jsonData } = this.props.dataSourceConfig;
+    const secureJsonData = this.props.dataSourceConfig.secureJsonData || {};
     for (const [index, header] of headers.entries()) {
-      newJsonData[`httpHeaderName${index + 1}`] = header.name;
+      jsonData[`httpHeaderName${index + 1}`] = header.name;
       if (!header.configured) {
-        newSecureJsonData[`httpHeaderValue${index + 1}`] = header.value;
+        secureJsonData[`httpHeaderValue${index + 1}`] = header.value;
       }
+      Object.keys(jsonData)
+        .filter(
+          (key) =>
+            key.startsWith('httpHeaderName') && parseInt(key.substring('httpHeaderName'.length), 10) > headers.length
+        )
+        .forEach((key) => {
+          delete jsonData[key];
+        });
     }
 
     this.props.onChange({
       ...this.props.dataSourceConfig,
-      jsonData: newJsonData,
-      secureJsonData: newSecureJsonData,
+      jsonData,
+      secureJsonData,
     });
   };
 
@@ -196,8 +183,6 @@ export class CustomHeadersSettings extends PureComponent<Props, State> {
 
   render() {
     const { headers } = this.state;
-    const { dataSourceConfig } = this.props;
-
     return (
       <div className={'gf-form-group'}>
         <div className="gf-form">
@@ -217,20 +202,17 @@ export class CustomHeadersSettings extends PureComponent<Props, State> {
             />
           ))}
         </div>
-        {!dataSourceConfig.readOnly && (
-          <div className="gf-form">
-            <Button
-              variant="secondary"
-              icon="plus"
-              type="button"
-              onClick={(e) => {
-                this.onHeaderAdd();
-              }}
-            >
-              Add header
-            </Button>
-          </div>
-        )}
+        <div className="gf-form">
+          <Button
+            variant="secondary"
+            icon="plus"
+            onClick={(e) => {
+              this.onHeaderAdd();
+            }}
+          >
+            Add header
+          </Button>
+        </div>
       </div>
     );
   }

@@ -1,16 +1,14 @@
-import { css } from '@emotion/css';
 import React, { Component, createRef } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { withTheme2, stylesFactory } from '../../themes';
-import { closePopover } from '../../utils/closePopover';
-import { Popover } from '../Tooltip/Popover';
+import omit from 'lodash/omit';
 import { PopoverController } from '../Tooltip/PopoverController';
-
-import { ColorPickerPopover, ColorPickerProps } from './ColorPickerPopover';
-import { ColorSwatch } from './ColorSwatch';
+import { Popover } from '../Tooltip/Popover';
+import { ColorPickerPopover, ColorPickerProps, ColorPickerChangeHandler } from './ColorPickerPopover';
+import { getColorForTheme, GrafanaTheme } from '@grafana/data';
 import { SeriesColorPickerPopover } from './SeriesColorPickerPopover';
+
+import { css } from 'emotion';
+import { withTheme, stylesFactory } from '../../themes';
+import { ColorPickerTrigger } from './ColorPickerTrigger';
 
 /**
  * If you need custom trigger for the color picker you can do that with a render prop pattern and supply a function
@@ -27,19 +25,26 @@ type ColorPickerTriggerRenderer = (props: {
 }) => React.ReactNode;
 
 export const colorPickerFactory = <T extends ColorPickerProps>(
-  popover: React.ComponentType<React.PropsWithChildren<T>>,
+  popover: React.ComponentType<T>,
   displayName = 'ColorPicker'
 ) => {
-  return class ColorPicker extends Component<T & { children?: ColorPickerTriggerRenderer }> {
+  return class ColorPicker extends Component<T & { children?: ColorPickerTriggerRenderer }, any> {
     static displayName = displayName;
     pickerTriggerRef = createRef<any>();
 
+    onColorChange = (color: string) => {
+      const { onColorChange, onChange } = this.props;
+      const changeHandler = (onColorChange || onChange) as ColorPickerChangeHandler;
+
+      return changeHandler(color);
+    };
+
     render() {
-      const { theme, children, onChange } = this.props;
+      const { theme, children } = this.props;
       const styles = getStyles(theme);
       const popoverElement = React.createElement(popover, {
-        ...{ ...this.props, children: null },
-        onChange,
+        ...omit(this.props, 'children'),
+        onChange: this.onColorChange,
       });
 
       return (
@@ -54,7 +59,6 @@ export const colorPickerFactory = <T extends ColorPickerProps>(
                     wrapperClassName={styles.colorPicker}
                     onMouseLeave={hidePopper}
                     onMouseEnter={showPopper}
-                    onKeyDown={(event) => closePopover(event, hidePopper)}
                   />
                 )}
 
@@ -68,11 +72,11 @@ export const colorPickerFactory = <T extends ColorPickerProps>(
                     hideColorPicker: hidePopper,
                   })
                 ) : (
-                  <ColorSwatch
+                  <ColorPickerTrigger
                     ref={this.pickerTriggerRef}
                     onClick={showPopper}
                     onMouseLeave={hidePopper}
-                    color={theme.visualization.getColorByName(this.props.color || '#000000')}
+                    color={getColorForTheme(this.props.color || '#000000', theme)}
                   />
                 )}
               </>
@@ -84,15 +88,15 @@ export const colorPickerFactory = <T extends ColorPickerProps>(
   };
 };
 
-export const ColorPicker = withTheme2(colorPickerFactory(ColorPickerPopover, 'ColorPicker'));
-export const SeriesColorPicker = withTheme2(colorPickerFactory(SeriesColorPickerPopover, 'SeriesColorPicker'));
+export const ColorPicker = withTheme(colorPickerFactory(ColorPickerPopover, 'ColorPicker'));
+export const SeriesColorPicker = withTheme(colorPickerFactory(SeriesColorPickerPopover, 'SeriesColorPicker'));
 
-const getStyles = stylesFactory((theme: GrafanaTheme2) => {
+const getStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
     colorPicker: css`
       position: absolute;
       z-index: ${theme.zIndex.tooltip};
-      color: ${theme.colors.text.primary};
+      color: ${theme.colors.text};
       max-width: 400px;
       font-size: ${theme.typography.size.sm};
       // !important because these styles are also provided to popper via .popper classes from Tooltip component

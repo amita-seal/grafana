@@ -74,8 +74,7 @@
 
   // Links within the dropdown menu
   > li {
-    > a,
-    > button {
+    > a {
       display: block;
       padding: 3px 20px 3px 15px;
       clear: both;
@@ -100,20 +99,35 @@
     }
   }
 
-  &--menu {
+  &--navbar {
+    top: 100%;
+    min-width: 100%;
+  }
+
+  &--menu,
+  &--navbar,
+  &--sidemenu {
     background: $menu-dropdown-bg;
     box-shadow: $menu-dropdown-shadow;
     margin-top: 0px;
 
-    > li > a,
-    > li > button {
+    > li > a {
       display: flex;
       padding: 5px 10px;
       border-left: 2px solid transparent;
 
       &:hover {
+        @include left-brand-border-gradient();
         color: $link-hover-color;
         background: $menu-dropdown-hover-bg !important;
+      }
+    }
+  }
+
+  &--sidemenu {
+    li.sidemenu-org-switcher {
+      > a {
+        padding: 8px 10px 8px 15px;
       }
     }
   }
@@ -128,11 +142,7 @@
 .dropdown-menu > li > a:hover,
 .dropdown-menu > li > a:focus,
 .dropdown-submenu:hover > a,
-.dropdown-submenu:focus > a,
-.dropdown-menu > li > button:hover,
-.dropdown-menu > li > button:focus,
-.dropdown-submenu:hover > button,
-.dropdown-submenu:focus > button {
+.dropdown-submenu:focus > a {
   text-decoration: none;
   color: $dropdownLinkColorHover;
   background-color: $dropdownLinkBackgroundHover;
@@ -142,10 +152,7 @@
 // ------------
 .dropdown-menu > .active > a,
 .dropdown-menu > .active > a:hover,
-.dropdown-menu > .active > a:focus,
-.dropdown-menu > .active > button,
-.dropdown-menu > .active > button:hover,
-.dropdown-menu > .active > button:focus {
+.dropdown-menu > .active > a:focus {
   color: $dropdownLinkColorActive;
   text-decoration: none;
   outline: 0;
@@ -157,17 +164,12 @@
 // Gray out text and ensure the hover/focus state remains gray
 .dropdown-menu > .disabled > a,
 .dropdown-menu > .disabled > a:hover,
-.dropdown-menu > .disabled > a:focus,
-.dropdown-menu > .disabled > button,
-.dropdown-menu > .disabled > button:hover,
-.dropdown-menu > .disabled > button:focus {
+.dropdown-menu > .disabled > a:focus {
   color: $gray-2;
 }
 // Nuke hover/focus effects
 .dropdown-menu > .disabled > a:hover,
-.dropdown-menu > .disabled > a:focus,
-.dropdown-menu > .disabled > button:hover,
-.dropdown-menu > .disabled > button:focus {
+.dropdown-menu > .disabled > a:focus {
   text-decoration: none;
   background-color: transparent;
   background-image: none; // Remove CSS gradient
@@ -177,11 +179,11 @@
 // Open state for the dropdown
 // ---------------------------
 .open {
-  > .dropdown-menu {
+  & > .dropdown-menu {
     display: block;
   }
 
-  > .dropdown > .dropdown-menu {
+  & > .dropdown > .dropdown-menu {
     // Panel menu. TODO: See if we can merge this with above
     display: block;
   }
@@ -207,8 +209,8 @@
 // Right aligned dropdowns
 // ---------------------------
 .pull-right > .dropdown-menu {
-  left: 100%;
-  right: unset;
+  right: 0;
+  left: auto;
 }
 
 // Allow for dropdowns to go bottom up (aka, dropup-menu)
@@ -243,6 +245,7 @@
   left: 100%;
   margin-top: 0px;
   margin-left: -1px;
+  @include border-radius(0 6px 6px 6px);
 }
 .dropdown-submenu:hover > .dropdown-menu {
   display: block;
@@ -254,6 +257,7 @@
   bottom: 0;
   margin-top: 0;
   margin-bottom: -2px;
+  @include border-radius(5px 5px 5px 0);
 }
 // .dropdown-submenu > a::after {
 //   position: absolute;
@@ -266,8 +270,7 @@
 //   pointer-events: none;
 //   font-size: 11px;
 // }
-.dropdown-submenu:hover > a::after,
-.dropdown-submenu:hover > button::after {
+.dropdown-submenu:hover > a::after {
   border-left-color: $dropdownLinkColorHover;
 }
 
@@ -282,6 +285,7 @@
     left: -100%;
     width: 100%;
     margin-left: 2px;
+    @include border-radius(6px 0 6px 6px);
   }
 }
 
@@ -311,9 +315,8 @@
 }
 
 .dropdown-menu.dropdown-menu--new {
-  li a,
-  li button {
-    padding: calc($spacer/2) $spacer;
+  li a {
+    padding: $spacer/2 $spacer;
     border-left: 2px solid $side-menu-bg;
     background: $side-menu-bg;
 
@@ -323,6 +326,7 @@
     }
 
     &:hover {
+      @include left-brand-border-gradient();
       color: $link-hover-color;
       background: $input-label-bg;
     }

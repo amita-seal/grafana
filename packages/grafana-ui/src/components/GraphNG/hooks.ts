@@ -1,8 +1,6 @@
-import React, { useCallback, useContext } from 'react';
-
 import { DataFrame, DataFrameFieldIndex, Field } from '@grafana/data';
-
 import { XYFieldMatchers } from './types';
+import React, { useCallback, useContext } from 'react';
 
 /** @alpha */
 interface GraphNGContextType {
@@ -39,6 +37,5 @@ export const useGraphNGContext = () => {
     dimFields,
     mapSeriesIndexToDataFrameFieldIndex,
     getXAxisField,
-    alignedData: data,
   };
 };

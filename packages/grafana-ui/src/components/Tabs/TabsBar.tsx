@@ -1,9 +1,7 @@
-import { css, cx } from '@emotion/css';
 import React, { ReactNode } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { useStyles2 } from '../../themes';
+import { stylesFactory, useTheme } from '../../themes';
+import { GrafanaTheme } from '@grafana/data';
+import { css, cx } from 'emotion';
 
 export interface Props {
   /** Children should be a single <Tab /> or an array of <Tab /> */
@@ -13,31 +11,34 @@ export interface Props {
   hideBorder?: boolean;
 }
 
-export const TabsBar = React.forwardRef<HTMLDivElement, Props>(({ children, className, hideBorder = false }, ref) => {
-  const styles = useStyles2(getStyles);
+const getTabsBarStyles = stylesFactory((theme: GrafanaTheme, hideBorder = false) => {
+  const colors = theme.colors;
 
-  return (
-    <div className={cx(styles.tabsWrapper, hideBorder && styles.noBorder, className)} ref={ref}>
-      <div className={styles.tabs} role="tablist">
-        {children}
-      </div>
-    </div>
-  );
+  return {
+    tabsWrapper:
+      !hideBorder &&
+      css`
+        border-bottom: 1px solid ${colors.pageHeaderBorder};
+      `,
+    tabs: css`
+      position: relative;
+      top: 1px;
+      display: flex;
+      // Sometimes TabsBar is rendered without any tabs, and should preserve height
+      height: 41px;
+    `,
+  };
 });
 
-const getStyles = (theme: GrafanaTheme2) => ({
-  tabsWrapper: css`
-    border-bottom: 1px solid ${theme.colors.border.weak};
-    overflow-x: auto;
-  `,
-  noBorder: css`
-    border-bottom: 0;
-  `,
-  tabs: css`
-    position: relative;
-    display: flex;
-    height: ${theme.components.menuTabs.height}px;
-  `,
+export const TabsBar = React.forwardRef<HTMLDivElement, Props>(({ children, className, hideBorder }, ref) => {
+  const theme = useTheme();
+  const tabsStyles = getTabsBarStyles(theme, hideBorder);
+
+  return (
+    <div className={cx(tabsStyles.tabsWrapper, className)} ref={ref}>
+      <ul className={tabsStyles.tabs}>{children}</ul>
+    </div>
+  );
 });
 
 TabsBar.displayName = 'TabsBar';

@@ -1,11 +1,9 @@
-import { advanceTo, clear } from 'jest-date-mock';
-import { ComponentClass } from 'react';
-
 import { dateTime, DateTime, PanelProps, TimeRange } from '@grafana/data';
-import { getPanelPlugin } from '@grafana/data/test/__mocks__/pluginMocks';
 import { applyPanelTimeOverrides, calculateInnerPanelHeight } from 'app/features/dashboard/utils/panel';
-
+import { advanceTo, clear } from 'jest-date-mock';
 import { PanelModel } from '../state';
+import { getPanelPlugin } from '../../plugins/__mocks__/pluginMocks';
+import { ComponentClass } from 'react';
 
 const dashboardTimeRange: TimeRange = {
   from: dateTime([2019, 1, 11, 12, 0]),
@@ -32,7 +30,7 @@ describe('applyPanelTimeOverrides', () => {
       timeFrom: '2h',
     };
 
-    // @ts-ignore: PanelModel type inconsistency
+    // @ts-ignore: PanelModel type incositency
     const overrides = applyPanelTimeOverrides(panelModel, dashboardTimeRange);
 
     expect(overrides.timeRange.from.toISOString()).toBe(dateTime([2019, 1, 11, 12]).toISOString());
@@ -49,7 +47,7 @@ describe('applyPanelTimeOverrides', () => {
     const expectedFromDate = dateTime([2019, 1, 11, 10, 0, 0]).toDate();
     const expectedToDate = dateTime([2019, 1, 11, 16, 0, 0]).toDate();
 
-    // @ts-ignore: PanelModel type inconsistency
+    // @ts-ignore: PanelModel type incositency
     const overrides = applyPanelTimeOverrides(panelModel, dashboardTimeRange);
 
     expect(overrides.timeRange.from.toISOString()).toBe(expectedFromDate.toISOString());
@@ -67,7 +65,7 @@ describe('applyPanelTimeOverrides', () => {
     const expectedFromDate = dateTime([2019, 1, 11, 10, 0, 0]).toDate();
     const expectedToDate = dateTime([2019, 1, 11, 12, 0, 0]).toDate();
 
-    // @ts-ignore: PanelModel type inconsistency
+    // @ts-ignore: PanelModel type incositency
     const overrides = applyPanelTimeOverrides(panelModel, dashboardTimeRange);
 
     expect(overrides.timeRange.from.toISOString()).toBe(expectedFromDate.toISOString());
@@ -86,7 +84,7 @@ describe('applyPanelTimeOverrides', () => {
   it('Calculate panel height with panel plugin zeroChromePadding', () => {
     const panelModel = new PanelModel({});
     panelModel.pluginLoaded(
-      getPanelPlugin({ id: 'table' }, null as unknown as ComponentClass<PanelProps>, null).setNoPadding()
+      getPanelPlugin({ id: 'table' }, (null as unknown) as ComponentClass<PanelProps>, null).setNoPadding()
     );
 
     const height = calculateInnerPanelHeight(panelModel, 100);

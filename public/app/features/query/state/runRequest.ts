@@ -1,12 +1,12 @@
 // Libraries
-import { isString, map as isArray } from 'lodash';
 import { from, merge, Observable, of, timer } from 'rxjs';
-import { catchError, map, mapTo, share, takeUntil, tap } from 'rxjs/operators';
-
+import { isString, map as isArray } from 'lodash';
+import { catchError, finalize, map, mapTo, share, takeUntil, tap } from 'rxjs/operators';
 // Utils & Services
+import { backendSrv } from 'app/core/services/backend_srv';
 // Types
 import {
-  CoreApp,
+  DataFrame,
   DataQueryError,
   DataQueryRequest,
   DataQueryResponse,
@@ -14,19 +14,16 @@ import {
   DataSourceApi,
   DataTopic,
   dateMath,
+  guessFieldTypes,
   LoadingState,
   PanelData,
   TimeRange,
+  toDataFrame,
 } from '@grafana/data';
 import { toDataQueryError } from '@grafana/runtime';
-import { isExpressionReference } from '@grafana/runtime/src/utils/DataSourceWithBackend';
-import { backendSrv } from 'app/core/services/backend_srv';
-import { queryIsEmpty } from 'app/core/utils/query';
-import { dataSource as expressionDatasource } from 'app/features/expressions/ExpressionDatasource';
-import { ExpressionQuery } from 'app/features/expressions/types';
-
-import { cancelNetworkRequestsOnUnsubscribe } from './processing/canceler';
 import { emitDataRequestEvent } from './queryAnalytics';
+import { expressionDatasource, ExpressionDatasourceID } from 'app/features/expressions/ExpressionDatasource';
+import { ExpressionQuery } from 'app/features/expressions/types';
 
 type MapOfResponsePackets = { [str: string]: DataQueryResponse };
 
@@ -44,13 +41,10 @@ export function processResponsePacket(packet: DataQueryResponse, state: RunningQ
     ...state.packets,
   };
 
-  // updates to the same key will replace previous values
-  const key = packet.key ?? packet.data?.[0]?.refId ?? 'A';
-  packets[key] = packet;
+  packets[packet.key || 'A'] = packet;
 
   let loadingState = packet.state || LoadingState.Done;
   let error: DataQueryError | undefined = undefined;
-  let errors: DataQueryError[] | undefined = undefined;
 
   const series: DataQueryResponseData[] = [];
   const annotations: DataQueryResponseData[] = [];
@@ -58,10 +52,9 @@ export function processResponsePacket(packet: DataQueryResponse, state: RunningQ
   for (const key in packets) {
     const packet = packets[key];
 
-    if (packet.error || packet.errors?.length) {
+    if (packet.error) {
       loadingState = LoadingState.Error;
       error = packet.error;
-      errors = packet.errors;
     }
 
     if (packet.data && packet.data.length) {
@@ -78,22 +71,14 @@ export function processResponsePacket(packet: DataQueryResponse, state: RunningQ
 
   const timeRange = getRequestTimeRange(request, loadingState);
 
-  const panelData: PanelData = {
+  const panelData = {
     state: loadingState,
     series,
     annotations,
     error,
-    errors,
     request,
     timeRange,
   };
-
-  // we use a Set to deduplicate the traceIds
-  const traceIdSet = new Set([...(state.panelData.traceIds ?? []), ...(packet.traceIds ?? [])]);
-
-  if (traceIdSet.size > 0) {
-    panelData.traceIds = Array.from(traceIdSet);
-  }
 
   return { packets, panelData };
 }
@@ -156,8 +141,7 @@ export function runRequest(
     }),
     // handle errors
     catchError((err) => {
-      const errLog = typeof err === 'string' ? err : JSON.stringify(err);
-      console.error('runRequest.catchError', errLog);
+      console.error('runRequest.catchError', err);
       return of({
         ...state.panelData,
         state: LoadingState.Error,
@@ -167,7 +151,7 @@ export function runRequest(
     tap(emitDataRequestEvent(datasource)),
     // finalize is triggered when subscriber unsubscribes
     // This makes sure any still running network requests are cancelled
-    cancelNetworkRequestsOnUnsubscribe(backendSrv, request.requestId),
+    finalize(cancelNetworkRequestsOnUnsubscribe(request)),
     // this makes it possible to share this observable in takeUntil
     share()
   );
@@ -178,28 +162,20 @@ export function runRequest(
   return merge(timer(200).pipe(mapTo(state.panelData), takeUntil(dataObservable)), dataObservable);
 }
 
+function cancelNetworkRequestsOnUnsubscribe(req: DataQueryRequest) {
+  return () => {
+    backendSrv.resolveCancelerIfExists(req.requestId);
+  };
+}
+
 export function callQueryMethod(
   datasource: DataSourceApi,
   request: DataQueryRequest,
   queryFunction?: typeof datasource.query
 ) {
-  // If the datasource has defined a default query, make sure it's applied
-  request.targets = request.targets.map((t) =>
-    queryIsEmpty(t)
-      ? {
-          ...datasource?.getDefaultQuery?.(CoreApp.PanelEditor),
-          ...t,
-        }
-      : t
-  );
-
-  // If its a public datasource, just return the result. Expressions will be handled on the backend.
-  if (datasource.type === 'public-ds') {
-    return from(datasource.query(request));
-  }
-
+  // If any query has an expression, use the expression endpoint
   for (const target of request.targets) {
-    if (isExpressionReference(target.datasource)) {
+    if (target.datasource === ExpressionDatasourceID) {
       return expressionDatasource.query(request as DataQueryRequest<ExpressionQuery>);
     }
   }
@@ -207,4 +183,62 @@ export function callQueryMethod(
   // Otherwise it is a standard datasource request
   const returnVal = queryFunction ? queryFunction(request) : datasource.query(request);
   return from(returnVal);
+}
+
+/**
+ * All panels will be passed tables that have our best guess at column type set
+ *
+ * This is also used by PanelChrome for snapshot support
+ */
+export function getProcessedDataFrames(results?: DataQueryResponseData[]): DataFrame[] {
+  if (!results || !isArray(results)) {
+    return [];
+  }
+
+  const dataFrames: DataFrame[] = [];
+
+  for (const result of results) {
+    const dataFrame = guessFieldTypes(toDataFrame(result));
+
+    if (dataFrame.fields && dataFrame.fields.length) {
+      // clear out the cached info
+      for (const field of dataFrame.fields) {
+        field.state = null;
+      }
+    }
+
+    dataFrames.push(dataFrame);
+  }
+
+  return dataFrames;
+}
+
+export function preProcessPanelData(data: PanelData, lastResult?: PanelData): PanelData {
+  const { series, annotations } = data;
+
+  //  for loading states with no data, use last result
+  if (data.state === LoadingState.Loading && series.length === 0) {
+    if (!lastResult) {
+      lastResult = data;
+    }
+
+    return {
+      ...lastResult,
+      state: LoadingState.Loading,
+      request: data.request,
+    };
+  }
+
+  // Make sure the data frames are properly formatted
+  const STARTTIME = performance.now();
+  const processedDataFrames = getProcessedDataFrames(series);
+  const annotationsProcessed = getProcessedDataFrames(annotations);
+  const STOPTIME = performance.now();
+
+  return {
+    ...data,
+    series: processedDataFrames,
+    annotations: annotationsProcessed,
+    timings: { dataProcessingTime: STOPTIME - STARTTIME },
+  };
 }

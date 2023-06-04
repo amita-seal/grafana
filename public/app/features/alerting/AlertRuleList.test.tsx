@@ -1,115 +1,117 @@
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { openMenu } from 'react-select-event';
-import { mockToolkitActionCreator } from 'test/core/redux/mocks';
-import { TestProvider } from 'test/helpers/TestProvider';
-
-import { locationService } from '@grafana/runtime';
-import { getRouteComponentProps } from 'app/core/navigation/__mocks__/routeProps';
-
-import appEvents from '../../core/app_events';
-import { ShowModalReactEvent } from '../../types/events';
-
-import { AlertHowToModal } from './AlertHowToModal';
+import { shallow } from 'enzyme';
 import { AlertRuleListUnconnected, Props } from './AlertRuleList';
+import { AlertRule } from '../../types';
+import appEvents from '../../core/app_events';
+import { NavModel } from '@grafana/data';
+import { CoreEvents } from 'app/types';
+import { updateLocation } from '../../core/actions';
 import { setSearchQuery } from './state/reducers';
+import { mockToolkitActionCreator } from 'test/core/redux/mocks';
 
 jest.mock('../../core/app_events', () => ({
-  publish: jest.fn(),
+  emit: jest.fn(),
 }));
-
-const defaultProps: Props = {
-  ...getRouteComponentProps({}),
-  search: '',
-  isLoading: false,
-  alertRules: [],
-  getAlertRulesAsync: jest.fn().mockResolvedValue([]),
-  setSearchQuery: mockToolkitActionCreator(setSearchQuery),
-  togglePauseAlertRule: jest.fn(),
-};
 
 const setup = (propOverrides?: object) => {
   const props: Props = {
-    ...defaultProps,
-    ...propOverrides,
+    navModel: {} as NavModel,
+    alertRules: [] as AlertRule[],
+    updateLocation: mockToolkitActionCreator(updateLocation),
+    getAlertRulesAsync: jest.fn(),
+    setSearchQuery: mockToolkitActionCreator(setSearchQuery),
+    togglePauseAlertRule: jest.fn(),
+    stateFilter: '',
+    search: '',
+    isLoading: false,
+    ngAlertDefinitions: [],
   };
 
-  const { rerender } = render(
-    <TestProvider>
-      <AlertRuleListUnconnected {...props} />
-    </TestProvider>
-  );
+  Object.assign(props, propOverrides);
+
+  const wrapper = shallow(<AlertRuleListUnconnected {...props} />);
 
   return {
-    rerender: (element: JSX.Element) => rerender(<TestProvider>{element}</TestProvider>),
+    wrapper,
+    instance: wrapper.instance() as AlertRuleListUnconnected,
   };
 };
 
-afterEach(() => {
-  jest.clearAllMocks();
+describe('Life cycle', () => {
+  describe('component did mount', () => {
+    it('should call fetchrules', () => {
+      const { instance } = setup();
+      instance.fetchRules = jest.fn();
+      instance.componentDidMount();
+      expect(instance.fetchRules).toHaveBeenCalled();
+    });
+  });
+
+  describe('component did update', () => {
+    it('should call fetchrules if props differ', () => {
+      const { instance } = setup();
+      instance.fetchRules = jest.fn();
+
+      instance.componentDidUpdate({ stateFilter: 'ok' } as Props);
+
+      expect(instance.fetchRules).toHaveBeenCalled();
+    });
+  });
 });
 
-describe('AlertRuleList', () => {
-  it('should call fetchrules when mounting', () => {
-    jest.spyOn(AlertRuleListUnconnected.prototype, 'fetchRules');
-
-    expect(AlertRuleListUnconnected.prototype.fetchRules).not.toHaveBeenCalled();
-    setup();
-    expect(AlertRuleListUnconnected.prototype.fetchRules).toHaveBeenCalled();
-  });
-
-  it('should call fetchrules when props change', () => {
-    const fetchRulesSpy = jest.spyOn(AlertRuleListUnconnected.prototype, 'fetchRules');
-    expect(AlertRuleListUnconnected.prototype.fetchRules).not.toHaveBeenCalled();
-    const { rerender } = setup();
-    expect(AlertRuleListUnconnected.prototype.fetchRules).toHaveBeenCalled();
-
-    fetchRulesSpy.mockReset();
-    rerender(<AlertRuleListUnconnected {...defaultProps} queryParams={{ state: 'ok' }} />);
-    expect(AlertRuleListUnconnected.prototype.fetchRules).toHaveBeenCalled();
-  });
-
+describe('Functions', () => {
   describe('Get state filter', () => {
-    it('should be all if prop is not set', () => {
-      setup();
-      expect(screen.getByText('All')).toBeInTheDocument();
+    it('should get all if prop is not set', () => {
+      const { instance } = setup();
+
+      const stateFilter = instance.getStateFilter();
+
+      expect(stateFilter).toEqual('all');
     });
 
     it('should return state filter if set', () => {
-      setup({
-        queryParams: { state: 'not_ok' },
+      const { instance } = setup({
+        stateFilter: 'ok',
       });
-      expect(screen.getByText('Not OK')).toBeInTheDocument();
+
+      const stateFilter = instance.getStateFilter();
+
+      expect(stateFilter).toEqual('ok');
     });
   });
 
   describe('State filter changed', () => {
-    it('should update location', async () => {
-      setup();
-      const stateFilterSelect = screen.getByLabelText('States');
-      openMenu(stateFilterSelect);
-      await userEvent.click(screen.getByText('Not OK'));
-      expect(locationService.getSearchObject().state).toBe('not_ok');
+    it('should update location', () => {
+      const { instance } = setup();
+      const mockEvent = { value: 'alerting' };
+
+      instance.onStateFilterChanged(mockEvent);
+
+      expect(instance.props.updateLocation).toHaveBeenCalledWith({ query: { state: 'alerting' } });
     });
   });
 
   describe('Open how to', () => {
-    it('should emit show-modal event', async () => {
-      setup();
+    it('should emit show-modal event', () => {
+      const { instance } = setup();
 
-      await userEvent.click(screen.getByRole('button', { name: 'How to add an alert' }));
-      expect(appEvents.publish).toHaveBeenCalledWith(new ShowModalReactEvent({ component: AlertHowToModal }));
+      instance.onOpenHowTo();
+
+      expect(appEvents.emit).toHaveBeenCalledWith(CoreEvents.showModal, {
+        src: 'public/app/features/alerting/partials/alert_howto.html',
+        modalClass: 'confirm-modal',
+        model: {},
+      });
     });
   });
 
   describe('Search query change', () => {
-    it('should set search query', async () => {
-      setup();
+    it('should set search query', () => {
+      const { instance } = setup();
 
-      await userEvent.click(screen.getByPlaceholderText('Search alerts'));
-      await userEvent.paste('dashboard');
-      expect(defaultProps.setSearchQuery).toHaveBeenCalledWith('dashboard');
+      instance.onSearchQueryChange('dashboard');
+
+      expect(instance.props.setSearchQuery).toHaveBeenCalledWith('dashboard');
     });
   });
 });

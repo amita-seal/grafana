@@ -1,9 +1,7 @@
-import { reduce } from 'lodash';
-
-import { escapeRegex } from '@grafana/data';
+import _ from 'lodash';
+import kbn from 'app/core/utils/kbn';
 
 function renderTagCondition(tag: { operator: any; value: string; condition: any; key: string }, index: number) {
-  // FIXME: merge this function with influx_query_model/renderTagCondition
   let str = '';
   let operator = tag.operator;
   let value = tag.value;
@@ -19,23 +17,12 @@ function renderTagCondition(tag: { operator: any; value: string; condition: any;
     }
   }
 
-  // quote value unless regex or empty-string
-  // Influx versions before 0.13 had inconsistent requirements on if (numeric) tags are quoted or not.
-  if (value === '' || (operator !== '=~' && operator !== '!~')) {
-    value = "'" + value.replace(/\\/g, '\\\\').replace(/\'/g, "\\'") + "'";
+  // quote value unless regex or number
+  if (operator !== '=~' && operator !== '!~' && isNaN(+value)) {
+    value = "'" + value + "'";
   }
 
-  let escapedKey = `"${tag.key}"`;
-
-  if (tag.key.endsWith('::tag')) {
-    escapedKey = `"${tag.key.slice(0, -5)}"::tag`;
-  }
-
-  if (tag.key.endsWith('::field')) {
-    escapedKey = `"${tag.key.slice(0, -7)}"::field`;
-  }
-
-  return str + escapedKey + ' ' + operator + ' ' + value;
+  return str + '"' + tag.key + '" ' + operator + ' ' + value;
 }
 
 export class InfluxQueryBuilder {
@@ -57,25 +44,19 @@ export class InfluxQueryBuilder {
     } else if (type === 'MEASUREMENTS') {
       query = 'SHOW MEASUREMENTS';
       if (withMeasurementFilter) {
-        // we do a case-insensitive regex-based lookup
-        query += ' WITH MEASUREMENT =~ /(?i)' + escapeRegex(withMeasurementFilter) + '/';
+        query += ' WITH MEASUREMENT =~ /' + kbn.regexEscape(withMeasurementFilter) + '/';
       }
     } else if (type === 'FIELDS') {
       measurement = this.target.measurement;
       policy = this.target.policy;
 
-      // If there is a measurement and it is not empty string
-      if (!measurement.match(/^\/.*\/|^$/)) {
+      if (!measurement.match('^/.*/')) {
         measurement = '"' + measurement + '"';
 
         if (policy && policy !== 'default') {
           policy = '"' + policy + '"';
           measurement = policy + '.' + measurement;
         }
-      }
-
-      if (measurement === '') {
-        return 'SHOW FIELD KEYS';
       }
 
       return 'SHOW FIELD KEYS FROM ' + measurement;
@@ -94,23 +75,15 @@ export class InfluxQueryBuilder {
         measurement = policy + '.' + measurement;
       }
 
-      if (measurement !== '') {
-        query += ' FROM ' + measurement;
-      }
+      query += ' FROM ' + measurement;
     }
 
     if (withKey) {
-      let keyIdentifier = withKey;
-
-      if (keyIdentifier.endsWith('::tag')) {
-        keyIdentifier = keyIdentifier.slice(0, -5);
-      }
-
-      query += ' WITH KEY = "' + keyIdentifier + '"';
+      query += ' WITH KEY = "' + withKey + '"';
     }
 
     if (this.target.tags && this.target.tags.length > 0) {
-      const whereConditions = reduce(
+      const whereConditions = _.reduce(
         this.target.tags,
         (memo, tag) => {
           // do not add a condition for the key we want to explore for

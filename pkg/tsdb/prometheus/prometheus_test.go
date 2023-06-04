@@ -1,110 +1,128 @@
 package prometheus
 
 import (
-	"context"
-	"io"
-	"net/http"
 	"testing"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
-	sdkHttpClient "github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/tsdb"
+	p "github.com/prometheus/common/model"
 	"github.com/stretchr/testify/require"
-
-	"github.com/grafana/grafana/pkg/infra/httpclient"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
-	"github.com/grafana/grafana/pkg/setting"
 )
 
-type fakeSender struct{}
+func TestPrometheus(t *testing.T) {
+	dsInfo := &models.DataSource{
+		JsonData: simplejson.New(),
+	}
 
-func (sender *fakeSender) Send(resp *backend.CallResourceResponse) error {
-	return nil
-}
+	t.Run("converting metric name", func(t *testing.T) {
+		metric := map[p.LabelName]p.LabelValue{
+			p.LabelName("app"):    p.LabelValue("backend"),
+			p.LabelName("device"): p.LabelValue("mobile"),
+		}
 
-type fakeRoundtripper struct {
-	Req *http.Request
-}
+		query := &PrometheusQuery{
+			LegendFormat: "legend {{app}} {{ device }} {{broken}}",
+		}
 
-func (rt *fakeRoundtripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	rt.Req = req
-	return &http.Response{
-		Status:        "200",
-		StatusCode:    200,
-		Header:        nil,
-		Body:          nil,
-		ContentLength: 0,
-	}, nil
-}
+		require.Equal(t, "legend backend mobile ", formatLegend(metric, query))
+	})
 
-type fakeHTTPClientProvider struct {
-	httpclient.Provider
-	Roundtripper *fakeRoundtripper
-}
+	t.Run("build full series name", func(t *testing.T) {
+		metric := map[p.LabelName]p.LabelValue{
+			p.LabelName(p.MetricNameLabel): p.LabelValue("http_request_total"),
+			p.LabelName("app"):             p.LabelValue("backend"),
+			p.LabelName("device"):          p.LabelValue("mobile"),
+		}
 
-func (provider *fakeHTTPClientProvider) New(opts ...sdkHttpClient.Options) (*http.Client, error) {
-	client := &http.Client{}
-	provider.Roundtripper = &fakeRoundtripper{}
-	client.Transport = provider.Roundtripper
-	return client, nil
-}
+		query := &PrometheusQuery{
+			LegendFormat: "",
+		}
 
-func (provider *fakeHTTPClientProvider) GetTransport(opts ...sdkHttpClient.Options) (http.RoundTripper, error) {
-	return &fakeRoundtripper{}, nil
-}
+		require.Equal(t, `http_request_total{app="backend", device="mobile"}`, formatLegend(metric, query))
+	})
 
-func TestService(t *testing.T) {
-	t.Run("Service", func(t *testing.T) {
-		t.Run("CallResource", func(t *testing.T) {
-			t.Run("creates correct request", func(t *testing.T) {
-				httpProvider := &fakeHTTPClientProvider{}
-				service := &Service{
-					im: datasource.NewInstanceManager(newInstanceSettings(httpProvider, &setting.Cfg{}, &featuremgmt.FeatureManager{}, nil)),
-				}
+	t.Run("parsing query model with step", func(t *testing.T) {
+		json := `{
+				"expr": "go_goroutines",
+				"format": "time_series",
+				"refId": "A"
+			}`
+		jsonModel, _ := simplejson.NewJson([]byte(json))
+		queryContext := &tsdb.TsdbQuery{}
+		queryModels := []*tsdb.Query{
+			{Model: jsonModel},
+		}
 
-				req := &backend.CallResourceRequest{
-					PluginContext: backend.PluginContext{
-						OrgID:               0,
-						PluginID:            "prometheus",
-						User:                nil,
-						AppInstanceSettings: nil,
-						DataSourceInstanceSettings: &backend.DataSourceInstanceSettings{
-							ID:               0,
-							UID:              "",
-							Type:             "prometheus",
-							Name:             "test-prom",
-							URL:              "http://localhost:9090",
-							User:             "",
-							Database:         "",
-							BasicAuthEnabled: true,
-							BasicAuthUser:    "admin",
-							Updated:          time.Time{},
-							JSONData:         []byte("{}"),
-						},
-					},
-					Path:   "/api/v1/series",
-					Method: http.MethodPost,
-					URL:    "/api/v1/series",
-					Body:   []byte("match%5B%5D: ALERTS\nstart: 1655271408\nend: 1655293008"),
-				}
+		queryContext.TimeRange = tsdb.NewTimeRange("12h", "now")
 
-				sender := &fakeSender{}
-				err := service.CallResource(context.Background(), req, sender)
-				require.NoError(t, err)
-				require.Equal(
-					t,
-					http.Header{
-						"Content-Type":    {"application/x-www-form-urlencoded"},
-						"Idempotency-Key": []string(nil),
-					},
-					httpProvider.Roundtripper.Req.Header)
-				require.Equal(t, http.MethodPost, httpProvider.Roundtripper.Req.Method)
-				body, err := io.ReadAll(httpProvider.Roundtripper.Req.Body)
-				require.NoError(t, err)
-				require.Equal(t, []byte("match%5B%5D: ALERTS\nstart: 1655271408\nend: 1655293008"), body)
-				require.Equal(t, "http://localhost:9090/api/v1/series", httpProvider.Roundtripper.Req.URL.String())
-			})
-		})
+		models, err := parseQuery(dsInfo, queryModels, queryContext)
+		require.NoError(t, err)
+		require.Equal(t, time.Second*30, models[0].Step)
+	})
+
+	t.Run("parsing query model without step parameter", func(t *testing.T) {
+		json := `{
+				"expr": "go_goroutines",
+				"format": "time_series",
+				"intervalFactor": 1,
+				"refId": "A"
+			}`
+		jsonModel, _ := simplejson.NewJson([]byte(json))
+		queryContext := &tsdb.TsdbQuery{}
+		queryModels := []*tsdb.Query{
+			{Model: jsonModel},
+		}
+
+		queryContext.TimeRange = tsdb.NewTimeRange("48h", "now")
+		models, err := parseQuery(dsInfo, queryModels, queryContext)
+		require.NoError(t, err)
+		require.Equal(t, time.Minute*2, models[0].Step)
+
+		queryContext.TimeRange = tsdb.NewTimeRange("1h", "now")
+		models, err = parseQuery(dsInfo, queryModels, queryContext)
+		require.NoError(t, err)
+		require.Equal(t, time.Second*15, models[0].Step)
+	})
+
+	t.Run("parsing query model with high intervalFactor", func(t *testing.T) {
+		json := `{
+					"expr": "go_goroutines",
+					"format": "time_series",
+					"intervalFactor": 10,
+					"refId": "A"
+				}`
+		jsonModel, _ := simplejson.NewJson([]byte(json))
+		queryContext := &tsdb.TsdbQuery{}
+		queryModels := []*tsdb.Query{
+			{Model: jsonModel},
+		}
+
+		queryContext.TimeRange = tsdb.NewTimeRange("48h", "now")
+
+		models, err := parseQuery(dsInfo, queryModels, queryContext)
+		require.NoError(t, err)
+		require.Equal(t, time.Minute*20, models[0].Step)
+	})
+
+	t.Run("parsing query model with low intervalFactor", func(t *testing.T) {
+		json := `{
+					"expr": "go_goroutines",
+					"format": "time_series",
+					"intervalFactor": 1,
+					"refId": "A"
+				}`
+		jsonModel, _ := simplejson.NewJson([]byte(json))
+		queryContext := &tsdb.TsdbQuery{}
+		queryModels := []*tsdb.Query{
+			{Model: jsonModel},
+		}
+
+		queryContext.TimeRange = tsdb.NewTimeRange("48h", "now")
+
+		models, err := parseQuery(dsInfo, queryModels, queryContext)
+		require.NoError(t, err)
+		require.Equal(t, time.Minute*2, models[0].Step)
 	})
 }

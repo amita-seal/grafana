@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-
-import { GraphEdge, GraphNode } from './utils';
+import React, { FC, useCallback, useEffect, useRef } from 'react';
+// @ts-ignore
+import vis from 'visjs-network';
+import { GraphEdge, GraphNode, toVisNetworkEdges, toVisNetworkNodes } from './utils';
 
 interface OwnProps {
   nodes: GraphNode[];
@@ -17,8 +18,8 @@ interface DispatchProps {}
 
 export type Props = OwnProps & ConnectedProps & DispatchProps;
 
-export const NetworkGraph = ({ nodes, edges, direction, width, height, onDoubleClick }: Props) => {
-  const network = useRef<any>(null);
+export const NetworkGraph: FC<Props> = ({ nodes, edges, direction, width, height, onDoubleClick }) => {
+  let network: any = null;
   const ref = useRef(null);
 
   const onNodeDoubleClick = useCallback(
@@ -31,44 +32,39 @@ export const NetworkGraph = ({ nodes, edges, direction, width, height, onDoubleC
   );
 
   useEffect(() => {
-    const createNetwork = async () => {
-      // @ts-ignore no types yet for visjs-network
-      const visJs = await import(/* webpackChunkName: "visjs-network" */ 'visjs-network');
-      const data = {
-        nodes: toVisNetworkNodes(visJs, nodes),
-        edges: toVisNetworkEdges(visJs, edges),
-      };
-      const options = {
-        width: '100%',
-        height: '100%',
-        autoResize: true,
-        layout: {
-          improvedLayout: true,
-          hierarchical: {
-            enabled: true,
-            direction: direction ?? 'DU',
-            sortMethod: 'directed',
-          },
-        },
-        interaction: {
-          navigationButtons: true,
-          dragNodes: false,
-        },
-      };
-
-      network.current = new visJs.Network(ref.current, data, options);
-      network.current?.on('doubleClick', onNodeDoubleClick);
+    const data = {
+      nodes: toVisNetworkNodes(nodes),
+      edges: toVisNetworkEdges(edges),
     };
 
-    createNetwork();
+    const options = {
+      width: '100%',
+      height: '100%',
+      autoResize: true,
+      layout: {
+        improvedLayout: true,
+        hierarchical: {
+          enabled: true,
+          direction: direction ?? 'DU',
+          sortMethod: 'directed',
+        },
+      },
+      interaction: {
+        navigationButtons: true,
+        dragNodes: false,
+      },
+    };
+
+    network = new vis.Network(ref.current, data, options);
+    network.on('doubleClick', onNodeDoubleClick);
 
     return () => {
       // unsubscribe event handlers
-      if (network.current) {
-        network.current.off('doubleClick');
+      if (network) {
+        network.off('doubleClick');
       }
     };
-  }, [direction, edges, nodes, onNodeDoubleClick]);
+  }, []);
 
   return (
     <div>
@@ -76,16 +72,3 @@ export const NetworkGraph = ({ nodes, edges, direction, width, height, onDoubleC
     </div>
   );
 };
-
-function toVisNetworkNodes(visJs: any, nodes: GraphNode[]): any[] {
-  const nodesWithStyle: any[] = nodes.map((node) => ({
-    ...node,
-    shape: 'box',
-  }));
-  return new visJs.DataSet(nodesWithStyle);
-}
-
-function toVisNetworkEdges(visJs: any, edges: GraphEdge[]): any[] {
-  const edgesWithStyle: any[] = edges.map((edge) => ({ ...edge, arrows: 'to', dashes: true }));
-  return new visJs.DataSet(edgesWithStyle);
-}

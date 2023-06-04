@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"github.com/urfave/cli/v2"
+	"os"
 
 	"github.com/grafana/grafana/pkg/cmd/grafana-cli/models"
+	"github.com/urfave/cli/v2"
 )
 
 type CommandLine interface {
@@ -19,12 +20,13 @@ type CommandLine interface {
 	Generic(name string) interface{}
 
 	PluginDirectory() string
-	PluginRepoURL() string
+	RepoDirectory() string
 	PluginURL() string
 }
 
 type ApiClient interface {
 	GetPlugin(pluginId, repoUrl string) (models.Plugin, error)
+	DownloadFile(pluginName string, tmpFile *os.File, url string, checksum string) (err error)
 	ListAllPlugins(repoUrl string) (models.PluginRepo, error)
 }
 
@@ -52,7 +54,7 @@ func (c *ContextCommandLine) PluginDirectory() string {
 	return c.String("pluginsDir")
 }
 
-func (c *ContextCommandLine) PluginRepoURL() string {
+func (c *ContextCommandLine) RepoDirectory() string {
 	return c.String("repo")
 }
 

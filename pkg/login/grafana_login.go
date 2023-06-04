@@ -1,11 +1,10 @@
 package login
 
 import (
-	"context"
 	"crypto/subtle"
 
-	"github.com/grafana/grafana/pkg/services/login"
-	"github.com/grafana/grafana/pkg/services/user"
+	"github.com/grafana/grafana/pkg/bus"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/util"
 )
 
@@ -21,13 +20,14 @@ var validatePassword = func(providedPassword string, userPassword string, userSa
 	return nil
 }
 
-var loginUsingGrafanaDB = func(ctx context.Context, query *login.LoginUserQuery, userService user.Service) error {
-	userQuery := user.GetUserByLoginQuery{LoginOrEmail: query.Username}
+var loginUsingGrafanaDB = func(query *models.LoginUserQuery) error {
+	userQuery := models.GetUserByLoginQuery{LoginOrEmail: query.Username}
 
-	user, err := userService.GetByLogin(ctx, &userQuery)
-	if err != nil {
+	if err := bus.Dispatch(&userQuery); err != nil {
 		return err
 	}
+
+	user := userQuery.Result
 
 	if user.IsDisabled {
 		return ErrUserDisabled
@@ -36,6 +36,7 @@ var loginUsingGrafanaDB = func(ctx context.Context, query *login.LoginUserQuery,
 	if err := validatePassword(query.Password, user.Password, user.Salt); err != nil {
 		return err
 	}
+
 	query.User = user
 	return nil
 }

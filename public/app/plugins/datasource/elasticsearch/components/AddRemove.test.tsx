@@ -1,11 +1,10 @@
-import { render, screen } from '@testing-library/react';
 import React from 'react';
-
+import { render, screen } from '@testing-library/react';
 import { AddRemove } from './AddRemove';
 
 const noop = () => {};
 
-const TestComponent = ({ items }: { items: string[] }) => (
+const TestComponent = ({ items }: { items: any[] }) => (
   <>
     {items.map((_, index) => (
       <AddRemove key={index} elements={items} index={index} onAdd={noop} onRemove={noop} />

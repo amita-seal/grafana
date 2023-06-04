@@ -1,24 +1,20 @@
 package api
 
 import (
-	"context"
 	"time"
 
-	"github.com/grafana/grafana/pkg/infra/db"
+	"github.com/grafana/grafana/pkg/bus"
+	"github.com/grafana/grafana/pkg/models"
 )
 
-func (hs *HTTPServer) databaseHealthy(ctx context.Context) bool {
+func (hs *HTTPServer) databaseHealthy() bool {
 	const cacheKey = "db-healthy"
 
 	if cached, found := hs.CacheService.Get(cacheKey); found {
 		return cached.(bool)
 	}
 
-	err := hs.SQLStore.WithDbSession(ctx, func(session *db.Session) error {
-		_, err := session.Exec("SELECT 1")
-		return err
-	})
-	healthy := err == nil
+	healthy := bus.Dispatch(&models.GetDBHealthQuery{}) == nil
 
 	hs.CacheService.Set(cacheKey, healthy, time.Second*5)
 	return healthy

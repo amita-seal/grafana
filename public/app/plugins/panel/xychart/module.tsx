@@ -1,43 +1,38 @@
 import { PanelPlugin } from '@grafana/data';
-import { commonOptionsBuilder } from '@grafana/ui';
+import { DrawStyle, GraphFieldConfig } from '@grafana/ui';
+import { XYChartPanel } from './XYChartPanel';
+import { Options } from './types';
+import { XYDimsEditor } from './XYDimsEditor';
+import { getGraphFieldConfig, defaultGraphConfig, addLegendOptions } from '../timeseries/config';
 
-import { AutoEditor } from './AutoEditor';
-import { ManualEditor } from './ManualEditor';
-import { XYChartPanel2 } from './XYChartPanel2';
-import { getScatterFieldConfig } from './config';
-import { defaultScatterFieldConfig, Options, ScatterFieldConfig } from './types';
-
-export const plugin = new PanelPlugin<Options, ScatterFieldConfig>(XYChartPanel2)
-  .useFieldConfig(getScatterFieldConfig(defaultScatterFieldConfig))
+export const plugin = new PanelPlugin<Options, GraphFieldConfig>(XYChartPanel)
+  .useFieldConfig(
+    getGraphFieldConfig({
+      ...defaultGraphConfig,
+      drawStyle: DrawStyle.Points,
+    })
+  )
   .setPanelOptions((builder) => {
     builder
-      .addRadio({
-        path: 'seriesMapping',
-        name: 'Series mapping',
-        defaultValue: 'auto',
-        settings: {
-          options: [
-            { value: 'auto', label: 'Auto', description: 'No changes to saved model since 8.0' },
-            { value: 'manual', label: 'Manual' },
-          ],
-        },
-      })
       .addCustomEditor({
         id: 'xyPlotConfig',
         path: 'dims',
-        name: '',
-        editor: AutoEditor,
-        showIf: (cfg) => cfg.seriesMapping === 'auto',
+        name: 'Data',
+        editor: XYDimsEditor,
       })
-      .addCustomEditor({
-        id: 'series',
-        path: 'series',
-        name: '',
-        defaultValue: [],
-        editor: ManualEditor,
-        showIf: (cfg) => cfg.seriesMapping === 'manual',
+      .addRadio({
+        path: 'tooltipOptions.mode',
+        name: 'Tooltip mode',
+        description: '',
+        defaultValue: 'single',
+        settings: {
+          options: [
+            { value: 'single', label: 'Single' },
+            { value: 'multi', label: 'All' },
+            { value: 'none', label: 'Hidden' },
+          ],
+        },
       });
 
-    commonOptionsBuilder.addTooltipOptions(builder);
-    commonOptionsBuilder.addLegendOptions(builder);
+    addLegendOptions(builder);
   });

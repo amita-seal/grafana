@@ -1,65 +1,42 @@
-import { css } from '@emotion/css';
-import React, { memo } from 'react';
+import React, { FC, memo } from 'react';
 import { useAsync } from 'react-use';
-
-import { locationUtil, NavModelItem } from '@grafana/data';
-import { config, locationService } from '@grafana/runtime';
-import { Page } from 'app/core/components/Page/Page';
-import { GrafanaRouteComponentProps } from 'app/core/navigation/types';
-import NewBrowseDashboardsPage from 'app/features/browse-dashboards/BrowseDashboardsPage';
-import { FolderDTO } from 'app/types';
-
+import { connect, MapStateToProps } from 'react-redux';
+import { NavModel, locationUtil } from '@grafana/data';
+import { getLocationSrv } from '@grafana/runtime';
+import { FolderDTO, StoreState } from 'app/types';
+import { getNavModel } from 'app/core/selectors/navModel';
+import { getRouteParams, getUrl } from 'app/core/selectors/location';
+import Page from 'app/core/components/Page/Page';
 import { loadFolderPage } from '../loaders';
+import ManageDashboards from './ManageDashboards';
 
-import ManageDashboardsNew from './ManageDashboardsNew';
-
-export interface DashboardListPageRouteParams {
+interface Props {
+  navModel: NavModel;
   uid?: string;
-  slug?: string;
+  url: string;
 }
 
-interface Props extends GrafanaRouteComponentProps<DashboardListPageRouteParams> {}
-
-export const DashboardListPageFeatureToggle = memo((props: Props) => {
-  if (config.featureToggles.nestedFolders) {
-    return <NewBrowseDashboardsPage {...props} />;
-  }
-
-  return <DashboardListPage {...props} />;
-});
-DashboardListPageFeatureToggle.displayName = 'DashboardListPageFeatureToggle';
-
-const DashboardListPage = memo(({ match, location }: Props) => {
-  const { loading, value } = useAsync<() => Promise<{ folder?: FolderDTO; pageNav?: NavModelItem }>>(() => {
-    const uid = match.params.uid;
-    const url = location.pathname;
-
+export const DashboardListPage: FC<Props> = memo(({ navModel, uid, url }) => {
+  const { loading, value } = useAsync<{ folder?: FolderDTO; pageNavModel: NavModel }>(() => {
     if (!uid || !url.startsWith('/dashboards')) {
-      return Promise.resolve({});
+      return Promise.resolve({ pageNavModel: navModel });
     }
 
     return loadFolderPage(uid!).then(({ folder, folderNav }) => {
       const path = locationUtil.stripBaseFromUrl(folder.url);
 
       if (path !== location.pathname) {
-        locationService.replace(path);
+        getLocationSrv().update({ path });
       }
 
-      return { folder, pageNav: folderNav };
+      return { folder, pageNavModel: { ...navModel, main: folderNav } };
     });
-  }, [match.params.uid]);
+  }, [uid]);
 
   return (
-    <Page navId="dashboards/browse" pageNav={value?.pageNav}>
-      <Page.Contents
-        isLoading={loading}
-        className={css`
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-        `}
-      >
-        <ManageDashboardsNew folder={value?.folder} />
+    <Page navModel={value?.pageNavModel ?? navModel}>
+      <Page.Contents isLoading={loading}>
+        <ManageDashboards folder={value?.folder} />
       </Page.Contents>
     </Page>
   );
@@ -67,4 +44,12 @@ const DashboardListPage = memo(({ match, location }: Props) => {
 
 DashboardListPage.displayName = 'DashboardListPage';
 
-export default DashboardListPageFeatureToggle;
+const mapStateToProps: MapStateToProps<Props, {}, StoreState> = (state) => {
+  return {
+    navModel: getNavModel(state.navIndex, 'manage-dashboards'),
+    uid: getRouteParams(state.location).uid as string | undefined,
+    url: getUrl(state.location),
+  };
+};
+
+export default connect(mapStateToProps)(DashboardListPage);

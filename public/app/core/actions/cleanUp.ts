@@ -2,10 +2,10 @@ import { createAction } from '@reduxjs/toolkit';
 
 import { StoreState } from '../../types';
 
-export type CleanUpAction = (state: StoreState) => void;
+export type StateSelector<T> = (state: StoreState) => T;
 
-export interface CleanUpPayload {
-  cleanupAction: CleanUpAction;
+export interface CleanUp<T> {
+  stateSelector: (state: StoreState) => T;
 }
 
-export const cleanUpAction = createAction<CleanUpPayload>('core/cleanUpState');
+export const cleanUpAction = createAction<CleanUp<{}>>('core/cleanUpState');

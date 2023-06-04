@@ -1,30 +1,31 @@
-import { isNumber } from 'lodash';
 import React, { PureComponent } from 'react';
-
+import {
+  BigValue,
+  BigValueGraphMode,
+  DataLinksContextMenu,
+  VizRepeater,
+  VizRepeaterRenderValueProps,
+  BigValueTextMode,
+} from '@grafana/ui';
 import {
   DisplayValueAlignmentFactors,
   FieldDisplay,
-  FieldType,
   getDisplayValueAlignmentFactors,
   getFieldDisplayValues,
-  NumericRange,
   PanelProps,
 } from '@grafana/data';
-import { findNumericFieldMinMax } from '@grafana/data/src/field/fieldOverrides';
-import { BigValueTextMode, BigValueGraphMode } from '@grafana/schema';
-import { BigValue, DataLinksContextMenu, VizRepeater, VizRepeaterRenderValueProps } from '@grafana/ui';
-import { DataLinksContextMenuApi } from '@grafana/ui/src/components/DataLinks/DataLinksContextMenu';
+
 import { config } from 'app/core/config';
+import { StatPanelOptions } from './types';
+import { DataLinksContextMenuApi } from '@grafana/ui/src/components/DataLinks/DataLinksContextMenu';
 
-import { Options } from './panelcfg.gen';
-
-export class StatPanel extends PureComponent<PanelProps<Options>> {
+export class StatPanel extends PureComponent<PanelProps<StatPanelOptions>> {
   renderComponent = (
     valueProps: VizRepeaterRenderValueProps<FieldDisplay, DisplayValueAlignmentFactors>,
     menuProps: DataLinksContextMenuApi
   ): JSX.Element => {
     const { timeRange, options } = this.props;
-    const { value, alignmentFactors, width, height, count, orientation } = valueProps;
+    const { value, alignmentFactors, width, height, count } = valueProps;
     const { openMenu, targetClassName } = menuProps;
     let sparkline = value.sparkline;
     if (sparkline) {
@@ -41,11 +42,10 @@ export class StatPanel extends PureComponent<PanelProps<Options>> {
         justifyMode={options.justifyMode}
         textMode={this.getTextMode()}
         alignmentFactors={alignmentFactors}
-        parentOrientation={orientation}
         text={options.text}
         width={width}
         height={height}
-        theme={config.theme2}
+        theme={config.theme}
         onClick={openMenu}
         className={targetClassName}
       />
@@ -69,7 +69,7 @@ export class StatPanel extends PureComponent<PanelProps<Options>> {
 
     if (hasLinks && getLinks) {
       return (
-        <DataLinksContextMenu links={getLinks}>
+        <DataLinksContextMenu links={getLinks} config={value.field}>
           {(api) => {
             return this.renderComponent(valueProps, api);
           }}
@@ -83,33 +83,11 @@ export class StatPanel extends PureComponent<PanelProps<Options>> {
   getValues = (): FieldDisplay[] => {
     const { data, options, replaceVariables, fieldConfig, timeZone } = this.props;
 
-    let globalRange: NumericRange | undefined = undefined;
-
-    for (let frame of data.series) {
-      for (let field of frame.fields) {
-        let { config } = field;
-        // mostly copied from fieldOverrides, since they are skipped during streaming
-        // Set the Min/Max value automatically
-        if (field.type === FieldType.number) {
-          if (field.state?.range) {
-            continue;
-          }
-          if (!globalRange && (!isNumber(config.min) || !isNumber(config.max))) {
-            globalRange = findNumericFieldMinMax(data.series);
-          }
-          const min = config.min ?? globalRange!.min;
-          const max = config.max ?? globalRange!.max;
-          field.state = field.state ?? {};
-          field.state.range = { min, max, delta: max! - min! };
-        }
-      }
-    }
-
     return getFieldDisplayValues({
       fieldConfig,
       reduceOptions: options.reduceOptions,
       replaceVariables,
-      theme: config.theme2,
+      theme: config.theme,
       data: data.series,
       sparkline: options.graphMode !== BigValueGraphMode.None,
       timeZone,

@@ -1,11 +1,8 @@
-import React from 'react';
-
-import { Alert, CollapsableSection } from '@grafana/ui';
-
-import { NotificationChannelSecureFields, NotificationChannelType } from '../../../types';
-
-import { NotificationSettingsProps } from './NotificationChannelForm';
+import React, { FC } from 'react';
+import { CollapsableSection, InfoBox } from '@grafana/ui';
 import { NotificationChannelOptions } from './NotificationChannelOptions';
+import { NotificationSettingsProps } from './NotificationChannelForm';
+import { NotificationChannelSecureFields, NotificationChannelType } from '../../../types';
 
 interface Props extends NotificationSettingsProps {
   selectedChannel: NotificationChannelType;
@@ -13,7 +10,7 @@ interface Props extends NotificationSettingsProps {
   resetSecureField: (key: string) => void;
 }
 
-export const ChannelSettings = ({
+export const ChannelSettings: FC<Props> = ({
   control,
   currentFormValues,
   errors,
@@ -21,10 +18,10 @@ export const ChannelSettings = ({
   secureFields,
   register,
   resetSecureField,
-}: Props) => {
+}) => {
   return (
     <CollapsableSection label={`Optional ${selectedChannel.heading}`} isOpen={false}>
-      {selectedChannel.info !== '' && <Alert severity="info" title={selectedChannel.info ?? ''} />}
+      {selectedChannel.info !== '' && <InfoBox>{selectedChannel.info}</InfoBox>}
       <NotificationChannelOptions
         selectedChannelOptions={selectedChannel.options.filter((o) => !o.required)}
         currentFormValues={currentFormValues}

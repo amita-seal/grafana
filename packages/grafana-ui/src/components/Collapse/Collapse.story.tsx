@@ -1,16 +1,10 @@
-import { action } from '@storybook/addon-actions';
-import { useArgs } from '@storybook/client-api';
-import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-
-import { withCenteredStory, withHorizontallyCenteredStory } from '../../utils/storybook/withCenteredStory';
-
 import { Collapse, ControlledCollapse } from './Collapse';
+import { withCenteredStory, withHorizontallyCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { UseState } from '../../utils/storybook/UseState';
 import mdx from './Collapse.mdx';
 
-const EXCLUDED_PROPS = ['className', 'onToggle'];
-
-const meta: Meta<typeof Collapse> = {
+export default {
   title: 'Layout/Collapse',
   component: Collapse,
   decorators: [withCenteredStory, withHorizontallyCenteredStory],
@@ -18,47 +12,32 @@ const meta: Meta<typeof Collapse> = {
     docs: {
       page: mdx,
     },
-    controls: {
-      exclude: EXCLUDED_PROPS,
-    },
-  },
-  args: {
-    children: 'Panel data',
-    isOpen: false,
-    label: 'Collapse panel',
-    collapsible: true,
-  },
-  argTypes: {
-    onToggle: { action: 'toggled' },
   },
 };
 
-export const Basic: StoryFn<typeof Collapse> = (args) => {
-  const [, updateArgs] = useArgs();
+export const basic = () => {
   return (
-    <Collapse
-      {...args}
-      onToggle={() => {
-        action('onToggle')({ isOpen: !args.isOpen });
-        updateArgs({ isOpen: !args.isOpen });
+    <UseState initialState={{ isOpen: false }}>
+      {(state, updateValue) => {
+        return (
+          <Collapse
+            collapsible
+            label="Collapse panel"
+            isOpen={state.isOpen}
+            onToggle={() => updateValue({ isOpen: !state.isOpen })}
+          >
+            <p>Panel data</p>
+          </Collapse>
+        );
       }}
-    >
-      <p>{args.children}</p>
-    </Collapse>
+    </UseState>
   );
 };
 
-export const Controlled: StoryFn<typeof ControlledCollapse> = (args) => {
+export const controlled = () => {
   return (
-    <ControlledCollapse {...args}>
-      <p>{args.children}</p>
+    <ControlledCollapse label="Collapse panel">
+      <p>Panel data</p>
     </ControlledCollapse>
   );
 };
-Controlled.parameters = {
-  controls: {
-    exclude: [...EXCLUDED_PROPS, 'isOpen'],
-  },
-};
-
-export default meta;

@@ -4,29 +4,27 @@ import (
 	"math"
 	"sort"
 
+	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/grafana/grafana/pkg/expr/mathexp"
 )
 
-type reducer string
+func nilOrNaN(f *float64) bool {
+	return f == nil || math.IsNaN(*f)
+}
 
-func (cr reducer) ValidReduceFunc() bool {
+func (cr classicReducer) ValidReduceFunc() bool {
 	switch cr {
 	case "avg", "sum", "min", "max", "count", "last", "median":
 		return true
-	case "diff", "diff_abs", "percent_diff", "percent_diff_abs", "count_non_null":
+	case "diff", "diff_abs", "percent_diff", "percent_diff_abs", "count_not_null":
 		return true
 	}
 	return false
 }
 
-//nolint:gocyclo
-func (cr reducer) Reduce(series mathexp.Series) mathexp.Number {
+//nolint: gocyclo
+func (cr classicReducer) Reduce(series mathexp.Series) mathexp.Number {
 	num := mathexp.NewNumber("", nil)
-
-	if series.GetLabels() != nil {
-		num.SetLabels(series.GetLabels().Copy())
-	}
-
 	num.SetValue(nil)
 
 	if series.Len() == 0 {
@@ -36,43 +34,45 @@ func (cr reducer) Reduce(series mathexp.Series) mathexp.Number {
 	value := float64(0)
 	allNull := true
 
-	vF := series.Frame.Fields[1]
-	ff := mathexp.Float64Field(*vF)
+	vF := series.Frame.Fields[series.ValueIdx]
 
 	switch cr {
 	case "avg":
 		validPointsCount := 0
-		for i := 0; i < ff.Len(); i++ {
-			f := ff.GetValue(i)
-			if nilOrNaN(f) {
-				continue
+		for i := 0; i < vF.Len(); i++ {
+			if f, ok := vF.At(i).(*float64); ok {
+				if nilOrNaN(f) {
+					continue
+				}
+				value += *f
+				validPointsCount++
+				allNull = false
 			}
-			value += *f
-			validPointsCount++
-			allNull = false
 		}
 		if validPointsCount > 0 {
 			value /= float64(validPointsCount)
 		}
 	case "sum":
-		for i := 0; i < ff.Len(); i++ {
-			f := ff.GetValue(i)
-			if nilOrNaN(f) {
-				continue
+		for i := 0; i < vF.Len(); i++ {
+			if f, ok := vF.At(i).(*float64); ok {
+				if nilOrNaN(f) {
+					continue
+				}
+				value += *f
+				allNull = false
 			}
-			value += *f
-			allNull = false
 		}
 	case "min":
 		value = math.MaxFloat64
-		for i := 0; i < ff.Len(); i++ {
-			f := ff.GetValue(i)
-			if nilOrNaN(f) {
-				continue
-			}
-			allNull = false
-			if value > *f {
-				value = *f
+		for i := 0; i < vF.Len(); i++ {
+			if f, ok := vF.At(i).(*float64); ok {
+				if nilOrNaN(f) {
+					continue
+				}
+				allNull = false
+				if value > *f {
+					value = *f
+				}
 			}
 		}
 		if allNull {
@@ -80,40 +80,43 @@ func (cr reducer) Reduce(series mathexp.Series) mathexp.Number {
 		}
 	case "max":
 		value = -math.MaxFloat64
-		for i := 0; i < ff.Len(); i++ {
-			f := ff.GetValue(i)
-			if nilOrNaN(f) {
-				continue
-			}
-			allNull = false
-			if value < *f {
-				value = *f
+		for i := 0; i < vF.Len(); i++ {
+			if f, ok := vF.At(i).(*float64); ok {
+				if nilOrNaN(f) {
+					continue
+				}
+				allNull = false
+				if value < *f {
+					value = *f
+				}
 			}
 		}
 		if allNull {
 			value = 0
 		}
 	case "count":
-		value = float64(ff.Len())
+		value = float64(vF.Len())
 		allNull = false
 	case "last":
-		for i := ff.Len() - 1; i >= 0; i-- {
-			f := ff.GetValue(i)
-			if !nilOrNaN(f) {
-				value = *f
-				allNull = false
-				break
+		for i := vF.Len() - 1; i >= 0; i-- {
+			if f, ok := vF.At(i).(*float64); ok {
+				if !nilOrNaN(f) {
+					value = *f
+					allNull = false
+					break
+				}
 			}
 		}
 	case "median":
 		var values []float64
-		for i := 0; i < ff.Len(); i++ {
-			f := ff.GetValue(i)
-			if nilOrNaN(f) {
-				continue
+		for i := 0; i < vF.Len(); i++ {
+			if f, ok := vF.At(i).(*float64); ok {
+				if nilOrNaN(f) {
+					continue
+				}
+				allNull = false
+				values = append(values, *f)
 			}
-			allNull = false
-			values = append(values, *f)
 		}
 		if len(values) >= 1 {
 			sort.Float64s(values)
@@ -125,20 +128,21 @@ func (cr reducer) Reduce(series mathexp.Series) mathexp.Number {
 			}
 		}
 	case "diff":
-		allNull, value = calculateDiff(ff, allNull, value, diff)
+		allNull, value = calculateDiff(vF, allNull, value, diff)
 	case "diff_abs":
-		allNull, value = calculateDiff(ff, allNull, value, diffAbs)
+		allNull, value = calculateDiff(vF, allNull, value, diffAbs)
 	case "percent_diff":
-		allNull, value = calculateDiff(ff, allNull, value, percentDiff)
+		allNull, value = calculateDiff(vF, allNull, value, percentDiff)
 	case "percent_diff_abs":
-		allNull, value = calculateDiff(ff, allNull, value, percentDiffAbs)
+		allNull, value = calculateDiff(vF, allNull, value, percentDiffAbs)
 	case "count_non_null":
-		for i := 0; i < ff.Len(); i++ {
-			f := ff.GetValue(i)
-			if nilOrNaN(f) {
-				continue
+		for i := 0; i < vF.Len(); i++ {
+			if f, ok := vF.At(i).(*float64); ok {
+				if nilOrNaN(f) {
+					continue
+				}
+				value++
 			}
-			value++
 		}
 
 		if value > 0 {
@@ -154,36 +158,34 @@ func (cr reducer) Reduce(series mathexp.Series) mathexp.Number {
 	return num
 }
 
-func calculateDiff(ff mathexp.Float64Field, allNull bool, value float64, fn func(float64, float64) float64) (bool, float64) {
+func calculateDiff(vF *data.Field, allNull bool, value float64, fn func(float64, float64) float64) (bool, float64) {
 	var (
 		first float64
 		i     int
 	)
 	// get the newest point
-	for i = ff.Len() - 1; i >= 0; i-- {
-		f := ff.GetValue(i)
-		if !nilOrNaN(f) {
-			first = *f
-			allNull = false
-			break
-		}
-	}
-	if i >= 1 {
-		// get the oldest point
-		for i := 0; i < ff.Len(); i++ {
-			f := ff.GetValue(i)
+	for i = vF.Len() - 1; i >= 0; i-- {
+		if f, ok := vF.At(i).(*float64); ok {
 			if !nilOrNaN(f) {
-				value = fn(first, *f)
+				first = *f
 				allNull = false
 				break
 			}
 		}
 	}
+	if i >= 1 {
+		// get the oldest point
+		for i := 0; i < vF.Len(); i++ {
+			if f, ok := vF.At(i).(*float64); ok {
+				if !nilOrNaN(f) {
+					value = fn(first, *f)
+					allNull = false
+					break
+				}
+			}
+		}
+	}
 	return allNull, value
-}
-
-func nilOrNaN(f *float64) bool {
-	return f == nil || math.IsNaN(*f)
 }
 
 var diff = func(newest, oldest float64) float64 {

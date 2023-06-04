@@ -1,13 +1,11 @@
-import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-
+import { select } from '@storybook/addon-knobs';
+import { Tooltip } from './Tooltip';
 import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
 import { Button } from '../Button';
 import mdx from '../Tooltip/Tooltip.mdx';
 
-import { Tooltip } from './Tooltip';
-
-const meta: Meta<typeof Tooltip> = {
+export default {
   title: 'Overlays/Tooltip',
   component: Tooltip,
   decorators: [withCenteredStory],
@@ -15,60 +13,16 @@ const meta: Meta<typeof Tooltip> = {
     docs: {
       page: mdx,
     },
-    knobs: {
-      disabled: true,
-    },
-  },
-  argTypes: {
-    content: {
-      control: {
-        type: 'text',
-      },
-    },
-    theme: {
-      control: {
-        type: 'select',
-        options: ['info', 'error'],
-      },
-    },
-    placement: {
-      control: {
-        type: 'select',
-        options: [
-          'auto',
-          'bottom',
-          'top',
-          'auto-start',
-          'auto-end',
-          'right',
-          'left',
-          'top-start',
-          'top-end',
-          'bottom-start',
-          'bottom-end',
-          'right-start',
-          'right-end',
-          'left-start',
-          'left-end',
-        ],
-      },
-    },
   },
 };
 
-export const Basic: StoryFn<typeof Tooltip> = ({ content, ...args }) => {
+export const basic = () => {
+  const VISUAL_GROUP = 'Visual options';
+  // ---
+  const theme = select('Theme', ['info', 'error', 'info-alt'], 'info', VISUAL_GROUP);
   return (
-    <Tooltip content={content} {...args}>
+    <Tooltip content="This is a tooltip" theme={theme}>
       <Button>Hover me for Tooltip </Button>
     </Tooltip>
   );
 };
-
-Basic.args = {
-  content: 'This is a tooltip',
-  theme: 'info',
-  show: undefined,
-  placement: 'auto',
-};
-
-export default meta;

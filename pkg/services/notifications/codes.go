@@ -1,86 +1,79 @@
 package notifications
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
+	"crypto/sha1" // #nosec
 	"encoding/hex"
 	"fmt"
-	"strconv"
 	"time"
 
-	"github.com/grafana/grafana/pkg/services/user"
+	"github.com/unknwon/com"
+
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
-const timeLimitStartDateLength = 12
-const timeLimitMinutesLength = 6
-const timeLimitHmacLength = 64
-const timeLimitCodeLength = timeLimitStartDateLength + timeLimitMinutesLength + timeLimitHmacLength
+const timeLimitCodeLength = 12 + 6 + 40
 
 // create a time limit code
-// code format: 12 length date time string + 6 minutes string + 64 HMAC-SHA256 encoded string
-func createTimeLimitCode(payload string, minutes int, startStr string) (string, error) {
+// code format: 12 length date time string + 6 minutes string + 40 sha1 encoded string
+func createTimeLimitCode(data string, minutes int, startInf interface{}) (string, error) {
 	format := "200601021504"
 
 	var start, end time.Time
-	var endStr string
+	var startStr, endStr string
 
-	if startStr == "" {
+	if startInf == nil {
 		// Use now time create code
 		start = time.Now()
 		startStr = start.Format(format)
 	} else {
 		// use start string create code
-		var err error
-		start, err = time.ParseInLocation(format, startStr, time.Local)
-		if err != nil {
-			return "", err
-		}
+		startStr = startInf.(string)
+		start, _ = time.ParseInLocation(format, startStr, time.Local)
+		startStr = start.Format(format)
 	}
 
 	end = start.Add(time.Minute * time.Duration(minutes))
 	endStr = end.Format(format)
 
-	// create HMAC-SHA256 encoded string
-	key := []byte(setting.SecretKey)
-	h := hmac.New(sha256.New, key)
-	if _, err := h.Write([]byte(payload + startStr + endStr)); err != nil {
-		return "", fmt.Errorf("cannot create hmac: %v", err)
+	// create sha1 encode string
+	sh := sha1.New()
+	if _, err := sh.Write([]byte(data + setting.SecretKey + startStr + endStr +
+		com.ToStr(minutes))); err != nil {
+		return "", err
 	}
-	encoded := hex.EncodeToString(h.Sum(nil))
+	encoded := hex.EncodeToString(sh.Sum(nil))
 
 	code := fmt.Sprintf("%s%06d%s", startStr, minutes, encoded)
 	return code, nil
 }
 
 // verify time limit code
-func validateUserEmailCode(cfg *setting.Cfg, user *user.User, code string) (bool, error) {
+func validateUserEmailCode(user *models.User, code string) (bool, error) {
 	if len(code) <= 18 {
 		return false, nil
 	}
 
+	minutes := setting.EmailCodeValidMinutes
 	code = code[:timeLimitCodeLength]
 
 	// split code
-	startStr := code[:timeLimitStartDateLength]
-	minutesStr := code[timeLimitStartDateLength : timeLimitStartDateLength+timeLimitMinutesLength]
-	minutes, err := strconv.Atoi(minutesStr)
-	if err != nil {
-		return false, fmt.Errorf("invalid time limit code: %v", err)
+	start := code[:12]
+	lives := code[12:18]
+	if d, err := com.StrTo(lives).Int(); err == nil {
+		minutes = d
 	}
 
 	// right active code
-	payload := strconv.FormatInt(user.ID, 10) + user.Email + user.Login + user.Password + user.Rands
-	expectedCode, err := createTimeLimitCode(payload, minutes, startStr)
+	data := com.ToStr(user.Id) + user.Email + user.Login + user.Password + user.Rands
+	retCode, err := createTimeLimitCode(data, minutes, start)
 	if err != nil {
 		return false, err
 	}
-	if hmac.Equal([]byte(code), []byte(expectedCode)) && minutes > 0 {
+	fmt.Printf("code : %s\ncode2: %s", retCode, code)
+	if retCode == code && minutes > 0 {
 		// check time is expired or not
-		before, err := time.ParseInLocation("200601021504", startStr, time.Local)
-		if err != nil {
-			return false, err
-		}
+		before, _ := time.ParseInLocation("200601021504", start, time.Local)
 		now := time.Now()
 		if before.Add(time.Minute*time.Duration(minutes)).Unix() > now.Unix() {
 			return true, nil
@@ -101,15 +94,15 @@ func getLoginForEmailCode(code string) string {
 	return string(b)
 }
 
-func createUserEmailCode(cfg *setting.Cfg, user *user.User, startStr string) (string, error) {
-	minutes := cfg.EmailCodeValidMinutes
-	payload := strconv.FormatInt(user.ID, 10) + user.Email + user.Login + user.Password + user.Rands
-	code, err := createTimeLimitCode(payload, minutes, startStr)
+func createUserEmailCode(u *models.User, startInf interface{}) (string, error) {
+	minutes := setting.EmailCodeValidMinutes
+	data := com.ToStr(u.Id) + u.Email + u.Login + u.Password + u.Rands
+	code, err := createTimeLimitCode(data, minutes, startInf)
 	if err != nil {
 		return "", err
 	}
 
 	// add tail hex username
-	code += hex.EncodeToString([]byte(user.Login))
+	code += hex.EncodeToString([]byte(u.Login))
 	return code, nil
 }

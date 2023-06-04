@@ -1,18 +1,14 @@
-import React, { useEffect, useState } from 'react';
-
-import { selectors } from '@grafana/e2e-selectors';
-
-import { PickerRenderer } from '../../../variables/pickers/PickerRenderer';
+import React, { FunctionComponent, useEffect, useState } from 'react';
 import { VariableHide, VariableModel } from '../../../variables/types';
+import { selectors } from '@grafana/e2e-selectors';
+import { PickerRenderer } from '../../../variables/pickers/PickerRenderer';
 
 interface Props {
   variables: VariableModel[];
-  readOnly?: boolean;
 }
 
-export const SubMenuItems = ({ variables, readOnly }: Props) => {
+export const SubMenuItems: FunctionComponent<Props> = ({ variables }) => {
   const [visibleVariables, setVisibleVariables] = useState<VariableModel[]>([]);
-
   useEffect(() => {
     setVisibleVariables(variables.filter((state) => state.hide !== VariableHide.hideVariable));
   }, [variables]);
@@ -28,9 +24,9 @@ export const SubMenuItems = ({ variables, readOnly }: Props) => {
           <div
             key={variable.id}
             className="submenu-item gf-form-inline"
-            data-testid={selectors.pages.Dashboard.SubMenu.submenuItem}
+            aria-label={selectors.pages.Dashboard.SubMenu.submenuItem}
           >
-            <PickerRenderer variable={variable} readOnly={readOnly} />
+            <PickerRenderer variable={variable} />
           </div>
         );
       })}

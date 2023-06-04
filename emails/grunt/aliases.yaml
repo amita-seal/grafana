@@ -1,4 +1,8 @@
+
 default:
-  - 'assemble'
-  - 'replace'
-  - 'copy'
+    - 'clean'
+    - 'assemble'
+    - 'replace'
+    - 'uncss'
+    - 'processhtml'
+    - 'premailer'

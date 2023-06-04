@@ -1,11 +1,9 @@
 /* eslint-disable id-blacklist, no-restricted-imports, @typescript-eslint/ban-types */
 import moment, { MomentInput, Moment } from 'moment-timezone';
-
 import { TimeZone } from '../types';
-
-import { DateTimeOptions, getTimeZone } from './common';
-import { systemDateFormats } from './formats';
 import { DateTimeInput } from './moment_wrapper';
+import { systemDateFormats } from './formats';
+import { DateTimeOptions, getTimeZone } from './common';
 
 /**
  * The type describing the options that can be passed to the {@link dateTimeFormat}

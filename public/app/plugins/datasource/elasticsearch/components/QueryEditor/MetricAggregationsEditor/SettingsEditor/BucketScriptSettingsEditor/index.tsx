@@ -1,35 +1,32 @@
-import { css } from '@emotion/css';
-import { uniqueId } from 'lodash';
-import React, { Fragment, useEffect } from 'react';
-
+import React, { Fragment, FunctionComponent, useEffect } from 'react';
 import { Input, InlineLabel } from '@grafana/ui';
-
-import { useStatelessReducer, useDispatch } from '../../../../../hooks/useStatelessReducer';
-import { BucketScript, MetricAggregation } from '../../../../../types';
-import { AddRemove } from '../../../../AddRemove';
-import { MetricPicker } from '../../../../MetricPicker';
+import { MetricAggregationAction } from '../../state/types';
 import { changeMetricAttribute } from '../../state/actions';
-import { SettingField } from '../SettingField';
-
+import { css } from 'emotion';
+import { AddRemove } from '../../../../AddRemove';
+import { useStatelessReducer, useDispatch } from '../../../../../hooks/useStatelessReducer';
+import { MetricPicker } from '../../../../MetricPicker';
+import { reducer } from './state/reducer';
 import {
   addPipelineVariable,
   removePipelineVariable,
   renamePipelineVariable,
   changePipelineVariableMetric,
 } from './state/actions';
-import { reducer } from './state/reducer';
+import { SettingField } from '../SettingField';
+import { BucketScript, MetricAggregation } from '../../aggregations';
+import { uniqueId } from 'lodash';
 
 interface Props {
   value: BucketScript;
   previousMetrics: MetricAggregation[];
 }
 
-export const BucketScriptSettingsEditor = ({ value, previousMetrics }: Props) => {
-  const upperStateDispatch = useDispatch();
+export const BucketScriptSettingsEditor: FunctionComponent<Props> = ({ value, previousMetrics }) => {
+  const upperStateDispatch = useDispatch<MetricAggregationAction<BucketScript>>();
 
   const dispatch = useStatelessReducer(
-    (newValue) =>
-      upperStateDispatch(changeMetricAttribute({ metric: value, attribute: 'pipelineVariables', newValue })),
+    (newState) => upperStateDispatch(changeMetricAttribute(value, 'pipelineVariables', newState)),
     value.pipelineVariables,
     reducer
   );
@@ -40,7 +37,7 @@ export const BucketScriptSettingsEditor = ({ value, previousMetrics }: Props) =>
     if (!value.pipelineVariables?.length) {
       dispatch(addPipelineVariable());
     }
-  }, [dispatch, value.pipelineVariables?.length]);
+  }, []);
 
   return (
     <>
@@ -75,13 +72,12 @@ export const BucketScriptSettingsEditor = ({ value, previousMetrics }: Props) =>
                 `}
               >
                 <Input
-                  aria-label="Variable name"
                   defaultValue={pipelineVar.name}
                   placeholder="Variable Name"
-                  onBlur={(e) => dispatch(renamePipelineVariable({ newName: e.target.value, index }))}
+                  onBlur={(e) => dispatch(renamePipelineVariable(e.target.value, index))}
                 />
                 <MetricPicker
-                  onChange={(e) => dispatch(changePipelineVariableMetric({ newMetric: e.value!.id, index }))}
+                  onChange={(e) => dispatch(changePipelineVariableMetric(e.value!.id, index))}
                   options={previousMetrics}
                   value={pipelineVar.pipelineAgg}
                 />

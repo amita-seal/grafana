@@ -1,66 +1,61 @@
 // Libraries
-import { css, cx } from '@emotion/css';
-import { map } from 'lodash';
 import React, { memo } from 'react';
+import { css, cx } from 'emotion';
+import { LokiQuery } from '../types';
 
 // Types
-import { SelectableValue } from '@grafana/data';
-import { config } from '@grafana/runtime';
-import { InlineFormLabel, RadioButtonGroup, InlineField, Input, Select } from '@grafana/ui';
-
-import { LokiQuery, LokiQueryType } from '../types';
+import { InlineFormLabel, RadioButtonGroup, InlineField, Input } from '@grafana/ui';
 
 export interface LokiOptionFieldsProps {
   lineLimitValue: string;
-  resolution: number;
+  queryType: LokiQueryType;
   query: LokiQuery;
   onChange: (value: LokiQuery) => void;
   onRunQuery: () => void;
   runOnBlur?: boolean;
 }
 
-export const queryTypeOptions: Array<SelectableValue<LokiQueryType>> = [
-  { value: LokiQueryType.Range, label: 'Range', description: 'Run query over a range of time.' },
+type LokiQueryType = 'instant' | 'range';
+
+const queryTypeOptions = [
+  { value: 'range', label: 'Range', description: 'Run query over a range of time.' },
   {
-    value: LokiQueryType.Instant,
+    value: 'instant',
     label: 'Instant',
     description: 'Run query against a single point in time. For this query, the "To" time is used.',
   },
 ];
 
-if (config.featureToggles.lokiLive) {
-  queryTypeOptions.push({
-    value: LokiQueryType.Stream,
-    label: 'Stream',
-    description: 'Run a query and keep sending results on an interval',
-  });
-}
-
-export const DEFAULT_RESOLUTION: SelectableValue<number> = {
-  value: 1,
-  label: '1/1',
-};
-
-export const RESOLUTION_OPTIONS: Array<SelectableValue<number>> = [DEFAULT_RESOLUTION].concat(
-  map([2, 3, 4, 5, 10], (value: number) => ({
-    value,
-    label: '1/' + value,
-  }))
-);
-
 export function LokiOptionFields(props: LokiOptionFieldsProps) {
-  const { lineLimitValue, resolution, onRunQuery, runOnBlur, onChange } = props;
-  const query = props.query ?? {};
-  let queryType = query.queryType ?? (query.instant ? LokiQueryType.Instant : LokiQueryType.Range);
+  const { lineLimitValue, queryType, query, onRunQuery, runOnBlur, onChange } = props;
 
   function onChangeQueryLimit(value: string) {
     const nextQuery = { ...query, maxLines: preprocessMaxLines(value) };
     onChange(nextQuery);
   }
 
-  function onQueryTypeChange(queryType: LokiQueryType) {
-    const { instant, range, ...rest } = query;
-    onChange({ ...rest, queryType });
+  function onQueryTypeChange(value: LokiQueryType) {
+    let nextQuery;
+    if (value === 'instant') {
+      nextQuery = { ...query, instant: true, range: false };
+    } else {
+      nextQuery = { ...query, instant: false, range: true };
+    }
+    onChange(nextQuery);
+  }
+
+  function preprocessMaxLines(value: string): number {
+    if (value.length === 0) {
+      // empty input - falls back to dataSource.maxLines limit
+      return NaN;
+    } else if (value.length > 0 && (isNaN(+value) || +value < 0)) {
+      // input with at least 1 character and that is either incorrect (value in the input field is not a number) or negative
+      // falls back to the limit of 0 lines
+      return 0;
+    } else {
+      // default case - correct input
+      return +value;
+    }
   }
 
   function onMaxLinesChange(e: React.SyntheticEvent<HTMLInputElement>) {
@@ -73,11 +68,6 @@ export function LokiOptionFields(props: LokiOptionFieldsProps) {
     if (e.key === 'Enter') {
       onRunQuery();
     }
-  }
-
-  function onResolutionChange(option: SelectableValue<number>) {
-    const nextQuery = { ...query, resolution: option.value };
-    onChange(nextQuery);
   }
 
   return (
@@ -117,7 +107,7 @@ export function LokiOptionFields(props: LokiOptionFieldsProps) {
         )}
         aria-label="Line limit field"
       >
-        <InlineField label="Line limit" tooltip={'Upper limit for number of log lines returned by query.'}>
+        <InlineField label="Line limit">
           <Input
             className="width-4"
             placeholder="auto"
@@ -133,37 +123,9 @@ export function LokiOptionFields(props: LokiOptionFieldsProps) {
             }}
           />
         </InlineField>
-        <InlineField
-          label="Resolution"
-          tooltip={
-            'Resolution 1/1 sets step parameter of Loki metrics range queries such that each pixel corresponds to one data point. For better performance, lower resolutions can be picked. 1/2 only retrieves a data point for every other pixel, and 1/10 retrieves one data point per 10 pixels.'
-          }
-        >
-          <Select
-            isSearchable={false}
-            onChange={onResolutionChange}
-            options={RESOLUTION_OPTIONS}
-            value={resolution}
-            aria-label="Select resolution"
-          />
-        </InlineField>
       </div>
     </div>
   );
 }
 
 export default memo(LokiOptionFields);
-
-export function preprocessMaxLines(value: string): number {
-  if (value.length === 0) {
-    // empty input - falls back to dataSource.maxLines limit
-    return NaN;
-  } else if (value.length > 0 && (isNaN(+value) || +value < 0)) {
-    // input with at least 1 character and that is either incorrect (value in the input field is not a number) or negative
-    // falls back to the limit of 0 lines
-    return 0;
-  } else {
-    // default case - correct input
-    return +value;
-  }
-}

@@ -1,43 +1,39 @@
-import { css } from '@emotion/css';
 import React, { ChangeEvent } from 'react';
-import { DragDropContext, Droppable, DropResult } from 'react-beautiful-dnd';
-import { Unsubscribable } from 'rxjs';
-
-import {
-  DataFrame,
-  DataTransformerConfig,
-  DocsId,
-  GrafanaTheme2,
-  PanelData,
-  SelectableValue,
-  standardTransformersRegistry,
-  TransformerRegistryItem,
-} from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-import { reportInteraction } from '@grafana/runtime';
 import {
   Alert,
   Button,
   Container,
   CustomScrollbar,
+  stylesFactory,
   Themeable,
+  FeatureInfoBox,
+  useTheme,
   VerticalGroup,
   withTheme,
   Input,
   IconButton,
-  useStyles2,
-  Card,
 } from '@grafana/ui';
-import { LocalStorageValueProvider } from 'app/core/components/LocalStorageValueProvider';
-import { getDocsLink } from 'app/core/utils/docsLinks';
-import { PluginStateInfo } from 'app/features/plugins/components/PluginStateInfo';
-
-import { AppNotificationSeverity } from '../../../../types';
+import {
+  DataFrame,
+  DataTransformerConfig,
+  DocsId,
+  GrafanaTheme,
+  PanelData,
+  SelectableValue,
+  standardTransformersRegistry,
+} from '@grafana/data';
+import { Card, CardProps } from '../../../../core/components/Card/Card';
+import { css } from 'emotion';
+import { selectors } from '@grafana/e2e-selectors';
+import { Unsubscribable } from 'rxjs';
 import { PanelModel } from '../../state';
-import { PanelNotSupported } from '../PanelEditor/PanelNotSupported';
-
+import { getDocsLink } from 'app/core/utils/docsLinks';
+import { DragDropContext, Droppable, DropResult } from 'react-beautiful-dnd';
 import { TransformationOperationRows } from './TransformationOperationRows';
 import { TransformationsEditorTransformation } from './types';
+import { PanelNotSupported } from '../PanelEditor/PanelNotSupported';
+import { AppNotificationSeverity } from '../../../../types';
+import { LocalStorageValueProvider } from 'app/core/components/LocalStorageValueProvider';
 
 const LOCAL_STORAGE_KEY = 'dashboard.components.TransformationEditor.featureInfoBox.isDismissed';
 
@@ -130,7 +126,7 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
     this.props.panel.setTransformations(transformations.map((t) => t.transformation));
   }
 
-  // Transformation UIDs are stored in a name-X form. name is NOT unique hence we need to parse the IDs and increase X
+  // Transformation uid are stored in a name-X form. name is NOT unique hence we need to parse the ids and increase X
   // for transformations with the same name
   getTransformationNextId = (name: string) => {
     const { transformations } = this.state;
@@ -145,10 +141,6 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
   };
 
   onTransformationAdd = (selectable: SelectableValue<string>) => {
-    reportInteraction('panel_editor_tabs_transformations_management', {
-      action: 'add',
-      transformationId: selectable.value,
-    });
     const { transformations } = this.state;
 
     const nextId = this.getTransformationNextId(selectable.value!);
@@ -168,10 +160,6 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
   onTransformationChange = (idx: number, config: DataTransformerConfig) => {
     const { transformations } = this.state;
     const next = Array.from(transformations);
-    reportInteraction('panel_editor_tabs_transformations_management', {
-      action: 'change',
-      transformationId: next[idx].transformation.id,
-    });
     next[idx].transformation = config;
     this.onChange(next);
   };
@@ -179,10 +167,6 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
   onTransformationRemove = (idx: number) => {
     const { transformations } = this.state;
     const next = Array.from(transformations);
-    reportInteraction('panel_editor_tabs_transformations_management', {
-      action: 'remove',
-      transformationId: next[idx].transformation.id,
-    });
     next.splice(idx, 1);
     this.onChange(next);
   };
@@ -232,20 +216,19 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
   renderTransformsPicker() {
     const { transformations, search } = this.state;
     let suffix: React.ReactNode = null;
-    let xforms = standardTransformersRegistry.list().sort((a, b) => (a.name > b.name ? 1 : b.name > a.name ? -1 : 0));
-
+    let xforms = standardTransformersRegistry.list();
     if (search) {
       const lower = search.toLowerCase();
       const filtered = xforms.filter((t) => {
         const txt = (t.name + t.description).toLowerCase();
         return txt.indexOf(lower) >= 0;
       });
-
       suffix = (
         <>
           {filtered.length} / {xforms.length} &nbsp;&nbsp;
           <IconButton
             name="times"
+            surface="header"
             onClick={() => {
               this.setState({ search: '' });
             }}
@@ -258,11 +241,11 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
 
     const noTransforms = !transformations?.length;
     const showPicker = noTransforms || this.state.showPicker;
-
     if (!suffix && showPicker && !noTransforms) {
       suffix = (
         <IconButton
           name="times"
+          surface="header"
           onClick={() => {
             this.setState({ showPicker: false });
           }}
@@ -281,29 +264,24 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
                 }
 
                 return (
-                  <Alert
+                  <FeatureInfoBox
                     title="Transformations"
-                    severity="info"
-                    onRemove={() => {
+                    className={css`
+                      margin-bottom: ${this.props.theme.spacing.lg};
+                    `}
+                    onDismiss={() => {
                       onDismiss(true);
                     }}
+                    url={getDocsLink(DocsId.Transformations)}
                   >
                     <p>
-                      Transformations allow you to join, calculate, re-order, hide, and rename your query results before
-                      they are visualized. <br />
-                      Many transforms are not suitable if you&apos;re using the Graph visualization, as it currently
-                      only supports time series data. <br />
-                      It can help to switch to the Table visualization to understand what a transformation is doing.{' '}
+                      Transformations allow you to join, calculate, re-order, hide and rename your query results before
+                      being visualized. <br />
+                      Many transforms are not suitable if you&apos;re using the Graph visualization as it currently only
+                      supports time series. <br />
+                      It can help to switch to Table visualization to understand what a transformation is doing. <br />
                     </p>
-                    <a
-                      href={getDocsLink(DocsId.Transformations)}
-                      className="external-link"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Read more
-                    </a>
-                  </Alert>
+                  </FeatureInfoBox>
                 );
               }}
             </LocalStorageValueProvider>
@@ -325,7 +303,10 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
               return (
                 <TransformationCard
                   key={t.name}
-                  transform={t}
+                  title={t.name}
+                  description={t.description}
+                  actions={<Button>Select</Button>}
+                  ariaLabel={selectors.components.TransformTab.newTransform(t.name)}
                   onClick={() => {
                     this.onTransformationAdd({ value: t.id });
                   }}
@@ -379,37 +360,32 @@ class UnThemedTransformationsEditor extends React.PureComponent<TransformationsE
   }
 }
 
-interface TransformationCardProps {
-  transform: TransformerRegistryItem<any>;
-  onClick: () => void;
-}
+const TransformationCard: React.FC<CardProps> = (props) => {
+  const theme = useTheme();
+  const styles = getTransformationCardStyles(theme);
+  return <Card {...props} className={styles.card} />;
+};
 
-function TransformationCard({ transform, onClick }: TransformationCardProps) {
-  const styles = useStyles2(getStyles);
-  return (
-    <Card
-      className={styles.card}
-      aria-label={selectors.components.TransformTab.newTransform(transform.name)}
-      onClick={onClick}
-    >
-      <Card.Heading>{transform.name}</Card.Heading>
-      <Card.Description>{transform.description}</Card.Description>
-      {transform.state && (
-        <Card.Tags>
-          <PluginStateInfo state={transform.state} />
-        </Card.Tags>
-      )}
-    </Card>
-  );
-}
-
-const getStyles = (theme: GrafanaTheme2) => {
+const getTransformationCardStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
     card: css`
-      margin: 0;
-      padding: ${theme.spacing(1)};
+      background: ${theme.colors.bg2};
+      width: 100%;
+      border: none;
+      padding: ${theme.spacing.sm};
+
+      // hack because these cards use classes from a very different card for some reason
+      .add-data-source-item-text {
+        font-size: ${theme.typography.size.md};
+      }
+
+      &:hover {
+        background: ${theme.colors.bg3};
+        box-shadow: none;
+        border: none;
+      }
     `,
   };
-};
+});
 
 export const TransformationsEditor = withTheme(UnThemedTransformationsEditor);

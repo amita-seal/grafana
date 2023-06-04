@@ -1,126 +1,66 @@
 import { combineReducers } from '@reduxjs/toolkit';
+import { LoadingState } from '@grafana/data';
 
-import { TypedVariableModel } from '@grafana/data';
-import { dashboardReducer } from 'app/features/dashboard/state/reducers';
-
-import { DashboardState, StoreState } from '../../../types';
+import { NEW_VARIABLE_ID } from './types';
+import { VariableHide, VariableModel } from '../types';
+import { VariablesState } from './variablesReducer';
+import { locationReducer } from '../../../core/reducers/location';
 import { VariableAdapter } from '../adapters';
-import { NEW_VARIABLE_ID } from '../constants';
-import {
-  DashboardVariableModel,
-  initialVariableModelState,
-  OrgVariableModel,
-  UserVariableModel,
-  VariableHide,
-  VariableModel,
-} from '../types';
-
-import { createQueryVariable } from './__tests__/fixtures';
-import { keyedVariablesReducer, KeyedVariablesState } from './keyedVariablesReducer';
-import { getInitialTemplatingState, TemplatingState } from './reducers';
-import { VariablesState } from './types';
+import { dashboardReducer } from 'app/features/dashboard/state/reducers';
+import { templatingReducers, TemplatingState } from './reducers';
+import { DashboardState, LocationState } from '../../../types';
 
 export const getVariableState = (
   noOfVariables: number,
   inEditorIndex = -1,
-  includeEmpty = false,
-  includeSystem = false
-): VariablesState => {
-  const variables: Record<string, TypedVariableModel> = {};
-
-  if (includeSystem) {
-    const dashboardModel: DashboardVariableModel = {
-      ...initialVariableModelState,
-      id: '__dashboard',
-      name: '__dashboard',
-      type: 'system',
-      index: -3,
-      skipUrlSync: true,
-      hide: VariableHide.hideVariable,
-      current: {
-        value: {
-          name: 'A dashboard title',
-          uid: 'An dashboard UID',
-          toString: () => 'A dashboard title',
-        },
-      },
-    };
-
-    const orgModel: OrgVariableModel = {
-      ...initialVariableModelState,
-      id: '__org',
-      name: '__org',
-      type: 'system',
-      index: -2,
-      skipUrlSync: true,
-      hide: VariableHide.hideVariable,
-      current: {
-        value: {
-          name: 'An org name',
-          id: 1,
-          toString: () => '1',
-        },
-      },
-    };
-
-    const userModel: UserVariableModel = {
-      ...initialVariableModelState,
-      id: '__user',
-      name: '__user',
-      type: 'system',
-      index: -1,
-      skipUrlSync: true,
-      hide: VariableHide.hideVariable,
-      current: {
-        value: {
-          login: 'admin',
-          id: 1,
-          email: 'admin@test',
-          toString: () => '1',
-        },
-      },
-    };
-
-    variables[dashboardModel.id] = dashboardModel;
-    variables[orgModel.id] = orgModel;
-    variables[userModel.id] = userModel;
-  }
+  includeEmpty = false
+): Record<string, VariableModel> => {
+  const variables: Record<string, VariableModel> = {};
 
   for (let index = 0; index < noOfVariables; index++) {
-    variables[index] = createQueryVariable({
+    variables[index] = {
       id: index.toString(),
+      type: 'query',
       name: `Name-${index}`,
-      label: `Label-${index}`,
+      hide: VariableHide.dontHide,
       index,
-    });
+      label: `Label-${index}`,
+      skipUrlSync: false,
+      global: false,
+      state: LoadingState.NotStarted,
+      error: null,
+      description: null,
+    };
   }
 
   if (includeEmpty) {
-    variables[NEW_VARIABLE_ID] = createQueryVariable({
+    variables[NEW_VARIABLE_ID] = {
       id: NEW_VARIABLE_ID,
+      type: 'query',
       name: `Name-${NEW_VARIABLE_ID}`,
-      label: `Label-${NEW_VARIABLE_ID}`,
+      hide: VariableHide.dontHide,
       index: noOfVariables,
-    });
+      label: `Label-${NEW_VARIABLE_ID}`,
+      skipUrlSync: false,
+      global: false,
+      state: LoadingState.NotStarted,
+      error: null,
+      description: null,
+    };
   }
 
   return variables;
 };
 
-export const getVariableTestContext = <Model extends TypedVariableModel>(
+export const getVariableTestContext = <Model extends VariableModel>(
   adapter: VariableAdapter<Model>,
   variableOverrides: Partial<Model> = {}
 ) => {
-  const defaults: Partial<VariableModel> = {
-    id: '0',
-    rootStateKey: 'key',
-    index: 0,
-    name: '0',
-  };
-
   const defaultVariable = {
     ...adapter.initialState,
-    ...defaults,
+    id: '0',
+    index: 0,
+    name: '0',
   };
 
   const initialState: VariablesState = {
@@ -132,32 +72,22 @@ export const getVariableTestContext = <Model extends TypedVariableModel>(
 
 export const getRootReducer = () =>
   combineReducers({
+    location: locationReducer,
     dashboard: dashboardReducer,
-    templating: keyedVariablesReducer,
+    templating: templatingReducers,
   });
 
-export type RootReducerType = { dashboard: DashboardState; templating: KeyedVariablesState };
+export type RootReducerType = { location: LocationState; dashboard: DashboardState; templating: TemplatingState };
 
 export const getTemplatingRootReducer = () =>
   combineReducers({
-    templating: keyedVariablesReducer,
+    templating: templatingReducers,
   });
 
-export type TemplatingReducerType = { templating: KeyedVariablesState };
+export const getTemplatingAndLocationRootReducer = () =>
+  combineReducers({
+    templating: templatingReducers,
+    location: locationReducer,
+  });
 
-export function getPreloadedState(
-  key: string,
-  templatingState: Partial<TemplatingState>
-): Pick<StoreState, 'templating'> {
-  return {
-    templating: {
-      lastKey: key,
-      keys: {
-        [key]: {
-          ...getInitialTemplatingState(),
-          ...templatingState,
-        },
-      },
-    },
-  };
-}
+export type TemplatingAndLocationReducerType = { location: LocationState; templating: TemplatingState };

@@ -1,32 +1,28 @@
-import { css } from '@emotion/css';
 import React from 'react';
-
-import { GrafanaTheme2, VariableOrigin, DataLinkBuiltInVars } from '@grafana/data';
-import { Button, useStyles2 } from '@grafana/ui';
-
+import { css } from 'emotion';
+import { Button, stylesFactory, useTheme } from '@grafana/ui';
+import { GrafanaTheme, VariableOrigin, DataLinkBuiltInVars } from '@grafana/data';
 import { DataLinkConfig } from '../types';
-
 import { DataLink } from './DataLink';
 
-const getStyles = (theme: GrafanaTheme2) => {
-  return {
-    infoText: css`
-      padding-bottom: ${theme.spacing(2)};
-      color: ${theme.colors.text.secondary};
-    `,
-    dataLink: css`
-      margin-bottom: ${theme.spacing(1)};
-    `,
-  };
-};
+const getStyles = stylesFactory((theme: GrafanaTheme) => ({
+  infoText: css`
+    padding-bottom: ${theme.spacing.md};
+    color: ${theme.colors.textWeak};
+  `,
+  dataLink: css`
+    margin-bottom: ${theme.spacing.sm};
+  `,
+}));
 
-export type Props = {
+type Props = {
   value?: DataLinkConfig[];
   onChange: (value: DataLinkConfig[]) => void;
 };
 export const DataLinks = (props: Props) => {
   const { value, onChange } = props;
-  const styles = useStyles2(getStyles);
+  const theme = useTheme();
+  const styles = getStyles(theme);
 
   return (
     <>
@@ -69,7 +65,6 @@ export const DataLinks = (props: Props) => {
       )}
 
       <Button
-        type="button"
         variant={'secondary'}
         className={css`
           margin-right: 10px;

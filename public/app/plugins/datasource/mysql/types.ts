@@ -1,7 +1,13 @@
-import { SQLOptions, SQLQuery } from 'app/features/plugins/sql/types';
+import { MetricFindValue } from '@grafana/data';
 
-export interface MySQLOptions extends SQLOptions {
-  allowCleartextPasswords?: boolean;
+export interface MysqlQueryForInterpolation {
+  alias?: any;
+  format?: any;
+  rawSql?: any;
+  refId?: any;
+  hide?: any;
 }
 
-export interface MySQLQuery extends SQLQuery {}
+export interface MysqlMetricFindValue extends MetricFindValue {
+  value?: string;
+}

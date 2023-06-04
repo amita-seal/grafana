@@ -1,7 +1,5 @@
 package setting
 
-import "github.com/grafana/grafana/pkg/util"
-
 type SmtpSettings struct {
 	Enabled        bool
 	Host           string
@@ -16,8 +14,7 @@ type SmtpSettings struct {
 	SkipVerify     bool
 
 	SendWelcomeEmailOnSignUp bool
-	TemplatesPatterns        []string
-	ContentTypes             []string
+	TemplatesPattern         string
 }
 
 func (cfg *Cfg) readSmtpSettings() {
@@ -36,6 +33,5 @@ func (cfg *Cfg) readSmtpSettings() {
 
 	emails := cfg.Raw.Section("emails")
 	cfg.Smtp.SendWelcomeEmailOnSignUp = emails.Key("welcome_email_on_sign_up").MustBool(false)
-	cfg.Smtp.TemplatesPatterns = util.SplitString(emails.Key("templates_pattern").MustString("emails/*.html, emails/*.txt"))
-	cfg.Smtp.ContentTypes = util.SplitString(emails.Key("content_types").MustString("text/html"))
+	cfg.Smtp.TemplatesPattern = emails.Key("templates_pattern").MustString("emails/*.html")
 }

@@ -4,13 +4,18 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func (w *FileLogWriter) WriteLine(line string) error {
-	_, err := w.Write([]byte(line))
-	return err
+	n, err := w.mw.Write([]byte(line))
+	if err != nil {
+		return err
+	}
+	w.docheck(n)
+	return nil
 }
 
 func TestLogFile(t *testing.T) {

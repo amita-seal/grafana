@@ -1,13 +1,12 @@
-import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-
 import { FeatureState } from '@grafana/data';
-import { InfoBox, FeatureInfoBox, VerticalGroup } from '@grafana/ui';
-
-import { FeatureInfoBoxProps } from './FeatureInfoBox';
+import { InfoBox, FeatureInfoBox } from '@grafana/ui';
 import mdx from './InfoBox.mdx';
+import { Story } from '@storybook/react';
+import { FeatureInfoBoxProps } from './FeatureInfoBox';
+import { InfoBoxProps } from './InfoBox';
 
-const meta: Meta = {
+export default {
   title: 'Layout/InfoBox',
   component: InfoBox,
   decorators: [],
@@ -15,16 +14,16 @@ const meta: Meta = {
     docs: {
       page: mdx,
     },
-    knobs: {
-      disable: true,
-    },
-    controls: {
-      exclude: ['onDismiss', 'children'],
-    },
   },
   argTypes: {
+    onDismiss: { action: 'Dismissed' },
     featureState: {
       control: { type: 'select', options: ['alpha', 'beta', undefined] },
+    },
+    children: {
+      table: {
+        disable: true,
+      },
     },
   },
 };
@@ -45,27 +44,10 @@ const defaultProps: FeatureInfoBoxProps = {
   ),
 };
 
-const InfoBoxTemplate: StoryFn<typeof InfoBox> = (args) => {
-  return (
-    <VerticalGroup>
-      <div>Deprecrated component, use Alert with info severity</div>
-      <InfoBox {...args} />;
-    </VerticalGroup>
-  );
-};
+const InfoBoxTemplate: Story<InfoBoxProps> = (args) => <InfoBox {...args} />;
 export const infoBox = InfoBoxTemplate.bind({});
 infoBox.args = defaultProps;
 
-const FeatureInfoBoxTemplate: StoryFn<typeof FeatureInfoBox> = (args) => {
-  return (
-    <VerticalGroup>
-      <div>Deprecrated component, use Alert with info severity</div>
-      <FeatureInfoBox {...args} />
-    </VerticalGroup>
-  );
-};
-
+const FeatureInfoBoxTemplate: Story<FeatureInfoBoxProps> = (args) => <FeatureInfoBox {...args}></FeatureInfoBox>;
 export const featureInfoBox = FeatureInfoBoxTemplate.bind({});
 featureInfoBox.args = defaultProps;
-
-export default meta;

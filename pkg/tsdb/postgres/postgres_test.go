@@ -1,3 +1,5 @@
+// +build integration
+
 package postgres
 
 import (
@@ -8,25 +10,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/data"
+	"github.com/grafana/grafana/pkg/components/securejsondata"
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/sqlstore"
+	"github.com/grafana/grafana/pkg/services/sqlstore/sqlutil"
+	"github.com/grafana/grafana/pkg/setting"
+	"github.com/grafana/grafana/pkg/tsdb"
+	"github.com/grafana/grafana/pkg/tsdb/sqleng"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"xorm.io/xorm"
-
-	"github.com/grafana/grafana/pkg/infra/db"
-	"github.com/grafana/grafana/pkg/services/sqlstore/sqlutil"
-	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/tsdb/sqleng"
 
 	_ "github.com/lib/pq"
 )
 
 // Test generateConnectionString.
-func TestIntegrationGenerateConnectionString(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
+func TestGenerateConnectionString(t *testing.T) {
 	cfg := setting.NewCfg()
 	cfg.DataPath = t.TempDir()
 
@@ -69,24 +70,6 @@ func TestIntegrationGenerateConnectionString(t *testing.T) {
 			expConnStr:  "user='user' password='password' host='host' dbname='database' port=1234 sslmode='verify-full'",
 		},
 		{
-			desc:        "Ipv6 host",
-			host:        "[::1]",
-			user:        "user",
-			password:    "password",
-			database:    "database",
-			tlsSettings: tlsSettings{Mode: "verify-full"},
-			expConnStr:  "user='user' password='password' host='::1' dbname='database' sslmode='verify-full'",
-		},
-		{
-			desc:        "Ipv6/port host",
-			host:        "[::1]:1234",
-			user:        "user",
-			password:    "password",
-			database:    "database",
-			tlsSettings: tlsSettings{Mode: "verify-full"},
-			expConnStr:  "user='user' password='password' host='::1' dbname='database' port=1234 sslmode='verify-full'",
-		},
-		{
 			desc:        "Invalid port",
 			host:        "host:invalid",
 			user:        "user",
@@ -102,15 +85,6 @@ func TestIntegrationGenerateConnectionString(t *testing.T) {
 			database:    "database",
 			tlsSettings: tlsSettings{Mode: "verify-full"},
 			expConnStr:  `user='user' password='p\'\\assword' host='host' dbname='database' sslmode='verify-full'`,
-		},
-		{
-			desc:        "User/DB with single quote and backslash",
-			host:        "host",
-			user:        `u'\ser`,
-			password:    `password`,
-			database:    `d'\atabase`,
-			tlsSettings: tlsSettings{Mode: "verify-full"},
-			expConnStr:  `user='u\'\\ser' password='password' host='host' dbname='d\'\\atabase' sslmode='verify-full'`,
 		},
 		{
 			desc:        "Custom TLS mode disabled",
@@ -139,16 +113,18 @@ func TestIntegrationGenerateConnectionString(t *testing.T) {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			svc := Service{
+			svc := postgresService{
+				Cfg:        cfg,
+				logger:     log.New("tsdb.postgres"),
 				tlsManager: &tlsTestManager{settings: tt.tlsSettings},
 			}
 
-			ds := sqleng.DataSourceInfo{
-				URL:                     tt.host,
-				User:                    tt.user,
-				DecryptedSecureJSONData: map[string]string{"password": tt.password},
-				Database:                tt.database,
-				UID:                     tt.uid,
+			ds := &models.DataSource{
+				Url:      tt.host,
+				User:     tt.user,
+				Password: tt.password,
+				Database: tt.database,
+				Uid:      tt.uid,
 			}
 
 			connStr, err := svc.generateConnectionString(ds)
@@ -166,21 +142,19 @@ func TestIntegrationGenerateConnectionString(t *testing.T) {
 }
 
 // To run this test, set runPostgresTests=true
-// Or from the commandline: GRAFANA_TEST_DB=postgres go test -tags=integration -v ./pkg/tsdb/postgres
+// Or from the commandline: GRAFANA_TEST_DB=postgres go test -v ./pkg/tsdb/postgres
 // The tests require a PostgreSQL db named grafanadstest and a user/password grafanatest/grafanatest!
 // Use the docker/blocks/postgres_tests/docker-compose.yaml to spin up a
 // preconfigured Postgres server suitable for running these tests.
 // There is also a datasource and dashboard provisioned by devenv scripts that you can
 // use to verify that the generated data are visualized as expected, see
 // devenv/README.md for setup instructions.
-func TestIntegrationPostgres(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
+func TestPostgres(t *testing.T) {
 	// change to true to run the PostgreSQL tests
-	const runPostgresTests = false
+	runPostgresTests := false
+	// runPostgresTests := true
 
-	if !(db.IsTestDbPostgres() || runPostgresTests) {
+	if !sqlstore.IsTestDbPostgres() && !runPostgresTests {
 		t.Skip()
 	}
 
@@ -195,39 +169,22 @@ func TestIntegrationPostgres(t *testing.T) {
 	sqleng.NewXormEngine = func(d, c string) (*xorm.Engine, error) {
 		return x, nil
 	}
-	sqleng.Interpolate = func(query backend.DataQuery, timeRange backend.TimeRange, timeInterval string, sql string) (string, error) {
+	sqleng.Interpolate = func(query *tsdb.Query, timeRange *tsdb.TimeRange, sql string) (string, error) {
 		return sql, nil
 	}
 
 	cfg := setting.NewCfg()
 	cfg.DataPath = t.TempDir()
-
-	jsonData := sqleng.JsonData{
-		MaxOpenConns:        0,
-		MaxIdleConns:        2,
-		ConnMaxLifetime:     14400,
-		Timescaledb:         false,
-		ConfigurationMethod: "file-path",
+	svc := postgresService{
+		Cfg:        cfg,
+		logger:     log.New("tsdb.postgres"),
+		tlsManager: &tlsTestManager{settings: tlsSettings{Mode: "disable"}},
 	}
 
-	dsInfo := sqleng.DataSourceInfo{
-		JsonData:                jsonData,
-		DecryptedSecureJSONData: map[string]string{},
-	}
-
-	config := sqleng.DataPluginConfiguration{
-		DriverName:        "postgres",
-		ConnectionString:  "",
-		DSInfo:            dsInfo,
-		MetricColumnTypes: []string{"UNKNOWN", "TEXT", "VARCHAR", "CHAR"},
-		RowLimit:          1000000,
-	}
-
-	queryResultTransformer := postgresQueryResultTransformer{}
-
-	exe, err := sqleng.NewQueryDataHandler(config, &queryResultTransformer, newPostgresMacroEngine(dsInfo.JsonData.Timescaledb),
-		logger)
-
+	endpoint, err := svc.newPostgresQueryEndpoint(&models.DataSource{
+		JsonData:       simplejson.New(),
+		SecureJsonData: securejsondata.SecureJsonData{},
+	})
 	require.NoError(t, err)
 
 	sess := x.NewSession()
@@ -256,9 +213,8 @@ func TestIntegrationPostgres(t *testing.T) {
 				c12_date date,
 				c13_time time without time zone,
 				c14_timetz time with time zone,
-				time date,
-				c15_interval interval,
-				c16_smallint smallint
+
+				c15_interval interval
 			);
 		`
 		_, err := sess.Exec(sql)
@@ -270,61 +226,56 @@ func TestIntegrationPostgres(t *testing.T) {
 				4.5,6.7,1.1,1.2,
 				'char10','varchar10','text',
 
-				now(),now(),now(),now(),now(),now(),'15m'::interval,
-				null
+				now(),now(),now(),now(),now(),'15m'::interval
 			);
 		`
 		_, err = sess.Exec(sql)
 		require.NoError(t, err)
 
 		t.Run("When doing a table query should map Postgres column types to Go types", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
+						Model: simplejson.NewFromAny(map[string]interface{}{
 							"rawSql": "SELECT * FROM postgres_types",
-							"format": "table"
-						}`),
-						RefID: "A",
+							"format": "table",
+						}),
+						RefId: "A",
 					},
 				},
 			}
-			resp, err := exe.QueryData(context.Background(), query)
+
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
 
-			frames := queryResult.Frames
-			require.Len(t, frames, 1)
-			require.Len(t, frames[0].Fields, 18)
+			column := queryResult.Tables[0].Rows[0]
+			require.Equal(t, int64(1), column[0].(int64))
+			require.Equal(t, int64(2), column[1].(int64))
+			require.Equal(t, int64(3), column[2].(int64))
 
-			require.Equal(t, int16(1), *frames[0].Fields[0].At(0).(*int16))
-			require.Equal(t, int32(2), *frames[0].Fields[1].At(0).(*int32))
-			require.Equal(t, int64(3), *frames[0].Fields[2].At(0).(*int64))
+			require.Equal(t, float64(4.5), column[3].(float64))
+			require.Equal(t, float64(6.7), column[4].(float64))
+			require.Equal(t, float64(1.1), column[5].(float64))
+			require.Equal(t, float64(1.2), column[6].(float64))
 
-			require.Equal(t, float64(4.5), *frames[0].Fields[3].At(0).(*float64))
-			require.Equal(t, float64(6.7), *frames[0].Fields[4].At(0).(*float64))
-			require.Equal(t, float64(1.1), *frames[0].Fields[5].At(0).(*float64))
-			require.Equal(t, float64(1.2), *frames[0].Fields[6].At(0).(*float64))
+			require.Equal(t, "char10    ", column[7].(string))
+			require.Equal(t, "varchar10", column[8].(string))
+			require.Equal(t, "text", column[9].(string))
 
-			require.Equal(t, "char10    ", *frames[0].Fields[7].At(0).(*string))
-			require.Equal(t, "varchar10", *frames[0].Fields[8].At(0).(*string))
-			require.Equal(t, "text", *frames[0].Fields[9].At(0).(*string))
+			_, ok := column[10].(time.Time)
+			require.True(t, ok)
+			_, ok = column[11].(time.Time)
+			require.True(t, ok)
+			_, ok = column[12].(time.Time)
+			require.True(t, ok)
+			_, ok = column[13].(time.Time)
+			require.True(t, ok)
+			_, ok = column[14].(time.Time)
+			require.True(t, ok)
 
-			_, ok := frames[0].Fields[10].At(0).(*time.Time)
-			require.True(t, ok)
-			_, ok = frames[0].Fields[11].At(0).(*time.Time)
-			require.True(t, ok)
-			_, ok = frames[0].Fields[12].At(0).(*time.Time)
-			require.True(t, ok)
-			_, ok = frames[0].Fields[13].At(0).(*time.Time)
-			require.True(t, ok)
-			_, ok = frames[0].Fields[14].At(0).(*time.Time)
-			require.True(t, ok)
-			_, ok = frames[0].Fields[15].At(0).(*time.Time)
-			require.True(t, ok)
-			require.Equal(t, "00:15:00", *frames[0].Fields[16].At(0).(*string))
-			require.Nil(t, frames[0].Fields[17].At(0))
+			require.Equal(t, "00:15:00", column[15].(string))
 		})
 	})
 
@@ -367,44 +318,43 @@ func TestIntegrationPostgres(t *testing.T) {
 		require.NoError(t, err)
 
 		t.Run("When doing a metric query using timeGroup", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
-								"rawSql": "SELECT $__timeGroup(time, '5m') AS time, avg(value) as value FROM metric GROUP BY 1 ORDER BY 1",
-								"format": "time_series"
-							}`),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": "SELECT $__timeGroup(time, '5m') AS time, avg(value) as value FROM metric GROUP BY 1 ORDER BY 1",
+							"format": "time_series",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
 
-			frames := queryResult.Frames
-			require.Len(t, frames, 1)
-			require.Equal(t, 4, frames[0].Fields[0].Len())
-
+			points := queryResult.Series[0].Points
 			// without fill this should result in 4 buckets
+			require.Len(t, points, 4)
 
 			dt := fromStart
 
 			for i := 0; i < 2; i++ {
-				aValue := *frames[0].Fields[1].At(i).(*float64)
-				aTime := *frames[0].Fields[0].At(i).(*time.Time)
+				aValue := points[i][0].Float64
+				aTime := time.Unix(int64(points[i][1].Float64)/1000, 0)
 				require.Equal(t, float64(15), aValue)
 				require.Equal(t, dt, aTime)
+				require.Equal(t, int64(0), aTime.Unix()%300)
 				dt = dt.Add(5 * time.Minute)
 			}
 
 			// adjust for 10 minute gap between first and second set of points
 			dt = dt.Add(10 * time.Minute)
 			for i := 2; i < 4; i++ {
-				aValue := *frames[0].Fields[1].At(i).(*float64)
-				aTime := *frames[0].Fields[0].At(i).(*time.Time)
+				aValue := points[i][0].Float64
+				aTime := time.Unix(int64(points[i][1].Float64)/1000, 0)
 				require.Equal(t, float64(20), aValue)
 				require.Equal(t, dt, aTime)
 				dt = dt.Add(5 * time.Minute)
@@ -418,194 +368,138 @@ func TestIntegrationPostgres(t *testing.T) {
 				sqleng.Interpolate = mockInterpolate
 			})
 
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
+						DataSource: &models.DataSource{},
+						Model: simplejson.NewFromAny(map[string]interface{}{
 							"rawSql": "SELECT $__timeGroup(time, $__interval) AS time, avg(value) as value FROM metric GROUP BY 1 ORDER BY 1",
-							"format": "time_series"
-						}`),
-						RefID: "A",
-						TimeRange: backend.TimeRange{
-							From: fromStart,
-							To:   fromStart.Add(30 * time.Minute),
-						},
+							"format": "time_series",
+						}),
+						RefId: "A",
 					},
+				},
+				TimeRange: &tsdb.TimeRange{
+					From: fmt.Sprintf("%v", fromStart.Unix()*1000),
+					To:   fmt.Sprintf("%v", fromStart.Add(30*time.Minute).Unix()*1000),
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
-			frames := queryResult.Frames
-
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
 			require.Equal(t,
 				"SELECT floor(extract(epoch from time)/60)*60 AS time, avg(value) as value FROM metric GROUP BY 1 ORDER BY 1",
-				frames[0].Meta.ExecutedQueryString)
+				queryResult.Meta.Get(sqleng.MetaKeyExecutedQueryString).MustString())
 		})
 
 		t.Run("When doing a metric query using timeGroup with NULL fill enabled", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
+						Model: simplejson.NewFromAny(map[string]interface{}{
 							"rawSql": "SELECT $__timeGroup(time, '5m', NULL) AS time, avg(value) as value FROM metric GROUP BY 1 ORDER BY 1",
-							"format": "time_series"
-						}`),
-						RefID: "A",
-						TimeRange: backend.TimeRange{
-							From: fromStart,
-							To:   fromStart.Add(34 * time.Minute),
-						},
+							"format": "time_series",
+						}),
+						RefId: "A",
 					},
+				},
+				TimeRange: &tsdb.TimeRange{
+					From: fmt.Sprintf("%v", fromStart.Unix()*1000),
+					To:   fmt.Sprintf("%v", fromStart.Add(34*time.Minute).Unix()*1000),
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
 
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 7, frames[0].Fields[0].Len())
+			points := queryResult.Series[0].Points
+			require.Len(t, points, 7)
 
 			dt := fromStart
 
 			for i := 0; i < 2; i++ {
-				aValue := *frames[0].Fields[1].At(i).(*float64)
-				aTime := *frames[0].Fields[0].At(i).(*time.Time)
+				aValue := points[i][0].Float64
+				aTime := time.Unix(int64(points[i][1].Float64)/1000, 0)
 				require.Equal(t, float64(15), aValue)
-				require.True(t, aTime.Equal(dt))
+				require.Equal(t, dt, aTime)
 				dt = dt.Add(5 * time.Minute)
 			}
 
 			// check for NULL values inserted by fill
-			require.Nil(t, frames[0].Fields[1].At(2))
-			require.Nil(t, frames[0].Fields[1].At(3))
+			require.False(t, points[2][0].Valid)
+			require.False(t, points[3][0].Valid)
 
 			// adjust for 10 minute gap between first and second set of points
 			dt = dt.Add(10 * time.Minute)
 			for i := 4; i < 6; i++ {
-				aValue := *frames[0].Fields[1].At(i).(*float64)
-				aTime := *frames[0].Fields[0].At(i).(*time.Time)
+				aValue := points[i][0].Float64
+				aTime := time.Unix(int64(points[i][1].Float64)/1000, 0)
 				require.Equal(t, float64(20), aValue)
-				require.True(t, aTime.Equal(dt))
+				require.Equal(t, dt, aTime)
 				dt = dt.Add(5 * time.Minute)
 			}
 
 			// check for NULL values inserted by fill
-			require.Nil(t, frames[0].Fields[1].At(6))
+			require.False(t, points[6][0].Valid)
 		})
 
 		t.Run("When doing a metric query using timeGroup with value fill enabled", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
+						Model: simplejson.NewFromAny(map[string]interface{}{
 							"rawSql": "SELECT $__timeGroup(time, '5m', 1.5) AS time, avg(value) as value FROM metric GROUP BY 1 ORDER BY 1",
-							"format": "time_series"
-						}`),
-						RefID: "A",
-						TimeRange: backend.TimeRange{
-							From: fromStart,
-							To:   fromStart.Add(34 * time.Minute),
-						},
+							"format": "time_series",
+						}),
+						RefId: "A",
 					},
+				},
+				TimeRange: &tsdb.TimeRange{
+					From: fmt.Sprintf("%v", fromStart.Unix()*1000),
+					To:   fmt.Sprintf("%v", fromStart.Add(34*time.Minute).Unix()*1000),
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
 
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 1.5, *frames[0].Fields[1].At(3).(*float64))
-		})
-	})
-
-	t.Run("Given a table with one data point", func(t *testing.T) {
-		type metric struct {
-			Time  time.Time
-			Value int64
-		}
-
-		startTime := time.Now().UTC().Add(-time.Minute * 5)
-		series := []*metric{
-			{
-				Time:  startTime,
-				Value: 33,
-			},
-		}
-
-		_, err = sess.InsertMulti(series)
-		require.NoError(t, err)
-
-		t.Run("querying with time group with default value", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
-					{
-						JSON: []byte(`{
-							"rawSql": "WITH data AS (SELECT now()-'3m'::interval AS ts, 42 AS n) SELECT $__timeGroup(ts, '1m', 0), n FROM data",
-							"format": "time_series"
-						}`),
-						RefID: "A",
-						TimeRange: backend.TimeRange{
-							From: startTime,
-							To:   startTime.Add(5 * time.Minute),
-						},
-					},
-				},
-			}
-
-			resp, err := exe.QueryData(context.Background(), query)
-			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
-			require.NoError(t, queryResult.Error)
-
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, "Time", frames[0].Fields[0].Name)
-			require.Equal(t, "n", frames[0].Fields[1].Name)
-			require.Equal(t, float64(0), *frames[0].Fields[1].At(0).(*float64))
-			require.Equal(t, float64(0), *frames[0].Fields[1].At(1).(*float64))
-			require.Equal(t, float64(42), *frames[0].Fields[1].At(2).(*float64))
-			require.Equal(t, float64(0), *frames[0].Fields[1].At(3).(*float64))
-			require.Equal(t, float64(0), *frames[0].Fields[1].At(4).(*float64))
-			require.Equal(t, float64(0), *frames[0].Fields[1].At(5).(*float64))
+			points := queryResult.Series[0].Points
+			require.Equal(t, float64(1.5), points[3][0].Float64)
 		})
 	})
 
 	t.Run("When doing a metric query using timeGroup with previous fill enabled", func(t *testing.T) {
-		query := &backend.QueryDataRequest{
-			Queries: []backend.DataQuery{
+		query := &tsdb.TsdbQuery{
+			Queries: []*tsdb.Query{
 				{
-					JSON: []byte(`{
+					Model: simplejson.NewFromAny(map[string]interface{}{
 						"rawSql": "SELECT $__timeGroup(time, '5m', previous), avg(value) as value FROM metric GROUP BY 1 ORDER BY 1",
-						"format": "time_series"
-					}`),
-					RefID: "A",
-					TimeRange: backend.TimeRange{
-						From: fromStart,
-						To:   fromStart.Add(34 * time.Minute),
-					},
+						"format": "time_series",
+					}),
+					RefId: "A",
 				},
+			},
+			TimeRange: &tsdb.TimeRange{
+				From: fmt.Sprintf("%v", fromStart.Unix()*1000),
+				To:   fmt.Sprintf("%v", fromStart.Add(34*time.Minute).Unix()*1000),
 			},
 		}
 
-		resp, err := exe.QueryData(context.Background(), query)
+		resp, err := endpoint.Query(context.Background(), nil, query)
 		require.NoError(t, err)
-		queryResult := resp.Responses["A"]
+		queryResult := resp.Results["A"]
 		require.NoError(t, queryResult.Error)
 
-		frames := queryResult.Frames
-		require.Equal(t, 1, len(frames))
-		require.Equal(t, float64(15.0), *frames[0].Fields[1].At(2).(*float64))
-		require.Equal(t, float64(15.0), *frames[0].Fields[1].At(3).(*float64))
-		require.Equal(t, float64(20.0), *frames[0].Fields[1].At(6).(*float64))
+		points := queryResult.Series[0].Points
+		require.Equal(t, float64(15.0), points[2][0].Float64)
+		require.Equal(t, float64(15.0), points[3][0].Float64)
+		require.Equal(t, float64(20.0), points[6][0].Float64)
 	})
 
 	t.Run("Given a table with metrics having multiple values and measurements", func(t *testing.T) {
@@ -632,9 +526,9 @@ func TestIntegrationPostgres(t *testing.T) {
 		err := sess.CreateTable(metric_values{})
 		require.NoError(t, err)
 
-		rng := rand.New(rand.NewSource(time.Now().Unix()))
+		rand.Seed(time.Now().Unix())
 		rnd := func(min, max int64) int64 {
-			return rng.Int63n(max-min) + min
+			return rand.Int63n(max-min) + min
 		}
 
 		var tInitial time.Time
@@ -676,280 +570,259 @@ func TestIntegrationPostgres(t *testing.T) {
 		require.NoError(t, err)
 
 		t.Run(
-			"When doing a metric query using epoch (int64) as time column and value column (int64) should return metric with time in time.Time",
+			"When doing a metric query using epoch (int64) as time column and value column (int64) should return metric with time in milliseconds",
 			func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
+				query := &tsdb.TsdbQuery{
+					Queries: []*tsdb.Query{
 						{
-							JSON: []byte(`{
-								"rawSql": "SELECT \"timeInt64\" as time, \"timeInt64\" FROM metric_values ORDER BY time LIMIT 1",
-								"format": "time_series"
-							}`),
-							RefID: "A",
+							Model: simplejson.NewFromAny(map[string]interface{}{
+								"rawSql": `SELECT "timeInt64" as time, "timeInt64" FROM metric_values ORDER BY time LIMIT 1`,
+								"format": "time_series",
+							}),
+							RefId: "A",
 						},
 					},
 				}
 
-				resp, err := exe.QueryData(context.Background(), query)
+				resp, err := endpoint.Query(context.Background(), nil, query)
 				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
+				queryResult := resp.Results["A"]
 				require.NoError(t, queryResult.Error)
 
-				frames := queryResult.Frames
-				require.Len(t, frames, 1)
-				require.True(t, tInitial.Equal(*frames[0].Fields[0].At(0).(*time.Time)))
+				require.Equal(t, 1, len(queryResult.Series))
+				require.Equal(t, float64(tInitial.UnixNano()/1e6), queryResult.Series[0].Points[0][1].Float64)
 			})
 
-		t.Run("When doing a metric query using epoch (int64 nullable) as time column and value column (int64 nullable,) should return metric with time in time.Time",
+		t.Run("When doing a metric query using epoch (int64 nullable) as time column and value column (int64 nullable,) should return metric with time in milliseconds",
 			func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
+				query := &tsdb.TsdbQuery{
+					Queries: []*tsdb.Query{
 						{
-							JSON: []byte(`{
-								"rawSql": "SELECT \"timeInt64Nullable\" as time, \"timeInt64Nullable\" FROM metric_values ORDER BY time LIMIT 1",
-								"format": "time_series"
-							}`),
-							RefID: "A",
+							Model: simplejson.NewFromAny(map[string]interface{}{
+								"rawSql": `SELECT "timeInt64Nullable" as time, "timeInt64Nullable" FROM metric_values ORDER BY time LIMIT 1`,
+								"format": "time_series",
+							}),
+							RefId: "A",
 						},
 					},
 				}
 
-				resp, err := exe.QueryData(context.Background(), query)
+				resp, err := endpoint.Query(context.Background(), nil, query)
 				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
+				queryResult := resp.Results["A"]
 				require.NoError(t, queryResult.Error)
 
-				frames := queryResult.Frames
-				require.Len(t, frames, 1)
-				require.True(t, tInitial.Equal(*frames[0].Fields[0].At(0).(*time.Time)))
+				require.Len(t, queryResult.Series, 1)
+				require.Equal(t, float64(tInitial.UnixNano()/1e6), queryResult.Series[0].Points[0][1].Float64)
 			})
 
-		t.Run("When doing a metric query using epoch (float64) as time column and value column (float64), should return metric with time in time.Time",
+		t.Run("When doing a metric query using epoch (float64) as time column and value column (float64), should return metric with time in milliseconds",
 			func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
+				query := &tsdb.TsdbQuery{
+					Queries: []*tsdb.Query{
 						{
-							JSON: []byte(`{
-								"rawSql": "SELECT \"timeFloat64\" as time, \"timeFloat64\" FROM metric_values ORDER BY time LIMIT 1",
-								"format": "time_series"
-							}`),
-							RefID: "A",
+							Model: simplejson.NewFromAny(map[string]interface{}{
+								"rawSql": `SELECT "timeFloat64" as time, "timeFloat64" FROM metric_values ORDER BY time LIMIT 1`,
+								"format": "time_series",
+							}),
+							RefId: "A",
 						},
 					},
 				}
 
-				resp, err := exe.QueryData(context.Background(), query)
+				resp, err := endpoint.Query(context.Background(), nil, query)
 				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
+				queryResult := resp.Results["A"]
 				require.NoError(t, queryResult.Error)
 
-				frames := queryResult.Frames
-				require.Len(t, frames, 1)
-				require.True(t, tInitial.Equal(*frames[0].Fields[0].At(0).(*time.Time)))
+				require.Len(t, queryResult.Series, 1)
+				require.Equal(t, float64(tInitial.UnixNano()/1e6), queryResult.Series[0].Points[0][1].Float64)
 			})
 
-		t.Run("When doing a metric query using epoch (float64 nullable) as time column and value column (float64 nullable), should return metric with time in time.Time",
+		t.Run("When doing a metric query using epoch (float64 nullable) as time column and value column (float64 nullable), should return metric with time in milliseconds",
 			func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
+				query := &tsdb.TsdbQuery{
+					Queries: []*tsdb.Query{
 						{
-							JSON: []byte(`{
-								"rawSql": "SELECT \"timeFloat64Nullable\" as time, \"timeFloat64Nullable\" FROM metric_values ORDER BY time LIMIT 1",
-								"format": "time_series"
-							}`),
-							RefID: "A",
+							Model: simplejson.NewFromAny(map[string]interface{}{
+								"rawSql": `SELECT "timeFloat64Nullable" as time, "timeFloat64Nullable" FROM metric_values ORDER BY time LIMIT 1`,
+								"format": "time_series",
+							}),
+							RefId: "A",
 						},
 					},
 				}
 
-				resp, err := exe.QueryData(context.Background(), query)
+				resp, err := endpoint.Query(context.Background(), nil, query)
 				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
+				queryResult := resp.Results["A"]
 				require.NoError(t, queryResult.Error)
 
-				frames := queryResult.Frames
-				require.Equal(t, 1, len(frames))
-				require.True(t, tInitial.Equal(*frames[0].Fields[0].At(0).(*time.Time)))
+				require.Len(t, queryResult.Series, 1)
+				require.Equal(t, float64(tInitial.UnixNano()/1e6), queryResult.Series[0].Points[0][1].Float64)
 			})
 
-		t.Run("When doing a metric query using epoch (int32) as time column and value column (int32), should return metric with time in time.Time",
+		t.Run("When doing a metric query using epoch (int32) as time column and value column (int32), should return metric with time in milliseconds",
 			func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
+				query := &tsdb.TsdbQuery{
+					Queries: []*tsdb.Query{
 						{
-							JSON: []byte(`{
-								"rawSql": "SELECT \"timeInt32\" as time, \"timeInt32\" FROM metric_values ORDER BY time LIMIT 1",
-								"format": "time_series"
-							}`),
-							RefID: "A",
+							Model: simplejson.NewFromAny(map[string]interface{}{
+								"rawSql": `SELECT "timeInt32" as time, "timeInt32" FROM metric_values ORDER BY time LIMIT 1`,
+								"format": "time_series",
+							}),
+							RefId: "A",
 						},
 					},
 				}
 
-				resp, err := exe.QueryData(context.Background(), query)
+				resp, err := endpoint.Query(context.Background(), nil, query)
 				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
+				queryResult := resp.Results["A"]
 				require.NoError(t, queryResult.Error)
 
-				frames := queryResult.Frames
-				require.Equal(t, 1, len(frames))
-				require.True(t, tInitial.Equal(*frames[0].Fields[0].At(0).(*time.Time)))
+				require.Len(t, queryResult.Series, 1)
+				require.Equal(t, float64(tInitial.UnixNano()/1e6), queryResult.Series[0].Points[0][1].Float64)
 			})
 
-		t.Run("When doing a metric query using epoch (int32 nullable) as time column and value column (int32 nullable), should return metric with time in time.Time",
+		t.Run("When doing a metric query using epoch (int32 nullable) as time column and value column (int32 nullable), should return metric with time in milliseconds",
 			func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
+				query := &tsdb.TsdbQuery{
+					Queries: []*tsdb.Query{
 						{
-							JSON: []byte(`{
-								"rawSql": "SELECT \"timeInt32Nullable\" as time, \"timeInt32Nullable\" FROM metric_values ORDER BY time LIMIT 1",
-								"format": "time_series"
-							}`),
-							RefID: "A",
+							Model: simplejson.NewFromAny(map[string]interface{}{
+								"rawSql": `SELECT "timeInt32Nullable" as time, "timeInt32Nullable" FROM metric_values ORDER BY time LIMIT 1`,
+								"format": "time_series",
+							}),
+							RefId: "A",
 						},
 					},
 				}
 
-				resp, err := exe.QueryData(context.Background(), query)
+				resp, err := endpoint.Query(context.Background(), nil, query)
 				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
+				queryResult := resp.Results["A"]
 				require.NoError(t, queryResult.Error)
 
-				frames := queryResult.Frames
-				require.Equal(t, 1, len(frames))
-				require.True(t, tInitial.Equal(*frames[0].Fields[0].At(0).(*time.Time)))
+				require.Len(t, queryResult.Series, 1)
+				require.Equal(t, float64(tInitial.UnixNano()/1e6), queryResult.Series[0].Points[0][1].Float64)
 			})
 
-		t.Run("When doing a metric query using epoch (float32) as time column and value column (float32), should return metric with time in time.Time",
+		t.Run("When doing a metric query using epoch (float32) as time column and value column (float32), should return metric with time in milliseconds",
 			func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
+				query := &tsdb.TsdbQuery{
+					Queries: []*tsdb.Query{
 						{
-							JSON: []byte(`{
-								"rawSql": "SELECT \"timeFloat32\" as time, \"timeFloat32\" FROM metric_values ORDER BY time LIMIT 1",
-								"format": "time_series"
-							}`),
-							RefID: "A",
+							Model: simplejson.NewFromAny(map[string]interface{}{
+								"rawSql": `SELECT "timeFloat32" as time, "timeFloat32" FROM metric_values ORDER BY time LIMIT 1`,
+								"format": "time_series",
+							}),
+							RefId: "A",
 						},
 					},
 				}
 
-				resp, err := exe.QueryData(context.Background(), query)
+				resp, err := endpoint.Query(context.Background(), nil, query)
 				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
+				queryResult := resp.Results["A"]
 				require.NoError(t, queryResult.Error)
 
-				frames := queryResult.Frames
-				require.Equal(t, 1, len(frames))
-				aTime := time.Unix(0, int64(float64(float32(tInitial.Unix()))*1e3)*int64(time.Millisecond))
-				require.True(t, aTime.Equal(*frames[0].Fields[0].At(0).(*time.Time)))
+				require.Len(t, queryResult.Series, 1)
+				require.Equal(t, float64(float32(tInitial.Unix()))*1e3, queryResult.Series[0].Points[0][1].Float64)
 			})
 
-		t.Run("When doing a metric query using epoch (float32 nullable) as time column and value column (float32 nullable), should return metric with time in time.Time",
+		t.Run("When doing a metric query using epoch (float32 nullable) as time column and value column (float32 nullable), should return metric with time in milliseconds",
 			func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
+				query := &tsdb.TsdbQuery{
+					Queries: []*tsdb.Query{
 						{
-							JSON: []byte(`{
-								"rawSql": "SELECT \"timeFloat32Nullable\" as time, \"timeFloat32Nullable\" FROM metric_values ORDER BY time LIMIT 1",
-								"format": "time_series"
-							}`),
-							RefID: "A",
+							Model: simplejson.NewFromAny(map[string]interface{}{
+								"rawSql": `SELECT "timeFloat32Nullable" as time, "timeFloat32Nullable" FROM metric_values ORDER BY time LIMIT 1`,
+								"format": "time_series",
+							}),
+							RefId: "A",
 						},
 					},
 				}
 
-				resp, err := exe.QueryData(context.Background(), query)
+				resp, err := endpoint.Query(context.Background(), nil, query)
 				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
+				queryResult := resp.Results["A"]
 				require.NoError(t, queryResult.Error)
 
-				frames := queryResult.Frames
-				require.Equal(t, 1, len(frames))
-				aTime := time.Unix(0, int64(float64(float32(tInitial.Unix()))*1e3)*int64(time.Millisecond))
-				require.True(t, aTime.Equal(*frames[0].Fields[0].At(0).(*time.Time)))
+				require.Len(t, queryResult.Series, 1)
+				require.Equal(t, float64(float32(tInitial.Unix()))*1e3, queryResult.Series[0].Points[0][1].Float64)
 			})
 
 		t.Run("When doing a metric query grouping by time and select metric column should return correct series", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
-							"rawSql": "SELECT $__timeEpoch(time), measurement || ' - value one' as metric, \"valueOne\" FROM metric_values ORDER BY 1",
-							"format": "time_series"
-						}`),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": `SELECT $__timeEpoch(time), measurement || ' - value one' as metric, "valueOne" FROM metric_values ORDER BY 1`,
+							"format": "time_series",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
 
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 3, len(frames[0].Fields))
-			require.Equal(t, "Metric A - value one", frames[0].Fields[1].Name)
-			require.Equal(t, "Metric B - value one", frames[0].Fields[2].Name)
+			require.Len(t, queryResult.Series, 2)
+			require.Equal(t, "Metric A - value one", queryResult.Series[0].Name)
+			require.Equal(t, "Metric B - value one", queryResult.Series[1].Name)
 		})
 
 		t.Run("When doing a metric query with metric column and multiple value columns", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
-							"rawSql": "SELECT $__timeEpoch(time), measurement as metric, \"valueOne\", \"valueTwo\" FROM metric_values ORDER BY 1",
-							"format": "time_series"
-						}`),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": `SELECT $__timeEpoch(time), measurement as metric, "valueOne", "valueTwo" FROM metric_values ORDER BY 1`,
+							"format": "time_series",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
 
-			frames := queryResult.Frames
-			require.NoError(t, err)
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 5, len(frames[0].Fields))
-			require.Equal(t, "valueOne", frames[0].Fields[1].Name)
-			require.Equal(t, data.Labels{"metric": "Metric A"}, frames[0].Fields[1].Labels)
-			require.Equal(t, "valueOne", frames[0].Fields[2].Name)
-			require.Equal(t, data.Labels{"metric": "Metric B"}, frames[0].Fields[2].Labels)
-			require.Equal(t, "valueTwo", frames[0].Fields[3].Name)
-			require.Equal(t, data.Labels{"metric": "Metric A"}, frames[0].Fields[3].Labels)
-			require.Equal(t, "valueTwo", frames[0].Fields[4].Name)
-			require.Equal(t, data.Labels{"metric": "Metric B"}, frames[0].Fields[4].Labels)
+			require.Len(t, queryResult.Series, 4)
+			require.Equal(t, "Metric A valueOne", queryResult.Series[0].Name)
+			require.Equal(t, "Metric A valueTwo", queryResult.Series[1].Name)
+			require.Equal(t, "Metric B valueOne", queryResult.Series[2].Name)
+			require.Equal(t, "Metric B valueTwo", queryResult.Series[3].Name)
 		})
 
 		t.Run("When doing a metric query grouping by time should return correct series", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
-							"rawSql": "SELECT $__timeEpoch(time), \"valueOne\", \"valueTwo\" FROM metric_values ORDER BY 1",
-							"format": "time_series"
-						}`),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": `SELECT $__timeEpoch(time), "valueOne", "valueTwo" FROM metric_values ORDER BY 1`,
+							"format": "time_series",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
 
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 3, len(frames[0].Fields))
-			require.Equal(t, "valueOne", frames[0].Fields[1].Name)
-			require.Equal(t, "valueTwo", frames[0].Fields[2].Name)
+			require.Len(t, queryResult.Series, 2)
+			require.Equal(t, "valueOne", queryResult.Series[0].Name)
+			require.Equal(t, "valueTwo", queryResult.Series[1].Name)
 		})
 
 		t.Run("When doing a query with timeFrom,timeTo,unixEpochFrom,unixEpochTo macros", func(t *testing.T) {
@@ -959,31 +832,27 @@ func TestIntegrationPostgres(t *testing.T) {
 			})
 			sqleng.Interpolate = origInterpolate
 
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				TimeRange: tsdb.NewFakeTimeRange("5m", "now", fromStart),
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
-							"rawSql": "SELECT time FROM metric_values WHERE time > $__timeFrom() OR time < $__timeFrom() OR 1 < $__unixEpochFrom() OR $__unixEpochTo() > 1 ORDER BY 1",
-							"format": "time_series"
-						}`),
-						RefID: "A",
-						TimeRange: backend.TimeRange{
-							From: fromStart.Add(-5 * time.Minute),
-							To:   fromStart,
-						},
+						DataSource: &models.DataSource{JsonData: simplejson.New()},
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": `SELECT time FROM metric_values WHERE time > $__timeFrom() OR time < $__timeFrom() OR 1 < $__unixEpochFrom() OR $__unixEpochTo() > 1 ORDER BY 1`,
+							"format": "time_series",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
-			frames := queryResult.Frames
-			require.Len(t, frames, 1)
 			require.Equal(t,
 				"SELECT time FROM metric_values WHERE time > '2018-03-15T12:55:00Z' OR time < '2018-03-15T12:55:00Z' OR 1 < 1521118500 OR 1521118800 > 1 ORDER BY 1",
-				frames[0].Meta.ExecutedQueryString)
+				queryResult.Meta.Get(sqleng.MetaKeyExecutedQueryString).MustString())
 		})
 	})
 
@@ -1003,7 +872,7 @@ func TestIntegrationPostgres(t *testing.T) {
 		require.NoError(t, err)
 
 		events := []*event{}
-		for _, t := range genTimeRangeByInterval(fromStart.Add(-20*time.Minute), time.Hour, 25*time.Minute) {
+		for _, t := range genTimeRangeByInterval(fromStart.Add(-20*time.Minute), 60*time.Minute, 25*time.Minute) {
 			events = append(events, &event{
 				TimeSec:     t.Unix(),
 				Description: "Someone deployed something",
@@ -1022,357 +891,226 @@ func TestIntegrationPostgres(t *testing.T) {
 		}
 
 		t.Run("When doing an annotation query of deploy events should return expected result", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
-							"rawSql": "SELECT \"time_sec\" as time, description as text, tags FROM event WHERE $__unixEpochFilter(time_sec) AND tags='deploy' ORDER BY 1 ASC",
-							"format": "table"
-						}`),
-						RefID: "Deploys",
-						TimeRange: backend.TimeRange{
-							From: fromStart.Add(-20 * time.Minute),
-							To:   fromStart.Add(40 * time.Minute),
-						},
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": `SELECT "time_sec" as time, description as text, tags FROM event WHERE $__unixEpochFilter(time_sec) AND tags='deploy' ORDER BY 1 ASC`,
+							"format": "table",
+						}),
+						RefId: "Deploys",
 					},
+				},
+				TimeRange: &tsdb.TimeRange{
+					From: fmt.Sprintf("%v", fromStart.Add(-20*time.Minute).Unix()*1000),
+					To:   fmt.Sprintf("%v", fromStart.Add(40*time.Minute).Unix()*1000),
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
+			queryResult := resp.Results["Deploys"]
 			require.NoError(t, err)
-
-			queryResult := resp.Responses["Deploys"]
-
-			frames := queryResult.Frames
-			require.Len(t, frames, 1)
-			require.Len(t, frames[0].Fields, 3)
+			require.Len(t, queryResult.Tables[0].Rows, 3)
 		})
 
 		t.Run("When doing an annotation query of ticket events should return expected result", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
-							"rawSql": "SELECT \"time_sec\" as time, description as text, tags FROM event WHERE $__unixEpochFilter(time_sec) AND tags='ticket' ORDER BY 1 ASC",
-							"format": "table"
-						}`),
-						RefID: "Tickets",
-						TimeRange: backend.TimeRange{
-							From: fromStart.Add(-20 * time.Minute),
-							To:   fromStart.Add(40 * time.Minute),
-						},
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": `SELECT "time_sec" as time, description as text, tags FROM event WHERE $__unixEpochFilter(time_sec) AND tags='ticket' ORDER BY 1 ASC`,
+							"format": "table",
+						}),
+						RefId: "Tickets",
 					},
+				},
+				TimeRange: &tsdb.TimeRange{
+					From: fmt.Sprintf("%v", fromStart.Add(-20*time.Minute).Unix()*1000),
+					To:   fmt.Sprintf("%v", fromStart.Add(40*time.Minute).Unix()*1000),
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
+			queryResult := resp.Results["Tickets"]
 			require.NoError(t, err)
-
-			queryResult := resp.Responses["Tickets"]
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 3, len(frames[0].Fields))
+			require.Len(t, queryResult.Tables[0].Rows, 3)
 		})
 
 		t.Run("When doing an annotation query with a time column in datetime format", func(t *testing.T) {
 			dt := time.Date(2018, 3, 14, 21, 20, 6, 527e6, time.UTC)
 			dtFormat := "2006-01-02 15:04:05.999999999"
 
-			queryjson := fmt.Sprintf("{\"rawSql\": \"SELECT CAST('%s' AS TIMESTAMP) as time, 'message' as text, 'tag1,tag2' as tags\", \"format\": \"table\" }", dt.Format(dtFormat))
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON:  []byte(queryjson),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": fmt.Sprintf(`SELECT
+								CAST('%s' AS TIMESTAMP) as time,
+								'message' as text,
+								'tag1,tag2' as tags
+							`, dt.Format(dtFormat)),
+							"format": "table",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 3, len(frames[0].Fields))
+			require.Len(t, queryResult.Tables[0].Rows, 1)
+			columns := queryResult.Tables[0].Rows[0]
 
-			// Should be in time.Time
-			require.Equal(t, dt.Unix(), (*frames[0].Fields[0].At(0).(*time.Time)).Unix())
+			//Should be in milliseconds
+			require.Equal(t, float64(dt.UnixNano()/1e6), columns[0].(float64))
 		})
 
-		t.Run("When doing an annotation query with a time column in epoch second format should return time.Time", func(t *testing.T) {
+		t.Run("When doing an annotation query with a time column in epoch second format should return ms", func(t *testing.T) {
 			dt := time.Date(2018, 3, 14, 21, 20, 6, 527e6, time.UTC)
 
-			queryjson := fmt.Sprintf("{\"rawSql\": \"SELECT %d as time, 'message' as text, 'tag1,tag2' as tags\", \"format\": \"table\"}", dt.Unix())
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON:  []byte(queryjson),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": fmt.Sprintf(`SELECT
+								 %d as time,
+								'message' as text,
+								'tag1,tag2' as tags
+							`, dt.Unix()),
+							"format": "table",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
+			require.Len(t, queryResult.Tables[0].Rows, 1)
+			columns := queryResult.Tables[0].Rows[0]
 
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 3, len(frames[0].Fields))
-
-			// Should be in time.Time
-			require.Equal(t, dt.Unix(), (*frames[0].Fields[0].At(0).(*time.Time)).Unix())
+			//Should be in milliseconds
+			require.Equal(t, dt.Unix()*1000, columns[0].(int64))
 		})
 
-		t.Run("When doing an annotation query with a time column in epoch second format (t *testing.Tint) should return time.Time", func(t *testing.T) {
+		t.Run("When doing an annotation query with a time column in epoch second format (t *testing.Tint) should return ms", func(t *testing.T) {
 			dt := time.Date(2018, 3, 14, 21, 20, 6, 527e6, time.UTC)
-			queryjson := fmt.Sprintf("{\"rawSql\": \"SELECT cast(%d as bigint) as time, 'message' as text, 'tag1,tag2' as tags\", \"format\": \"table\"}", dt.Unix())
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON:  []byte(queryjson),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": fmt.Sprintf(`SELECT
+								 cast(%d as bigint) as time,
+								'message' as text,
+								'tag1,tag2' as tags
+							`, dt.Unix()),
+							"format": "table",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
+			require.Len(t, queryResult.Tables[0].Rows, 1)
+			columns := queryResult.Tables[0].Rows[0]
 
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 3, len(frames[0].Fields))
-
-			// Should be in time.Time
-			require.Equal(t, dt.Unix(), (*frames[0].Fields[0].At(0).(*time.Time)).Unix())
+			//Should be in milliseconds
+			require.Equal(t, dt.Unix()*1000, columns[0].(int64))
 		})
 
-		t.Run("When doing an annotation query with a time column in epoch millisecond format should return time.Time", func(t *testing.T) {
+		t.Run("When doing an annotation query with a time column in epoch millisecond format should return ms", func(t *testing.T) {
 			dt := time.Date(2018, 3, 14, 21, 20, 6, 527e6, time.UTC)
 
-			queryjson := fmt.Sprintf("{\"rawSql\":\"SELECT %d as time, 'message' as text, 'tag1,tag2' as tags\", \"format\": \"table\"}", dt.Unix()*1000)
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON:  []byte(queryjson),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": fmt.Sprintf(`SELECT
+								 %d as time,
+								'message' as text,
+								'tag1,tag2' as tags
+							`, dt.Unix()*1000),
+							"format": "table",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
+			require.Len(t, queryResult.Tables[0].Rows, 1)
+			columns := queryResult.Tables[0].Rows[0]
 
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 3, len(frames[0].Fields))
-
-			// Should be in time.Time
-			require.Equal(t, dt.Unix(), (*frames[0].Fields[0].At(0).(*time.Time)).Unix())
+			//Should be in milliseconds
+			require.Equal(t, dt.Unix()*1000, columns[0].(int64))
 		})
 
 		t.Run("When doing an annotation query with a time column holding a bigint null value should return nil", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
-							"rawSql": "SELECT cast(null as bigint) as time, 'message' as text, 'tag1,tag2' as tags",
-							"format": "table"
-						}`),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": `SELECT
+								 cast(null as bigint) as time,
+								'message' as text,
+								'tag1,tag2' as tags
+							`,
+							"format": "table",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
+			require.Len(t, queryResult.Tables[0].Rows, 1)
+			columns := queryResult.Tables[0].Rows[0]
 
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 3, len(frames[0].Fields))
-
-			// Should be in time.Time
-			require.Nil(t, frames[0].Fields[0].At(0))
+			//Should be in milliseconds
+			require.Nil(t, columns[0])
 		})
 
 		t.Run("When doing an annotation query with a time column holding a timestamp null value should return nil", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
+			query := &tsdb.TsdbQuery{
+				Queries: []*tsdb.Query{
 					{
-						JSON: []byte(`{
-							"rawSql": "SELECT cast(null as timestamp) as time, 'message' as text, 'tag1,tag2' as tags",
-							"format": "table"
-						}`),
-						RefID: "A",
+						Model: simplejson.NewFromAny(map[string]interface{}{
+							"rawSql": `SELECT
+								 cast(null as timestamp) as time,
+								'message' as text,
+								'tag1,tag2' as tags
+							`,
+							"format": "table",
+						}),
+						RefId: "A",
 					},
 				},
 			}
 
-			resp, err := exe.QueryData(context.Background(), query)
+			resp, err := endpoint.Query(context.Background(), nil, query)
 			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
+			queryResult := resp.Results["A"]
 			require.NoError(t, queryResult.Error)
+			require.Len(t, queryResult.Tables[0].Rows, 1)
+			columns := queryResult.Tables[0].Rows[0]
 
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 3, len(frames[0].Fields))
-
-			// Should be in time.Time
-			assert.Nil(t, frames[0].Fields[0].At(0))
-		})
-
-		t.Run("When doing an annotation query with a time and timeend column should return two fields of type time", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
-					{
-						JSON: []byte(`{
-							"rawSql": "SELECT 1631053772276 as time, 1631054012276 as timeend, '' as text, '' as tags",
-							"format": "table"
-						}`),
-						RefID: "A",
-					},
-				},
-			}
-
-			resp, err := exe.QueryData(context.Background(), query)
-			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
-			require.NoError(t, queryResult.Error)
-
-			frames := queryResult.Frames
-			require.Equal(t, 1, len(frames))
-			require.Equal(t, 4, len(frames[0].Fields))
-
-			require.Equal(t, data.FieldTypeNullableTime, frames[0].Fields[0].Type())
-			require.Equal(t, data.FieldTypeNullableTime, frames[0].Fields[1].Type())
-		})
-
-		t.Run("When row limit set to 1", func(t *testing.T) {
-			dsInfo := sqleng.DataSourceInfo{}
-			config := sqleng.DataPluginConfiguration{
-				DriverName:        "postgres",
-				ConnectionString:  "",
-				DSInfo:            dsInfo,
-				MetricColumnTypes: []string{"UNKNOWN", "TEXT", "VARCHAR", "CHAR"},
-				RowLimit:          1,
-			}
-
-			queryResultTransformer := postgresQueryResultTransformer{}
-
-			handler, err := sqleng.NewQueryDataHandler(config, &queryResultTransformer, newPostgresMacroEngine(false), logger)
-			require.NoError(t, err)
-
-			t.Run("When doing a table query that returns 2 rows should limit the result to 1 row", func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
-						{
-							JSON: []byte(`{
-							"rawSql": "SELECT 1 as value UNION ALL select 2 as value",
-							"format": "table"
-						}`),
-							RefID: "A",
-							TimeRange: backend.TimeRange{
-								From: time.Now(),
-								To:   time.Now(),
-							},
-						},
-					},
-				}
-
-				resp, err := handler.QueryData(context.Background(), query)
-				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
-				require.NoError(t, queryResult.Error)
-				frames := queryResult.Frames
-				require.NoError(t, err)
-				require.Equal(t, 1, len(frames))
-				require.Equal(t, 1, len(frames[0].Fields))
-				require.Equal(t, 1, frames[0].Rows())
-				require.Len(t, frames[0].Meta.Notices, 1)
-				require.Equal(t, data.NoticeSeverityWarning, frames[0].Meta.Notices[0].Severity)
-			})
-
-			t.Run("When doing a time series query that returns 2 rows should limit the result to 1 row", func(t *testing.T) {
-				query := &backend.QueryDataRequest{
-					Queries: []backend.DataQuery{
-						{
-							JSON: []byte(`{
-							"rawSql": "SELECT 1 as time, 1 as value UNION ALL select 2 as time, 2 as value",
-							"format": "time_series"
-						}`),
-							RefID: "A",
-							TimeRange: backend.TimeRange{
-								From: time.Now(),
-								To:   time.Now(),
-							},
-						},
-					},
-				}
-
-				resp, err := handler.QueryData(context.Background(), query)
-				require.NoError(t, err)
-				queryResult := resp.Responses["A"]
-				require.NoError(t, queryResult.Error)
-				frames := queryResult.Frames
-				require.NoError(t, err)
-				require.Equal(t, 1, len(frames))
-				require.Equal(t, 2, len(frames[0].Fields))
-				require.Equal(t, 1, frames[0].Rows())
-				require.Len(t, frames[0].Meta.Notices, 1)
-				require.Equal(t, data.NoticeSeverityWarning, frames[0].Meta.Notices[0].Severity)
-			})
-		})
-	})
-
-	t.Run("Given an empty table", func(t *testing.T) {
-		type emptyObj struct {
-			EmptyKey string
-			EmptyVal int64
-		}
-
-		exists, err := sess.IsTableExist(emptyObj{})
-		require.NoError(t, err)
-		if exists {
-			err := sess.DropTable(emptyObj{})
-			require.NoError(t, err)
-		}
-		err = sess.CreateTable(emptyObj{})
-		require.NoError(t, err)
-
-		t.Run("When no rows are returned, should return an empty frame", func(t *testing.T) {
-			query := &backend.QueryDataRequest{
-				Queries: []backend.DataQuery{
-					{
-						JSON: []byte(`{
-							"rawSql": "SELECT empty_key, empty_val FROM empty_obj",
-							"format": "table"
-						}`),
-						RefID: "A",
-						TimeRange: backend.TimeRange{
-							From: time.Now(),
-							To:   time.Now().Add(1 * time.Minute),
-						},
-					},
-				},
-			}
-
-			resp, err := exe.QueryData(context.Background(), query)
-			require.NoError(t, err)
-			queryResult := resp.Responses["A"]
-
-			frames := queryResult.Frames
-			require.Len(t, frames, 1)
-			require.Equal(t, 0, frames[0].Rows())
-			require.NotNil(t, frames[0].Fields)
-			require.Empty(t, frames[0].Fields)
+			//Should be in milliseconds
+			assert.Nil(t, columns[0])
 		})
 	})
 }
@@ -1408,6 +1146,6 @@ type tlsTestManager struct {
 	settings tlsSettings
 }
 
-func (m *tlsTestManager) getTLSSettings(dsInfo sqleng.DataSourceInfo) (tlsSettings, error) {
+func (m *tlsTestManager) getTLSSettings(datasource *models.DataSource) (tlsSettings, error) {
 	return m.settings, nil
 }

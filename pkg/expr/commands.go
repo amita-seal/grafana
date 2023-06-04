@@ -2,23 +2,19 @@ package expr
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend/gtime"
-	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"go.opentelemetry.io/otel/attribute"
-
+	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana/pkg/components/gtime"
 	"github.com/grafana/grafana/pkg/expr/mathexp"
-	"github.com/grafana/grafana/pkg/infra/tracing"
 )
 
 // Command is an interface for all expression commands.
 type Command interface {
 	NeedsVars() []string
-	Execute(ctx context.Context, now time.Time, vars mathexp.Vars, tracer tracing.Tracer) (mathexp.Results, error)
+	Execute(c context.Context, vars mathexp.Vars) (mathexp.Results, error)
 }
 
 // MathCommand is a command for a math expression such as "1 + $GA / 2"
@@ -46,16 +42,16 @@ func NewMathCommand(refID, expr string) (*MathCommand, error) {
 func UnmarshalMathCommand(rn *rawNode) (*MathCommand, error) {
 	rawExpr, ok := rn.Query["expression"]
 	if !ok {
-		return nil, errors.New("command is missing an expression")
+		return nil, fmt.Errorf("math command for refId %v is missing an expression", rn.RefID)
 	}
 	exprString, ok := rawExpr.(string)
 	if !ok {
-		return nil, fmt.Errorf("math expression is expected to be a string, got %T", rawExpr)
+		return nil, fmt.Errorf("expected math command for refId %v expression to be a string, got %T", rn.RefID, rawExpr)
 	}
 
 	gm, err := NewMathCommand(rn.RefID, exprString)
 	if err != nil {
-		return nil, fmt.Errorf("invalid math command type: %w", err)
+		return nil, fmt.Errorf("invalid math command type in '%v': %v", rn.RefID, err)
 	}
 	return gm, nil
 }
@@ -68,87 +64,49 @@ func (gm *MathCommand) NeedsVars() []string {
 
 // Execute runs the command and returns the results or an error if the command
 // failed to execute.
-func (gm *MathCommand) Execute(ctx context.Context, _ time.Time, vars mathexp.Vars, tracer tracing.Tracer) (mathexp.Results, error) {
-	_, span := tracer.Start(ctx, "SSE.ExecuteMath")
-	span.SetAttributes("expression", gm.RawExpression, attribute.Key("expression").String(gm.RawExpression))
-	defer span.End()
-	return gm.Expression.Execute(gm.refID, vars, tracer)
+func (gm *MathCommand) Execute(ctx context.Context, vars mathexp.Vars) (mathexp.Results, error) {
+	return gm.Expression.Execute(gm.refID, vars)
 }
 
 // ReduceCommand is an expression command for reduction of a timeseries such as a min, mean, or max.
 type ReduceCommand struct {
-	Reducer      string
-	VarToReduce  string
-	refID        string
-	seriesMapper mathexp.ReduceMapper
+	Reducer     string
+	VarToReduce string
+	refID       string
 }
 
 // NewReduceCommand creates a new ReduceCMD.
-func NewReduceCommand(refID, reducer, varToReduce string, mapper mathexp.ReduceMapper) (*ReduceCommand, error) {
-	_, err := mathexp.GetReduceFunc(reducer)
-	if err != nil {
-		return nil, err
-	}
-
+func NewReduceCommand(refID, reducer, varToReduce string) *ReduceCommand {
+	// TODO: validate reducer here, before execution
 	return &ReduceCommand{
-		Reducer:      reducer,
-		VarToReduce:  varToReduce,
-		refID:        refID,
-		seriesMapper: mapper,
-	}, nil
+		Reducer:     reducer,
+		VarToReduce: varToReduce,
+		refID:       refID,
+	}
 }
 
 // UnmarshalReduceCommand creates a MathCMD from Grafana's frontend query.
 func UnmarshalReduceCommand(rn *rawNode) (*ReduceCommand, error) {
 	rawVar, ok := rn.Query["expression"]
 	if !ok {
-		return nil, errors.New("no expression ID is specified to reduce. Must be a reference to an existing query or expression")
+		return nil, fmt.Errorf("no variable specified to reduce for refId %v", rn.RefID)
 	}
 	varToReduce, ok := rawVar.(string)
 	if !ok {
-		return nil, fmt.Errorf("expression ID is expected to be a string, got %T", rawVar)
+		return nil, fmt.Errorf("expected reduce variable to be a string, got %T for refId %v", rawVar, rn.RefID)
 	}
 	varToReduce = strings.TrimPrefix(varToReduce, "$")
 
 	rawReducer, ok := rn.Query["reducer"]
 	if !ok {
-		return nil, errors.New("no reducer specified")
+		return nil, fmt.Errorf("no reducer specified for refId %v", rn.RefID)
 	}
 	redFunc, ok := rawReducer.(string)
 	if !ok {
-		return nil, fmt.Errorf("expected reducer to be a string, got %T", rawReducer)
+		return nil, fmt.Errorf("expected reducer to be a string, got %T for refId %v", rawReducer, rn.RefID)
 	}
 
-	var mapper mathexp.ReduceMapper = nil
-	settings, ok := rn.Query["settings"]
-	if ok {
-		switch s := settings.(type) {
-		case map[string]interface{}:
-			mode, ok := s["mode"]
-			if ok && mode != "" {
-				switch mode {
-				case "dropNN":
-					mapper = mathexp.DropNonNumber{}
-				case "replaceNN":
-					valueStr, ok := s["replaceWithValue"]
-					if !ok {
-						return nil, errors.New("setting replaceWithValue must be specified when mode is 'replaceNN'")
-					}
-					switch value := valueStr.(type) {
-					case float64:
-						mapper = mathexp.ReplaceNonNumberWithValue{Value: value}
-					default:
-						return nil, fmt.Errorf("setting replaceWithValue must be a number, got %T", value)
-					}
-				default:
-					return nil, fmt.Errorf("reducer mode '%s' is not supported. Supported only: [dropNN,replaceNN]", mode)
-				}
-			}
-		default:
-			return nil, fmt.Errorf("field settings must be an object, got %T for refId %v", s, rn.RefID)
-		}
-	}
-	return NewReduceCommand(rn.RefID, redFunc, varToReduce, mapper)
+	return NewReduceCommand(rn.RefID, redFunc, varToReduce), nil
 }
 
 // NeedsVars returns the variable names (refIds) that are dependencies
@@ -159,34 +117,18 @@ func (gr *ReduceCommand) NeedsVars() []string {
 
 // Execute runs the command and returns the results or an error if the command
 // failed to execute.
-func (gr *ReduceCommand) Execute(ctx context.Context, _ time.Time, vars mathexp.Vars, tracer tracing.Tracer) (mathexp.Results, error) {
-	_, span := tracer.Start(ctx, "SSE.ExecuteReduce")
-	defer span.End()
-
-	span.SetAttributes("reducer", gr.Reducer, attribute.Key("reducer").String(gr.Reducer))
-
+func (gr *ReduceCommand) Execute(ctx context.Context, vars mathexp.Vars) (mathexp.Results, error) {
 	newRes := mathexp.Results{}
 	for _, val := range vars[gr.VarToReduce].Values {
-		switch v := val.(type) {
-		case mathexp.Series:
-			num, err := v.Reduce(gr.refID, gr.Reducer, gr.seriesMapper)
-			if err != nil {
-				return newRes, err
-			}
-			newRes.Values = append(newRes.Values, num)
-		case mathexp.Number: // if incoming vars is just a number, any reduce op is just a noop, add it as it is
-			copyV := mathexp.NewNumber(gr.refID, v.GetLabels())
-			copyV.SetValue(v.GetFloat64Value())
-			copyV.AddNotice(data.Notice{
-				Severity: data.NoticeSeverityWarning,
-				Text:     fmt.Sprintf("Reduce operation is not needed. Input query or expression %s is already reduced data.", gr.VarToReduce),
-			})
-			newRes.Values = append(newRes.Values, copyV)
-		case mathexp.NoData:
-			newRes.Values = append(newRes.Values, v.New())
-		default:
+		series, ok := val.(mathexp.Series)
+		if !ok {
 			return newRes, fmt.Errorf("can only reduce type series, got type %v", val.Type())
 		}
+		num, err := series.Reduce(gr.refID, gr.Reducer)
+		if err != nil {
+			return newRes, err
+		}
+		newRes.Values = append(newRes.Values, num)
 	}
 	return newRes, nil
 }
@@ -197,12 +139,12 @@ type ResampleCommand struct {
 	VarToResample string
 	Downsampler   string
 	Upsampler     string
-	TimeRange     TimeRange
+	TimeRange     backend.TimeRange
 	refID         string
 }
 
 // NewResampleCommand creates a new ResampleCMD.
-func NewResampleCommand(refID, rawWindow, varToResample string, downsampler string, upsampler string, tr TimeRange) (*ResampleCommand, error) {
+func NewResampleCommand(refID, rawWindow, varToResample string, downsampler string, upsampler string, tr backend.TimeRange) (*ResampleCommand, error) {
 	// TODO: validate reducer here, before execution
 	window, err := gtime.ParseDuration(rawWindow)
 	if err != nil {
@@ -220,45 +162,42 @@ func NewResampleCommand(refID, rawWindow, varToResample string, downsampler stri
 
 // UnmarshalResampleCommand creates a ResampleCMD from Grafana's frontend query.
 func UnmarshalResampleCommand(rn *rawNode) (*ResampleCommand, error) {
-	if rn.TimeRange == nil {
-		return nil, fmt.Errorf("time range must be specified for refID %s", rn.RefID)
-	}
 	rawVar, ok := rn.Query["expression"]
 	if !ok {
-		return nil, errors.New("no expression ID to resample. must be a reference to an existing query or expression")
+		return nil, fmt.Errorf("no variable to resample for refId %v", rn.RefID)
 	}
 	varToReduce, ok := rawVar.(string)
 	if !ok {
-		return nil, fmt.Errorf("expected resample input variable to be type string, but got type %T", rawVar)
+		return nil, fmt.Errorf("expected resample input variable to be type string, but got type %T for refId %v", rawVar, rn.RefID)
 	}
 	varToReduce = strings.TrimPrefix(varToReduce, "$")
 	varToResample := varToReduce
 
 	rawWindow, ok := rn.Query["window"]
 	if !ok {
-		return nil, errors.New("no time duration specified for the window in resample command")
+		return nil, fmt.Errorf("no time duration specified for the window in resample command for refId %v", rn.RefID)
 	}
 	window, ok := rawWindow.(string)
 	if !ok {
-		return nil, fmt.Errorf("resample window is expected to be a string, got %T", rawWindow)
+		return nil, fmt.Errorf("expected resample window to be a string, got %T for refId %v", rawWindow, rn.RefID)
 	}
 
 	rawDownsampler, ok := rn.Query["downsampler"]
 	if !ok {
-		return nil, errors.New("no downsampler function specified in resample command")
+		return nil, fmt.Errorf("no downsampler function specified in resample command for refId %v", rn.RefID)
 	}
 	downsampler, ok := rawDownsampler.(string)
 	if !ok {
-		return nil, fmt.Errorf("expected resample downsampler to be a string, got type %T", downsampler)
+		return nil, fmt.Errorf("expected resample downsampler to be a string, got type %T for refId %v", downsampler, rn.RefID)
 	}
 
 	rawUpsampler, ok := rn.Query["upsampler"]
 	if !ok {
-		return nil, errors.New("no upsampler specified in resample command")
+		return nil, fmt.Errorf("no downsampler specified in resample command for refId %v", rn.RefID)
 	}
 	upsampler, ok := rawUpsampler.(string)
 	if !ok {
-		return nil, fmt.Errorf("expected resample downsampler to be a string, got type %T", upsampler)
+		return nil, fmt.Errorf("expected resample downsampler to be a string, got type %T for refId %v", upsampler, rn.RefID)
 	}
 
 	return NewResampleCommand(rn.RefID, window, varToResample, downsampler, upsampler, rn.TimeRange)
@@ -272,28 +211,18 @@ func (gr *ResampleCommand) NeedsVars() []string {
 
 // Execute runs the command and returns the results or an error if the command
 // failed to execute.
-func (gr *ResampleCommand) Execute(ctx context.Context, now time.Time, vars mathexp.Vars, tracer tracing.Tracer) (mathexp.Results, error) {
-	_, span := tracer.Start(ctx, "SSE.ExecuteResample")
-	defer span.End()
+func (gr *ResampleCommand) Execute(ctx context.Context, vars mathexp.Vars) (mathexp.Results, error) {
 	newRes := mathexp.Results{}
-	timeRange := gr.TimeRange.AbsoluteTime(now)
 	for _, val := range vars[gr.VarToResample].Values {
-		if val == nil {
-			continue
-		}
-		switch v := val.(type) {
-		case mathexp.Series:
-			num, err := v.Resample(gr.refID, gr.Window, gr.Downsampler, gr.Upsampler, timeRange.From, timeRange.To)
-			if err != nil {
-				return newRes, err
-			}
-			newRes.Values = append(newRes.Values, num)
-		case mathexp.NoData:
-			newRes.Values = append(newRes.Values, v.New())
-			return newRes, nil
-		default:
+		series, ok := val.(mathexp.Series)
+		if !ok {
 			return newRes, fmt.Errorf("can only resample type series, got type %v", val.Type())
 		}
+		num, err := series.Resample(gr.refID, gr.Window, gr.Downsampler, gr.Upsampler, gr.TimeRange)
+		if err != nil {
+			return newRes, err
+		}
+		newRes.Values = append(newRes.Values, num)
 	}
 	return newRes, nil
 }
@@ -312,8 +241,6 @@ const (
 	TypeResample
 	// TypeClassicConditions is the CMDType for the classic condition operation.
 	TypeClassicConditions
-	// TypeThreshold is the CMDType for checking if a threshold has been crossed
-	TypeThreshold
 )
 
 func (gt CommandType) String() string {
@@ -342,8 +269,6 @@ func ParseCommandType(s string) (CommandType, error) {
 		return TypeResample, nil
 	case "classic_conditions":
 		return TypeClassicConditions, nil
-	case "threshold":
-		return TypeThreshold, nil
 	default:
 		return TypeUnknown, fmt.Errorf("'%v' is not a recognized expression type", s)
 	}

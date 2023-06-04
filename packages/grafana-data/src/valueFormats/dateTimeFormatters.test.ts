@@ -1,5 +1,3 @@
-import { toUtc, dateTime } from '../datetime/moment_wrapper';
-
 import {
   dateTimeAsIso,
   dateTimeAsIsoNoDateIfToday,
@@ -19,6 +17,7 @@ import {
   toSeconds,
 } from './dateTimeFormatters';
 import { formattedValueToString } from './valueFormats';
+import { toUtc, dateTime } from '../datetime/moment_wrapper';
 
 describe('date time formats', () => {
   const epoch = 1505634997920;
@@ -80,31 +79,31 @@ describe('date time formats', () => {
   it('should format as local date', () => {
     const dateTimeObject = browserTime.toDate();
     const formattedDateText = getDateTimeAsLocalFormat()(epoch, 0, 0).text;
-    expect(formattedDateText).toContain(dateTimeObject.getFullYear().toString());
-    expect(formattedDateText).toContain(dateTimeObject.getSeconds().toString());
+    expect(formattedDateText).toContain(dateTimeObject.getFullYear());
+    expect(formattedDateText).toContain(dateTimeObject.getSeconds());
   });
 
   it('should format as local date and skip date when today', () => {
     const now = dateTime();
     const dateTimeObject = now.toDate();
     const formattedDateText = getDateTimeAsLocalFormatNoDateIfToday()(now.valueOf(), 0, 0).text;
-    expect(formattedDateText).not.toContain(dateTimeObject.getFullYear().toString());
-    expect(formattedDateText).toContain(dateTimeObject.getSeconds().toString());
+    expect(formattedDateText).not.toContain(dateTimeObject.getFullYear());
+    expect(formattedDateText).toContain(dateTimeObject.getSeconds());
   });
 
   it('should format as local date (in UTC)', () => {
     const dateTimeObject = utcTime.toDate();
     const formattedDateText = getDateTimeAsLocalFormat()(epoch, 0, 0, 'utc').text;
-    expect(formattedDateText).toContain(dateTimeObject.getFullYear().toString());
-    expect(formattedDateText).toContain(dateTimeObject.getSeconds().toString());
+    expect(formattedDateText).toContain(dateTimeObject.getFullYear());
+    expect(formattedDateText).toContain(dateTimeObject.getSeconds());
   });
 
   it('should format as local date (in UTC) and skip date when today', () => {
     const now = toUtc();
     const dateTimeObject = now.toDate();
     const formattedDateText = getDateTimeAsLocalFormatNoDateIfToday()(now.valueOf(), 0, 0, 'utc').text;
-    expect(formattedDateText).not.toContain(dateTimeObject.getFullYear().toString());
-    expect(formattedDateText).toContain(dateTimeObject.getSeconds().toString());
+    expect(formattedDateText).not.toContain(dateTimeObject.getFullYear());
+    expect(formattedDateText).toContain(dateTimeObject.getSeconds());
   });
 
   it('should format as from now with days', () => {

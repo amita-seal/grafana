@@ -7,8 +7,6 @@ export function getDataSourceInstanceSetting(name: string, meta: DataSourcePlugi
     type: '',
     name,
     meta,
-    access: 'proxy',
-    jsonData: {} as unknown as DataSourceJsonData,
-    readOnly: false,
+    jsonData: ({} as unknown) as DataSourceJsonData,
   };
 }

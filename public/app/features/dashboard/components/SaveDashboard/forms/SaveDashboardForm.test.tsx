@@ -1,19 +1,14 @@
-import { screen, render } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import React from 'react';
-
+import { mount } from 'enzyme';
+import { act } from 'react-dom/test-utils';
 import { DashboardModel } from 'app/features/dashboard/state';
-import { createDashboardModelFixture } from 'app/features/dashboard/state/__fixtures__/dashboardFixtures';
-
-import { SaveDashboardOptions } from '../types';
-
 import { SaveDashboardForm } from './SaveDashboardForm';
 
 const prepareDashboardMock = (
   timeChanged: boolean,
   variableValuesChanged: boolean,
-  resetTimeSpy: jest.Mock,
-  resetVarsSpy: jest.Mock
+  resetTimeSpy: any,
+  resetVarsSpy: any
 ) => {
   const json = {
     title: 'name',
@@ -29,67 +24,50 @@ const prepareDashboardMock = (
     meta: {},
     ...json,
     getSaveModelClone: () => json,
-  } as unknown as DashboardModel;
+  };
 };
-const renderAndSubmitForm = async (dashboard: DashboardModel, submitSpy: jest.Mock) => {
-  render(
+const renderAndSubmitForm = async (dashboard: any, submitSpy: any) => {
+  const container = mount(
     <SaveDashboardForm
-      dashboard={dashboard}
+      dashboard={dashboard as DashboardModel}
       onCancel={() => {}}
       onSuccess={() => {}}
       onSubmit={async (jsonModel) => {
         submitSpy(jsonModel);
         return { status: 'success' };
       }}
-      saveModel={{
-        clone: dashboard,
-        diff: {},
-        diffCount: 0,
-        hasChanges: true,
-      }}
-      options={{}}
-      onOptionsChange={(opts: SaveDashboardOptions) => {
-        return;
-      }}
     />
   );
 
-  const button = screen.getByRole('button', { name: 'Dashboard settings Save Dashboard Modal Save button' });
-  await userEvent.click(button);
+  // @ts-ignore strict null error below
+  await act(async () => {
+    const button = container.find('button[aria-label="Dashboard settings Save Dashboard Modal Save button"]');
+    button.simulate('submit');
+  });
 };
 describe('SaveDashboardAsForm', () => {
   describe('time and variables toggle rendering', () => {
     it('renders switches when variables or timerange', () => {
-      render(
+      const container = mount(
         <SaveDashboardForm
-          dashboard={prepareDashboardMock(true, true, jest.fn(), jest.fn())}
+          dashboard={prepareDashboardMock(true, true, jest.fn(), jest.fn()) as any}
           onCancel={() => {}}
           onSuccess={() => {}}
           onSubmit={async () => {
             return {};
           }}
-          saveModel={{
-            clone: prepareDashboardMock(true, true, jest.fn(), jest.fn()),
-            diff: {},
-            diffCount: 0,
-            hasChanges: true,
-          }}
-          options={{}}
-          onOptionsChange={(opts: SaveDashboardOptions) => {
-            return;
-          }}
         />
       );
 
-      const variablesCheckbox = screen.getByRole('checkbox', {
-        name: 'Dashboard settings Save Dashboard Modal Save variables checkbox',
-      });
-      const timeRangeCheckbox = screen.getByRole('checkbox', {
-        name: 'Dashboard settings Save Dashboard Modal Save timerange checkbox',
-      });
+      const variablesCheckbox = container.find(
+        'input[aria-label="Dashboard settings Save Dashboard Modal Save variables checkbox"]'
+      );
+      const timeRangeCheckbox = container.find(
+        'input[aria-label="Dashboard settings Save Dashboard Modal Save timerange checkbox"]'
+      );
 
-      expect(variablesCheckbox).toBeInTheDocument();
-      expect(timeRangeCheckbox).toBeInTheDocument();
+      expect(variablesCheckbox).toHaveLength(1);
+      expect(timeRangeCheckbox).toHaveLength(1);
     });
   });
 
@@ -99,7 +77,7 @@ describe('SaveDashboardAsForm', () => {
       const resetVarsSpy = jest.fn();
       const submitSpy = jest.fn();
 
-      await renderAndSubmitForm(prepareDashboardMock(false, false, resetTimeSpy, resetVarsSpy), submitSpy);
+      await renderAndSubmitForm(prepareDashboardMock(false, false, resetTimeSpy, resetVarsSpy) as any, submitSpy);
 
       expect(resetTimeSpy).not.toBeCalled();
       expect(resetVarsSpy).not.toBeCalled();
@@ -112,41 +90,12 @@ describe('SaveDashboardAsForm', () => {
         const resetTimeSpy = jest.fn();
         const resetVarsSpy = jest.fn();
         const submitSpy = jest.fn();
-        await renderAndSubmitForm(prepareDashboardMock(true, true, resetTimeSpy, resetVarsSpy), submitSpy);
+        await renderAndSubmitForm(prepareDashboardMock(true, true, resetTimeSpy, resetVarsSpy) as any, submitSpy);
 
         expect(resetTimeSpy).toBeCalledTimes(0);
         expect(resetVarsSpy).toBeCalledTimes(0);
         expect(submitSpy).toBeCalledTimes(1);
       });
-    });
-  });
-  describe('saved message draft rendered', () => {
-    it('renders saved message draft if it was filled before', () => {
-      render(
-        <SaveDashboardForm
-          dashboard={createDashboardModelFixture()}
-          onCancel={() => {}}
-          onSuccess={() => {}}
-          onSubmit={async () => {
-            return {};
-          }}
-          saveModel={{
-            clone: createDashboardModelFixture(),
-            diff: {},
-            diffCount: 0,
-            hasChanges: true,
-          }}
-          options={{ message: 'Saved draft' }}
-          onOptionsChange={(opts: SaveDashboardOptions) => {
-            return;
-          }}
-        />
-      );
-
-      const messageTextArea = screen.getByLabelText('message');
-
-      expect(messageTextArea).toBeInTheDocument();
-      expect(messageTextArea).toHaveTextContent('Saved draft');
     });
   });
 });

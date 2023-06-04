@@ -1,15 +1,13 @@
-import { css } from '@emotion/css';
-import { debounce } from 'lodash';
-import React, { PureComponent } from 'react';
-
-import { DataFrame, CSVConfig, readCSV, GrafanaTheme2 } from '@grafana/data';
-
-import { stylesFactory, withTheme2 } from '../../themes';
-import { Themeable2 } from '../../types/theme';
+import React from 'react';
+import debounce from 'lodash/debounce';
+import { css } from 'emotion';
+import { GrafanaTheme, DataFrame, CSVConfig, readCSV } from '@grafana/data';
 import { Icon } from '../Icon/Icon';
+import { Themeable } from '../../types/theme';
 import { TextArea } from '../TextArea/TextArea';
+import { stylesFactory, withTheme } from '../../themes';
 
-interface Props extends Themeable2 {
+interface Props extends Themeable {
   config?: CSVConfig;
   text: string;
   width: string | number;
@@ -25,7 +23,7 @@ interface State {
 /**
  * Expects the container div to have size set and will fill it 100%
  */
-export class UnThemedTableInputCSV extends PureComponent<Props, State> {
+export class UnThemedTableInputCSV extends React.PureComponent<Props, State> {
   constructor(props: Props) {
     super(props);
 
@@ -36,7 +34,7 @@ export class UnThemedTableInputCSV extends PureComponent<Props, State> {
     };
   }
 
-  readCSV = debounce(() => {
+  readCSV: any = debounce(() => {
     const { config } = this.props;
     const { text } = this.state;
 
@@ -60,7 +58,7 @@ export class UnThemedTableInputCSV extends PureComponent<Props, State> {
     }
   }
 
-  onTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+  onTextChange = (event: any) => {
     this.setState({ text: event.target.value });
   };
 
@@ -94,10 +92,10 @@ export class UnThemedTableInputCSV extends PureComponent<Props, State> {
   }
 }
 
-export const TableInputCSV = withTheme2(UnThemedTableInputCSV);
+export const TableInputCSV = withTheme(UnThemedTableInputCSV);
 TableInputCSV.displayName = 'TableInputCSV';
 
-const getStyles = stylesFactory((theme: GrafanaTheme2) => {
+const getStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
     tableInputCsv: css`
       position: relative;
@@ -111,8 +109,8 @@ const getStyles = stylesFactory((theme: GrafanaTheme2) => {
       bottom: 15px;
       right: 15px;
       border: 1px solid #222;
-      background: ${theme.colors.success.main};
-      padding: 1px ${theme.spacing(0.5)};
+      background: ${theme.palette.online};
+      padding: 1px ${theme.spacing.xs};
       font-size: 80%;
     `,
   };

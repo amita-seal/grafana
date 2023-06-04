@@ -1,8 +1,7 @@
-import { createAction } from '@reduxjs/toolkit';
-import { AnyAction } from 'redux';
-
+import { DashboardSearchHit } from 'app/features/search/types';
 import { LoadingState } from '@grafana/data';
-import { DashboardSearchItem } from 'app/features/search/types';
+import { AnyAction } from 'redux';
+import { createAction } from '@reduxjs/toolkit';
 
 export interface DeleteLibraryPanelModalState {
   loadingState: LoadingState;
@@ -14,7 +13,7 @@ export const initialDeleteLibraryPanelModalState: DeleteLibraryPanelModalState =
   dashboardTitles: [],
 };
 
-export const searchCompleted = createAction<{ dashboards: DashboardSearchItem[] }>(
+export const searchCompleted = createAction<{ dashboards: DashboardSearchHit[] }>(
   'libraryPanels/delete/searchCompleted'
 );
 

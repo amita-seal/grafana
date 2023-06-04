@@ -1,23 +1,23 @@
 // Libraries
-import { css } from '@emotion/css';
-import React, { MouseEvent } from 'react';
-
+import React, { FunctionComponent } from 'react';
+import { css } from 'emotion';
 // Components
-import { GrafanaTheme2 } from '@grafana/data';
-import { IconName, IconType, IconSize, IconButton, useStyles2 } from '@grafana/ui';
+import { IconName, IconType, IconSize, IconButton, useTheme, stylesFactory } from '@grafana/ui';
+import { GrafanaTheme } from '@grafana/data';
 
 interface Props {
   icon?: IconName;
   tooltip: string;
-  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  onClick?: () => void;
   href?: string;
   children?: React.ReactNode;
   iconType?: IconType;
   iconSize?: IconSize;
 }
 
-export const DashNavButton = ({ icon, iconType, iconSize, tooltip, onClick, children }: Props) => {
-  const styles = useStyles2(getStyles);
+export const DashNavButton: FunctionComponent<Props> = ({ icon, iconType, iconSize, tooltip, onClick, children }) => {
+  const theme = useTheme();
+  const styles = getStyles(theme);
 
   return (
     <div className={styles.noBorderContainer}>
@@ -36,9 +36,9 @@ export const DashNavButton = ({ icon, iconType, iconSize, tooltip, onClick, chil
   );
 };
 
-const getStyles = (theme: GrafanaTheme2) => ({
+const getStyles = stylesFactory((theme: GrafanaTheme) => ({
   noBorderContainer: css`
-    padding: 0 ${theme.spacing(0.5)};
+    padding: 0 ${theme.spacing.xs};
     display: flex;
   `,
-});
+}));

@@ -1,19 +1,19 @@
 import React, { PureComponent } from 'react';
 
-import { QueryEditorProps } from '@grafana/data';
 import { getTemplateSrv } from '@grafana/runtime';
-
-import CloudMonitoringDatasource from '../datasource';
-import { extractServicesFromMetricDescriptors, getLabelKeys, getMetricTypes } from '../functions';
-import { CloudMonitoringQuery, MetricFindQueryTypes } from '../types/query';
-import {
-  CloudMonitoringOptions,
-  CloudMonitoringVariableQuery,
-  MetricDescriptor,
-  VariableQueryData,
-} from '../types/types';
+import { QueryEditorProps } from '@grafana/data';
 
 import { VariableQueryField } from './';
+import { extractServicesFromMetricDescriptors, getLabelKeys, getMetricTypes } from '../functions';
+import {
+  CloudMonitoringOptions,
+  CloudMonitoringQuery,
+  CloudMonitoringVariableQuery,
+  MetricDescriptor,
+  MetricFindQueryTypes,
+  VariableQueryData,
+} from '../types';
+import CloudMonitoringDatasource from '../datasource';
 
 export type Props = QueryEditorProps<
   CloudMonitoringDatasource,
@@ -56,12 +56,14 @@ export class CloudMonitoringVariableQueryEditor extends PureComponent<Props, Var
 
   constructor(props: Props) {
     super(props);
-    this.state = Object.assign(this.defaults, this.props.query);
+    this.state = Object.assign(
+      this.defaults,
+      { projectName: this.props.datasource.getDefaultProject() },
+      this.props.query
+    );
   }
 
   async componentDidMount() {
-    await this.props.datasource.ensureGCEDefaultProject();
-    const projectName = this.props.query.projectName || this.props.datasource.getDefaultProject();
     const projects = (await this.props.datasource.getProjects()) as MetricDescriptor[];
     const metricDescriptors = await this.props.datasource.getMetricTypes(
       this.props.query.projectName || this.props.datasource.getDefaultProject()
@@ -85,7 +87,7 @@ export class CloudMonitoringVariableQueryEditor extends PureComponent<Props, Var
       getTemplateSrv().replace(selectedService)
     );
 
-    const sloServices = await this.props.datasource.getSLOServices(projectName);
+    const sloServices = await this.props.datasource.getSLOServices(this.state.projectName);
 
     const state: any = {
       services,
@@ -94,10 +96,9 @@ export class CloudMonitoringVariableQueryEditor extends PureComponent<Props, Var
       selectedMetricType,
       metricDescriptors,
       projects,
-      ...(await this.getLabels(selectedMetricType, projectName)),
+      ...(await this.getLabels(selectedMetricType, this.state.projectName)),
       sloServices,
       loading: false,
-      projectName,
     };
     this.setState(state, () => this.onPropsChange());
   }

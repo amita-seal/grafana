@@ -3,13 +3,13 @@ package middleware
 import (
 	"strings"
 
-	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/web"
+	"gopkg.in/macaron.v1"
 )
 
-func ValidateHostHeader(cfg *setting.Cfg) web.Handler {
-	return func(c *contextmodel.ReqContext) {
+func ValidateHostHeader(cfg *setting.Cfg) macaron.Handler {
+	return func(c *models.ReqContext) {
 		// ignore local render calls
 		if c.IsRenderCall {
 			return

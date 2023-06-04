@@ -1,5 +1,3 @@
-import { PanelModel } from 'app/features/dashboard/state';
-
 import { hiddenReducerTypes, ThresholdMapper } from './ThresholdMapper';
 import alertDef from './alertDef';
 
@@ -10,7 +8,7 @@ const visibleReducerTypes = alertDef.reducerTypes
 describe('ThresholdMapper', () => {
   describe('with greater than evaluator', () => {
     it('can map query conditions to thresholds', () => {
-      const panel = {
+      const panel: any = {
         type: 'graph',
         options: { alertThresholds: true },
         alert: {
@@ -21,7 +19,7 @@ describe('ThresholdMapper', () => {
             },
           ],
         },
-      } as unknown as PanelModel;
+      };
 
       const updated = ThresholdMapper.alertToGraphThresholds(panel);
       expect(updated).toBe(true);
@@ -32,7 +30,7 @@ describe('ThresholdMapper', () => {
 
   describe('with outside range evaluator', () => {
     it('can map query conditions to thresholds', () => {
-      const panel = {
+      const panel: any = {
         type: 'graph',
         options: { alertThresholds: true },
         alert: {
@@ -43,7 +41,7 @@ describe('ThresholdMapper', () => {
             },
           ],
         },
-      } as unknown as PanelModel;
+      };
 
       const updated = ThresholdMapper.alertToGraphThresholds(panel);
       expect(updated).toBe(true);
@@ -57,7 +55,7 @@ describe('ThresholdMapper', () => {
 
   describe('with inside range evaluator', () => {
     it('can map query conditions to thresholds', () => {
-      const panel = {
+      const panel: any = {
         type: 'graph',
         options: { alertThresholds: true },
         alert: {
@@ -68,7 +66,7 @@ describe('ThresholdMapper', () => {
             },
           ],
         },
-      } as unknown as PanelModel;
+      };
 
       const updated = ThresholdMapper.alertToGraphThresholds(panel);
       expect(updated).toBe(true);
@@ -122,7 +120,7 @@ describe('ThresholdMapper', () => {
 });
 
 function getPanel({ reducerType }: { reducerType?: string } = {}) {
-  const panel = {
+  const panel: any = {
     type: 'graph',
     options: { alertThreshold: true },
     alert: {
@@ -134,7 +132,7 @@ function getPanel({ reducerType }: { reducerType?: string } = {}) {
         },
       ],
     },
-  } as unknown as PanelModel;
+  };
 
   return panel;
 }

@@ -1,63 +1,42 @@
-import { cx } from '@emotion/css';
-import { isObject } from 'lodash';
 import React, { HTMLProps } from 'react';
+import { cx } from 'emotion';
+import _ from 'lodash';
+import { SegmentSelect } from './SegmentSelect';
+import { SelectableValue } from '@grafana/data';
+import { useExpandableLabel, SegmentProps } from '.';
 import { useAsyncFn } from 'react-use';
 import { AsyncState } from 'react-use/lib/useAsync';
-
-import { SelectableValue } from '@grafana/data';
-
-import { useStyles2 } from '../../themes';
-import { t } from '../../utils/i18n';
-import { InlineLabel } from '../Forms/InlineLabel';
-
-import { SegmentSelect } from './SegmentSelect';
 import { getSegmentStyles } from './styles';
+import { InlineLabel } from '../Forms/InlineLabel';
+import { useStyles } from '../../themes';
 
-import { useExpandableLabel, SegmentProps } from '.';
-
-export interface SegmentAsyncProps<T> extends SegmentProps, Omit<HTMLProps<HTMLDivElement>, 'value' | 'onChange'> {
+export interface SegmentAsyncProps<T> extends SegmentProps<T>, Omit<HTMLProps<HTMLDivElement>, 'value' | 'onChange'> {
   value?: T | SelectableValue<T>;
   loadOptions: (query?: string) => Promise<Array<SelectableValue<T>>>;
-  /**
-   *  If true options will be reloaded when user changes the value in the input,
-   *  otherwise, options will be loaded when the segment is clicked
-   */
-  reloadOptionsOnChange?: boolean;
   onChange: (item: SelectableValue<T>) => void;
-  noOptionMessageHandler?: (state: AsyncState<Array<SelectableValue<T>>>) => string;
-  inputMinWidth?: number;
 }
 
 export function SegmentAsync<T>({
   value,
   onChange,
   loadOptions,
-  reloadOptionsOnChange = false,
   Component,
   className,
   allowCustomValue,
-  allowEmptyValue,
   disabled,
   placeholder,
-  inputMinWidth,
-  inputPlaceholder,
-  autofocus = false,
-  onExpandedChange,
-  noOptionMessageHandler = mapStateToNoOptionsMessage,
   ...rest
 }: React.PropsWithChildren<SegmentAsyncProps<T>>) {
   const [state, fetchOptions] = useAsyncFn(loadOptions, [loadOptions]);
-  const [Label, labelWidth, expanded, setExpanded] = useExpandableLabel(autofocus, onExpandedChange);
-  const width = inputMinWidth ? Math.max(inputMinWidth, labelWidth) : labelWidth;
-  const styles = useStyles2(getSegmentStyles);
+  const [Label, width, expanded, setExpanded] = useExpandableLabel(false);
+  const styles = useStyles(getSegmentStyles);
 
   if (!expanded) {
-    const label = isObject(value) ? value.label : value;
-    const labelAsString = label != null ? String(label) : undefined;
+    const label = _.isObject(value) ? value.label : value;
 
     return (
       <Label
-        onClick={reloadOptionsOnChange ? undefined : fetchOptions}
+        onClick={fetchOptions}
         disabled={disabled}
         Component={
           Component || (
@@ -71,7 +50,7 @@ export function SegmentAsync<T>({
                 className
               )}
             >
-              {labelAsString || placeholder}
+              {label || placeholder}
             </InlineLabel>
           )
         }
@@ -82,14 +61,11 @@ export function SegmentAsync<T>({
   return (
     <SegmentSelect
       {...rest}
-      value={value && !isObject(value) ? { value } : value}
-      placeholder={inputPlaceholder}
+      value={value && !_.isObject(value) ? { value } : value}
       options={state.value ?? []}
-      loadOptions={reloadOptionsOnChange ? fetchOptions : undefined}
       width={width}
-      noOptionsMessage={noOptionMessageHandler(state)}
+      noOptionsMessage={mapStateToNoOptionsMessage(state)}
       allowCustomValue={allowCustomValue}
-      allowEmptyValue={allowEmptyValue}
       onClickOutside={() => {
         setExpanded(false);
       }}
@@ -103,15 +79,15 @@ export function SegmentAsync<T>({
 
 function mapStateToNoOptionsMessage<T>(state: AsyncState<Array<SelectableValue<T>>>): string {
   if (state.loading) {
-    return t('grafana-ui.segment-async.loading', 'Loading options...');
+    return 'Loading options...';
   }
 
   if (state.error) {
-    return t('grafana-ui.segment-async.error', 'Failed to load options');
+    return 'Failed to load options';
   }
 
   if (!Array.isArray(state.value) || state.value.length === 0) {
-    return t('grafana-ui.segment-async.no-options', 'No options found');
+    return 'No options found';
   }
 
   return '';

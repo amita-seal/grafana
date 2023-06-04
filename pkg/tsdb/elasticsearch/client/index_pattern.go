@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana/pkg/tsdb"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 )
 
 type indexPattern interface {
-	GetIndices(timeRange backend.TimeRange) ([]string, error)
+	GetIndices(timeRange *tsdb.TimeRange) ([]string, error)
 }
 
 var newIndexPattern = func(interval string, pattern string) (indexPattern, error) {
@@ -34,12 +34,8 @@ type staticIndexPattern struct {
 	indexName string
 }
 
-func (ip *staticIndexPattern) GetIndices(timeRange backend.TimeRange) ([]string, error) {
-	if ip.indexName != "" {
-		return []string{ip.indexName}, nil
-	} else {
-		return []string{}, nil
-	}
+func (ip *staticIndexPattern) GetIndices(timeRange *tsdb.TimeRange) ([]string, error) {
+	return []string{ip.indexName}, nil
 }
 
 type intervalGenerator interface {
@@ -77,9 +73,9 @@ func newDynamicIndexPattern(interval, pattern string) (*dynamicIndexPattern, err
 	}, nil
 }
 
-func (ip *dynamicIndexPattern) GetIndices(timeRange backend.TimeRange) ([]string, error) {
-	from := timeRange.From.UTC()
-	to := timeRange.To.UTC()
+func (ip *dynamicIndexPattern) GetIndices(timeRange *tsdb.TimeRange) ([]string, error) {
+	from := timeRange.GetFromAsTimeUTC()
+	to := timeRange.GetToAsTimeUTC()
 	intervals := ip.intervalGenerator.Generate(from, to)
 	indices := make([]string, 0)
 

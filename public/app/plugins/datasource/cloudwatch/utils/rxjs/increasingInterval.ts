@@ -9,23 +9,14 @@ export const increasingInterval = (
   scheduler: SchedulerLike = asyncScheduler
 ): Observable<number> => {
   return new Observable<number>((subscriber) => {
-    const state: IntervalState = {
-      subscriber,
-      counter: 0,
-      period: startPeriod,
-      step,
-      endPeriod,
-    };
-
-    subscriber.add(scheduler.schedule(dispatch, startPeriod, state));
+    subscriber.add(
+      scheduler.schedule(dispatch, startPeriod, { subscriber, counter: 0, period: startPeriod, step, endPeriod })
+    );
     return subscriber;
   });
 };
 
-function dispatch(this: SchedulerAction<IntervalState>, state?: IntervalState) {
-  if (!state) {
-    return;
-  }
+function dispatch(this: SchedulerAction<IntervalState>, state: IntervalState) {
   const { subscriber, counter, period, step, endPeriod } = state;
   subscriber.next(counter);
   const newPeriod = Math.min(period + step, endPeriod);

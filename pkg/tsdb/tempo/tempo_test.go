@@ -4,24 +4,22 @@ import (
 	"context"
 	"testing"
 
-	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTempo(t *testing.T) {
-	t.Run("createRequest without time range - success", func(t *testing.T) {
-		service := &Service{tlog: log.New("tempo-test")}
-		req, err := service.createRequest(context.Background(), &datasourceInfo{}, "traceID", 0, 0)
-		require.NoError(t, err)
-		assert.Equal(t, 1, len(req.Header))
+	plug, err := NewExecutor(&models.DataSource{
+		Name: "tempo",
 	})
+	executor := plug.(*tempoExecutor)
+	require.NoError(t, err)
 
-	t.Run("createRequest with time range - success", func(t *testing.T) {
-		service := &Service{tlog: log.New("tempo-test")}
-		req, err := service.createRequest(context.Background(), &datasourceInfo{}, "traceID", 1, 2)
+	t.Run("createRequest should set Auth header when basic auth is true ", func(t *testing.T) {
+		req, err := executor.createRequest(context.Background(), &models.DataSource{BasicAuth: true, BasicAuthUser: "john", BasicAuthPassword: "pass"}, "traceID")
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(req.Header))
-		assert.Equal(t, "/api/traces/traceID?start=1&end=2", req.URL.String())
+		assert.Equal(t, 2, len(req.Header))
+		assert.NotEqual(t, req.Header.Get("Authorization"), "")
 	})
 }

@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
-
+import React, { PureComponent } from 'react';
 import { ConfirmButton, RadioButtonGroup, Icon } from '@grafana/ui';
-import { contextSrv } from 'app/core/core';
-import { AccessControlAction } from 'app/types';
+import { cx } from 'emotion';
 
 interface Props {
   isGrafanaAdmin: boolean;
@@ -10,72 +8,95 @@ interface Props {
   onGrafanaAdminChange: (isGrafanaAdmin: boolean) => void;
 }
 
+interface State {
+  isEditing: boolean;
+  currentAdminOption: string;
+}
+
 const adminOptions = [
-  { label: 'Yes', value: true },
-  { label: 'No', value: false },
+  { label: 'Yes', value: 'YES' },
+  { label: 'No', value: 'NO' },
 ];
 
-export function UserPermissions({ isGrafanaAdmin, onGrafanaAdminChange }: Props) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentAdminOption, setCurrentAdminOption] = useState(isGrafanaAdmin);
-
-  const onChangeClick = () => setIsEditing(true);
-
-  const onCancelClick = () => {
-    setIsEditing(false);
-    setCurrentAdminOption(isGrafanaAdmin);
+export class UserPermissions extends PureComponent<Props, State> {
+  state = {
+    isEditing: false,
+    currentAdminOption: this.props.isGrafanaAdmin ? 'YES' : 'NO',
   };
 
-  const handleGrafanaAdminChange = () => onGrafanaAdminChange(currentAdminOption);
+  onChangeClick = () => {
+    this.setState({ isEditing: true });
+  };
 
-  const canChangePermissions = contextSrv.hasPermission(AccessControlAction.UsersPermissionsUpdate);
+  onCancelClick = () => {
+    this.setState({
+      isEditing: false,
+      currentAdminOption: this.props.isGrafanaAdmin ? 'YES' : 'NO',
+    });
+  };
 
-  return (
-    <>
-      <h3 className="page-heading">Permissions</h3>
-      <div className="gf-form-group">
-        <div className="gf-form">
-          <table className="filter-table form-inline">
-            <tbody>
-              <tr>
-                <td className="width-16">Grafana Admin</td>
-                {isEditing ? (
-                  <td colSpan={2}>
-                    <RadioButtonGroup
-                      options={adminOptions}
-                      value={currentAdminOption}
-                      onChange={setCurrentAdminOption}
-                      autoFocus
-                    />
-                  </td>
-                ) : (
-                  <td colSpan={2}>
-                    {isGrafanaAdmin ? (
-                      <>
-                        <Icon name="shield" /> Yes
-                      </>
-                    ) : (
-                      <>No</>
-                    )}
-                  </td>
-                )}
-                <td>
-                  {canChangePermissions && (
-                    <ConfirmButton
-                      onClick={onChangeClick}
-                      onConfirm={handleGrafanaAdminChange}
-                      onCancel={onCancelClick}
-                      confirmText="Change"
-                    >
-                      Change
-                    </ConfirmButton>
+  onGrafanaAdminChange = () => {
+    const { currentAdminOption } = this.state;
+    const newIsGrafanaAdmin = currentAdminOption === 'YES' ? true : false;
+    this.props.onGrafanaAdminChange(newIsGrafanaAdmin);
+  };
+
+  onAdminOptionSelect = (value: string) => {
+    this.setState({ currentAdminOption: value });
+  };
+
+  render() {
+    const { isGrafanaAdmin } = this.props;
+    const { isEditing, currentAdminOption } = this.state;
+    const changeButtonContainerClass = cx('pull-right');
+
+    return (
+      <>
+        <h3 className="page-heading">Permissions</h3>
+        <div className="gf-form-group">
+          <div className="gf-form">
+            <table className="filter-table form-inline">
+              <tbody>
+                <tr>
+                  <td className="width-16">Grafana Admin</td>
+                  {isEditing ? (
+                    <td colSpan={2}>
+                      <RadioButtonGroup
+                        options={adminOptions}
+                        value={currentAdminOption}
+                        onChange={this.onAdminOptionSelect}
+                      />
+                    </td>
+                  ) : (
+                    <td colSpan={2}>
+                      {isGrafanaAdmin ? (
+                        <>
+                          <Icon name="shield" /> Yes
+                        </>
+                      ) : (
+                        <>No</>
+                      )}
+                    </td>
                   )}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <td>
+                    <div className={changeButtonContainerClass}>
+                      <ConfirmButton
+                        className="pull-right"
+                        onClick={this.onChangeClick}
+                        onConfirm={this.onGrafanaAdminChange}
+                        onCancel={this.onCancelClick}
+                        confirmText="Change"
+                      >
+                        Change
+                      </ConfirmButton>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-    </>
-  );
+      </>
+    );
+  }
 }

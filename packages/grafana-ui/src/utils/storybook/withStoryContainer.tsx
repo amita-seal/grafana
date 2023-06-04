@@ -1,14 +1,14 @@
-import { css, cx } from '@emotion/css';
-import { DecoratorFn } from '@storybook/react';
 import React from 'react';
+import { boolean, number } from '@storybook/addon-knobs';
+import { css, cx } from 'emotion';
+import { RenderFunction } from '../../types';
 
-interface Props {
-  width?: number;
-  height?: number;
-  showBoundaries: boolean;
-}
-
-const StoryContainer = ({ width, height, showBoundaries, children }: React.PropsWithChildren<Props>) => {
+const StoryContainer: React.FC<{ width?: number; height?: number; showBoundaries: boolean }> = ({
+  children,
+  width,
+  height,
+  showBoundaries,
+}) => {
   const checkColor = '#f0f0f0';
   const finalWidth = width ? `${width}px` : '100%';
   const finalHeight = height !== 0 ? `${height}px` : 'auto';
@@ -43,12 +43,38 @@ const StoryContainer = ({ width, height, showBoundaries, children }: React.Props
   );
 };
 
-export const withStoryContainer: DecoratorFn = (story, context) => {
+export const withStoryContainer = (story: RenderFunction) => {
+  const CONTAINER_GROUP = 'Container options';
+  // ---
+  const containerBoundary = boolean('Show container boundary', false, CONTAINER_GROUP);
+  const fullWidthContainer = boolean('Full width container', false, CONTAINER_GROUP);
+  const containerWidth = number(
+    'Container width',
+    300,
+    {
+      range: true,
+      min: 100,
+      max: 500,
+      step: 10,
+    },
+    CONTAINER_GROUP
+  );
+  const containerHeight = number(
+    'Container height',
+    0,
+    {
+      range: true,
+      min: 100,
+      max: 500,
+      step: 10,
+    },
+    CONTAINER_GROUP
+  );
   return (
     <StoryContainer
-      width={context.args.containerWidth}
-      height={context.args.containerHeight}
-      showBoundaries={context.args.showBoundaries}
+      width={fullWidthContainer ? undefined : containerWidth}
+      height={containerHeight}
+      showBoundaries={containerBoundary}
     >
       {story()}
     </StoryContainer>

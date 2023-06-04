@@ -1,9 +1,7 @@
-import { render, screen } from '@testing-library/react';
 import React from 'react';
-
-import { selectors } from '@grafana/e2e-selectors';
-
+import { render, screen } from '@testing-library/react';
 import { DataLinksContextMenu } from './DataLinksContextMenu';
+import { selectors } from '@grafana/e2e-selectors';
 
 const fakeAriaLabel = 'fake aria label';
 describe('DataLinksContextMenu', () => {
@@ -24,6 +22,18 @@ describe('DataLinksContextMenu', () => {
             origin: {},
           },
         ]}
+        config={{
+          links: [
+            {
+              title: 'Link1',
+              url: '/link1',
+            },
+            {
+              title: 'Link2',
+              url: '/link2',
+            },
+          ],
+        }}
       >
         {() => {
           return <div aria-label="fake aria label" />;
@@ -46,6 +56,14 @@ describe('DataLinksContextMenu', () => {
             origin: {},
           },
         ]}
+        config={{
+          links: [
+            {
+              title: 'Link1',
+              url: '/link1',
+            },
+          ],
+        }}
       >
         {() => {
           return <div aria-label="fake aria label" />;

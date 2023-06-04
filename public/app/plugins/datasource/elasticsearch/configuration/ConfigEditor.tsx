@@ -1,53 +1,47 @@
-import React, { useEffect, useRef } from 'react';
-
-import { SIGV4ConnectionConfig } from '@grafana/aws-sdk';
-import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
+import React, { useEffect } from 'react';
 import { Alert, DataSourceHttpSettings } from '@grafana/ui';
+import { DataSourcePluginOptionsEditorProps } from '@grafana/data';
+import { ElasticsearchOptions } from '../types';
+import { defaultMaxConcurrentShardRequests, ElasticDetails } from './ElasticDetails';
+import { LogsConfig } from './LogsConfig';
+import { DataLinks } from './DataLinks';
 import { config } from 'app/core/config';
 
-import { ElasticsearchOptions } from '../types';
-
-import { DataLinks } from './DataLinks';
-import { ElasticDetails } from './ElasticDetails';
-import { LogsConfig } from './LogsConfig';
-import { coerceOptions, isValidOptions } from './utils';
-
 export type Props = DataSourcePluginOptionsEditorProps<ElasticsearchOptions>;
-
 export const ConfigEditor = (props: Props) => {
-  // we decide on whether to show access options or not at the point when the config page opens.
-  // whatever happens while the page is open, this decision does not change.
-  // (we do this to avoid situations where you switch access-mode and suddenly
-  // the access-mode-select-box vanishes)
-  const showAccessOptions = useRef(props.options.access === 'direct');
+  const { options, onOptionsChange } = props;
 
-  const { options: originalOptions, onOptionsChange } = props;
-  const options = coerceOptions(originalOptions);
-
+  // Apply some defaults on initial render
   useEffect(() => {
-    if (!isValidOptions(originalOptions)) {
-      onOptionsChange(coerceOptions(originalOptions));
-    }
-
-    // We can't enforce the eslint rule here because we only want to run this once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const esVersion = options.jsonData.esVersion || 5;
+    onOptionsChange({
+      ...options,
+      jsonData: {
+        ...options.jsonData,
+        timeField: options.jsonData.timeField || '@timestamp',
+        esVersion,
+        maxConcurrentShardRequests:
+          options.jsonData.maxConcurrentShardRequests || defaultMaxConcurrentShardRequests(esVersion),
+        logMessageField: options.jsonData.logMessageField || '',
+        logLevelField: options.jsonData.logLevelField || '',
+      },
+    });
   }, []);
 
   return (
     <>
       {options.access === 'direct' && (
-        <Alert title="Error" severity="error">
-          Browser access mode in the Elasticsearch datasource is no longer available. Switch to server access mode.
+        <Alert title="Deprecation Notice" severity="warning">
+          Browser access mode in the Elasticsearch datasource is deprecated and will be removed in a future release.
         </Alert>
       )}
+
       <DataSourceHttpSettings
-        defaultUrl="http://localhost:9200"
+        defaultUrl={'http://localhost:9200'}
         dataSourceConfig={options}
-        showAccessOptions={showAccessOptions.current}
+        showAccessOptions={true}
         onChange={onOptionsChange}
         sigV4AuthToggleEnabled={config.sigV4AuthEnabled}
-        renderSigV4Editor={<SIGV4ConnectionConfig {...props}></SIGV4ConnectionConfig>}
-        secureSocksDSProxyEnabled={config.secureSocksDSProxyEnabled}
       />
 
       <ElasticDetails value={options} onChange={onOptionsChange} />

@@ -1,21 +1,17 @@
-import { isFetchError } from '@grafana/runtime';
+import _ from 'lodash';
 
-export function getMessageFromError(err: unknown): string {
-  if (typeof err === 'string') {
-    return err;
-  }
-
-  if (err) {
-    if (err instanceof Error) {
+export function getMessageFromError(err: string | (Error & { data?: any; statusText?: string })): string {
+  if (err && !_.isString(err)) {
+    if (err.message) {
       return err.message;
-    } else if (isFetchError(err)) {
-      if (err.data && err.data.message) {
-        return err.data.message;
-      } else if (err.statusText) {
-        return err.statusText;
-      }
+    } else if (err.data && err.data.message) {
+      return err.data.message;
+    } else if (err.statusText) {
+      return err.statusText;
+    } else {
+      return JSON.stringify(err);
     }
   }
 
-  return JSON.stringify(err);
+  return err as string;
 }

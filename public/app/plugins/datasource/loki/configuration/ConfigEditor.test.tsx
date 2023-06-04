@@ -1,36 +1,28 @@
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import React from 'react';
-
-import { createDefaultConfigOptions } from '../mocks';
-
+import { mount } from 'enzyme';
 import { ConfigEditor } from './ConfigEditor';
+import { createDefaultConfigOptions } from '../mocks';
+import { DataSourceHttpSettings } from '@grafana/ui';
+import { DerivedFields } from './DerivedFields';
 
 describe('ConfigEditor', () => {
   it('should render without error', () => {
-    expect(() =>
-      render(<ConfigEditor onOptionsChange={() => {}} options={createDefaultConfigOptions()} />)
-    ).not.toThrow();
+    mount(<ConfigEditor onOptionsChange={() => {}} options={createDefaultConfigOptions()} />);
   });
 
   it('should render the right sections', () => {
-    render(<ConfigEditor onOptionsChange={() => {}} options={createDefaultConfigOptions()} />);
-    expect(screen.getByRole('heading', { name: 'HTTP' })).toBeInTheDocument();
-    expect(screen.getByText('Maximum lines')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Derived fields' })).toBeInTheDocument();
+    const wrapper = mount(<ConfigEditor onOptionsChange={() => {}} options={createDefaultConfigOptions()} />);
+    expect(wrapper.find(DataSourceHttpSettings).length).toBe(1);
+    expect(wrapper.find({ label: 'Maximum lines' }).length).toBe(1);
+    expect(wrapper.find(DerivedFields).length).toBe(1);
   });
 
-  it('should pass correct data to onChange', async () => {
+  it('should pass correct data to onChange', () => {
     const onChangeMock = jest.fn();
-    render(<ConfigEditor onOptionsChange={onChangeMock} options={createDefaultConfigOptions()} />);
-    const maxLinesInput = await screen.findByDisplayValue('531');
-    await userEvent.type(maxLinesInput, '2');
-    expect(onChangeMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        jsonData: expect.objectContaining({
-          maxLines: '5312',
-        }),
-      })
-    );
+    const wrapper = mount(<ConfigEditor onOptionsChange={onChangeMock} options={createDefaultConfigOptions()} />);
+    const inputWrapper = wrapper.find({ label: 'Maximum lines' }).find('input');
+    (inputWrapper.getDOMNode() as any).value = 42;
+    inputWrapper.simulate('change');
+    expect(onChangeMock.mock.calls[0][0].jsonData.maxLines).toBe('42');
   });
 });

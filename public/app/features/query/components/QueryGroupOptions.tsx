@@ -1,10 +1,16 @@
-import { css } from '@emotion/css';
+// Libraries
 import React, { PureComponent, ChangeEvent, FocusEvent } from 'react';
 
+// Utils
 import { rangeUtil, PanelData, DataSourceApi } from '@grafana/data';
+
+// Components
 import { Switch, Input, InlineField, InlineFormLabel, stylesFactory } from '@grafana/ui';
+
+// Types
 import { QueryOperationRow } from 'app/core/components/QueryOperationRow/QueryOperationRow';
 import { config } from 'app/core/config';
+import { css } from 'emotion';
 import { QueryGroupOptions } from 'app/types';
 
 interface Props {
@@ -111,21 +117,6 @@ export class QueryGroupOptionsEditor extends PureComponent<Props, State> {
     });
   };
 
-  onQueryCachingTTLBlur = (event: ChangeEvent<HTMLInputElement>) => {
-    const { options, onChange } = this.props;
-
-    let ttl: number | null = parseInt(event.target.value, 10);
-
-    if (isNaN(ttl) || ttl === 0) {
-      ttl = null;
-    }
-
-    onChange({
-      ...options,
-      queryCachingTTL: ttl,
-    });
-  };
-
   onMaxDataPointsBlur = (event: ChangeEvent<HTMLInputElement>) => {
     const { options, onChange } = this.props;
 
@@ -177,34 +168,6 @@ export class QueryGroupOptionsEditor extends PureComponent<Props, State> {
             spellCheck={false}
             onBlur={this.onCacheTimeoutBlur}
             defaultValue={options.cacheTimeout ?? ''}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  renderQueryCachingTTLOption() {
-    const { dataSource, options } = this.props;
-
-    const tooltip = `Cache time-to-live: How long results from this queries in this panel will be cached, in milliseconds. Defaults to the TTL in the caching configuration for this datasource.`;
-
-    if (!dataSource.cachingConfig?.enabled) {
-      return null;
-    }
-
-    return (
-      <div className="gf-form-inline">
-        <div className="gf-form">
-          <InlineFormLabel width={9} tooltip={tooltip}>
-            Cache TTL
-          </InlineFormLabel>
-          <Input
-            type="number"
-            className="width-6"
-            placeholder={`${dataSource.cachingConfig.TTLMs}`}
-            spellCheck={false}
-            onBlur={this.onQueryCachingTTLBlur}
-            defaultValue={options.queryCachingTTL ?? undefined}
           />
         </div>
       </div>
@@ -287,7 +250,7 @@ export class QueryGroupOptionsEditor extends PureComponent<Props, State> {
               width={9}
               tooltip={
                 <>
-                  The evaluated interval that is sent to data source and is used in <code>$__interval</code> and{' '}
+                  The evaluated Interval that is sent to data source and is used in <code>$__interval</code> and{' '}
                   <code>$__interval_ms</code>
                 </>
               }
@@ -296,7 +259,7 @@ export class QueryGroupOptionsEditor extends PureComponent<Props, State> {
             </InlineFormLabel>
             <InlineFormLabel width={6}>{realInterval}</InlineFormLabel>
             <div className="gf-form-label query-segment-operator">=</div>
-            <div className="gf-form-label">Time range / max data points</div>
+            <div className="gf-form-label">Max data points / time range</div>
           </div>
         </div>
       </>
@@ -355,7 +318,6 @@ export class QueryGroupOptionsEditor extends PureComponent<Props, State> {
         {this.renderMaxDataPointsOption()}
         {this.renderIntervalOption()}
         {this.renderCacheTimeoutOption()}
-        {this.renderQueryCachingTTLOption()}
 
         <div className="gf-form">
           <InlineFormLabel width={9}>Relative time</InlineFormLabel>

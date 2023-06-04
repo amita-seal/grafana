@@ -1,14 +1,11 @@
-import { css } from '@emotion/css';
 import React, { Dispatch, SetStateAction, useEffect, useState } from 'react';
-import { usePrevious } from 'react-use';
-
+import { css } from 'emotion';
 import { VariableSuggestion } from '@grafana/data';
-import { DataSourcePicker } from '@grafana/runtime';
 import { Button, LegacyForms, DataLinkInput, stylesFactory } from '@grafana/ui';
-
-import { DataLinkConfig } from '../types';
-
 const { FormField, Switch } = LegacyForms;
+import { DataLinkConfig } from '../types';
+import { usePrevious } from 'react-use';
+import { DataSourcePicker } from '../../../../core/components/Select/DataSourcePicker';
 
 const getStyles = stylesFactory(() => ({
   firstRow: css`
@@ -23,12 +20,6 @@ const getStyles = stylesFactory(() => ({
   row: css`
     display: flex;
     align-items: baseline;
-  `,
-  urlField: css`
-    flex: 1;
-  `,
-  urlDisplayLabelField: css`
-    flex: 1;
   `,
 }));
 
@@ -92,17 +83,9 @@ export const DataLink = (props: Props) => {
               suggestions={suggestions}
             />
           }
-          className={styles.urlField}
-        />
-        <FormField
-          className={styles.urlDisplayLabelField}
-          inputWidth={null}
-          labelWidth={7}
-          label="URL Label"
-          type="text"
-          value={value.urlDisplayLabel}
-          onChange={handleChange('urlDisplayLabel')}
-          tooltip={'Use to override the button label.'}
+          className={css`
+            width: 100%;
+          `}
         />
       </div>
 

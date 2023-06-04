@@ -21,10 +21,10 @@ interface State {
   hasEventListener: boolean;
 }
 
-export class ClickOutsideWrapper extends PureComponent<React.PropsWithChildren<Props>, State> {
+export class ClickOutsideWrapper extends PureComponent<Props, State> {
   static defaultProps = {
     includeButtonPress: true,
-    parent: typeof window !== 'undefined' ? window : undefined,
+    parent: window,
     useCapture: false,
   };
   myRef = createRef<HTMLDivElement>();

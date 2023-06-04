@@ -1,102 +1,121 @@
 import React, { useState } from 'react';
-
-import { arrayUtils } from '@grafana/data';
-import { DeleteButton, HorizontalGroup, Icon, IconButton, TagList } from '@grafana/ui';
+import { css } from 'emotion';
+import { DeleteButton, Icon, IconButton, Tag, useTheme } from '@grafana/ui';
 import EmptyListCTA from 'app/core/components/EmptyListCTA/EmptyListCTA';
-
+import { arrayMove } from 'app/core/utils/arrayMove';
 import { DashboardModel, DashboardLink } from '../../state/DashboardModel';
-import { ListNewButton } from '../DashboardSettings/ListNewButton';
 
 type LinkSettingsListProps = {
   dashboard: DashboardModel;
-  onNew: () => void;
-  onEdit: (idx: number) => void;
+  setupNew: () => void;
+  editLink: (idx: number) => void;
 };
 
-export const LinkSettingsList = ({ dashboard, onNew, onEdit }: LinkSettingsListProps) => {
-  const [links, setLinks] = useState(dashboard.links);
+export const LinkSettingsList: React.FC<LinkSettingsListProps> = ({ dashboard, setupNew, editLink }) => {
+  const theme = useTheme();
+  // @ts-ignore
+  const [renderCounter, setRenderCounter] = useState(0);
 
   const moveLink = (idx: number, direction: number) => {
-    dashboard.links = arrayUtils.moveItemImmutably(links, idx, idx + direction);
-    setLinks(dashboard.links);
+    arrayMove(dashboard.links, idx, idx + direction);
+    setRenderCounter((renderCount) => renderCount + 1);
   };
-
   const duplicateLink = (link: DashboardLink, idx: number) => {
-    dashboard.links = [...links, { ...link }];
-    setLinks(dashboard.links);
+    dashboard.links.splice(idx, 0, link);
+    dashboard.updateSubmenuVisibility();
+    setRenderCounter((renderCount) => renderCount + 1);
   };
-
   const deleteLink = (idx: number) => {
-    dashboard.links = [...links.slice(0, idx), ...links.slice(idx + 1)];
-    setLinks(dashboard.links);
+    dashboard.links.splice(idx, 1);
+    dashboard.updateSubmenuVisibility();
+    setRenderCounter((renderCount) => renderCount + 1);
   };
 
-  const isEmptyList = dashboard.links.length === 0;
-
-  if (isEmptyList) {
-    return (
-      <div>
+  return (
+    <div>
+      {dashboard.links.length === 0 ? (
         <EmptyListCTA
-          onClick={onNew}
+          onClick={setupNew}
           title="There are no dashboard links added yet"
           buttonIcon="link"
-          buttonTitle="Add dashboard link"
-          infoBoxTitle="What are dashboard links?"
+          buttonTitle="Add Dashboard Link"
+          infoBoxTitle="What are Dashboard Links?"
           infoBox={{
             __html:
               '<p>Dashboard Links allow you to place links to other dashboards and web sites directly below the dashboard header.</p>',
           }}
         />
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <table role="grid" className="filter-table filter-table--hover">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Info</th>
-            <th colSpan={3} />
-          </tr>
-        </thead>
-        <tbody>
-          {links.map((link, idx) => (
-            <tr key={`${link.title}-${idx}`}>
-              <td role="gridcell" className="pointer" onClick={() => onEdit(idx)}>
-                <Icon name="external-link-alt" /> &nbsp; {link.type}
-              </td>
-              <td role="gridcell">
-                <HorizontalGroup>
-                  {link.title && <span>{link.title}</span>}
-                  {link.type === 'link' && <span>{link.url}</span>}
-                  {link.type === 'dashboards' && <TagList tags={link.tags ?? []} />}
-                </HorizontalGroup>
-              </td>
-              <td style={{ width: '1%' }} role="gridcell">
-                {idx !== 0 && <IconButton name="arrow-up" aria-label="arrow-up" onClick={() => moveLink(idx, -1)} />}
-              </td>
-              <td style={{ width: '1%' }} role="gridcell">
-                {links.length > 1 && idx !== links.length - 1 ? (
-                  <IconButton name="arrow-down" aria-label="arrow-down" onClick={() => moveLink(idx, 1)} />
-                ) : null}
-              </td>
-              <td style={{ width: '1%' }} role="gridcell">
-                <IconButton aria-label="copy" name="copy" onClick={() => duplicateLink(link, idx)} />
-              </td>
-              <td style={{ width: '1%' }} role="gridcell">
-                <DeleteButton
-                  aria-label={`Delete link with title "${link.title}"`}
-                  size="sm"
-                  onConfirm={() => deleteLink(idx)}
-                />
-              </td>
+      ) : (
+        <table className="filter-table filter-table--hover">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Info</th>
+              <th colSpan={3} />
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <ListNewButton onClick={onNew}>New link</ListNewButton>
-    </>
+          </thead>
+          <tbody>
+            {dashboard.links.map((link, idx) => (
+              <tr key={idx}>
+                <td className="pointer" onClick={() => editLink(idx)}>
+                  <Icon
+                    name="external-link-alt"
+                    className={css`
+                      margin-right: ${theme.spacing.xs};
+                    `}
+                  />
+                  {link.type}
+                </td>
+                <td>
+                  {link.title && <div>{link.title}</div>}
+                  {!link.title && link.url ? <div>{link.url}</div> : null}
+                  {!link.title && link.tags
+                    ? link.tags.map((tag, idx) => (
+                        <Tag
+                          name={tag}
+                          key={tag}
+                          className={
+                            idx !== 0
+                              ? css`
+                                  margin-left: ${theme.spacing.xs};
+                                `
+                              : ''
+                          }
+                        />
+                      ))
+                    : null}
+                </td>
+                <td style={{ width: '1%' }}>
+                  {idx !== 0 && (
+                    <IconButton
+                      surface="header"
+                      name="arrow-up"
+                      aria-label="arrow-up"
+                      onClick={() => moveLink(idx, -1)}
+                    />
+                  )}
+                </td>
+                <td style={{ width: '1%' }}>
+                  {dashboard.links.length > 1 && idx !== dashboard.links.length - 1 ? (
+                    <IconButton
+                      surface="header"
+                      name="arrow-down"
+                      aria-label="arrow-down"
+                      onClick={() => moveLink(idx, 1)}
+                    />
+                  ) : null}
+                </td>
+                <td style={{ width: '1%' }}>
+                  <IconButton surface="header" aria-label="copy" name="copy" onClick={() => duplicateLink(link, idx)} />
+                </td>
+                <td style={{ width: '1%' }}>
+                  <DeleteButton size="sm" onConfirm={() => deleteLink(idx)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 };

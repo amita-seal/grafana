@@ -1,8 +1,7 @@
-import { DataQuery } from '@grafana/data';
-import { Dashboard, DataSourceRef } from '@grafana/schema';
-import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
-
 import { DashboardAcl } from './acl';
+import { DataQuery, PanelPlugin } from '@grafana/data';
+import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
+import { AngularComponent } from '@grafana/runtime';
 
 export interface DashboardDTO {
   redirectUri?: string;
@@ -11,8 +10,6 @@ export interface DashboardDTO {
 }
 
 export interface DashboardMeta {
-  slug?: string;
-  uid?: string;
   canSave?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -21,14 +18,15 @@ export interface DashboardMeta {
   canAdmin?: boolean;
   url?: string;
   folderId?: number;
-  folderUid?: string;
+  fromExplore?: boolean;
   canMakeEditable?: boolean;
+  submenuEnabled?: boolean;
   provisioned?: boolean;
   provisionedExternalId?: string;
+  focusPanelId?: number;
   isStarred?: boolean;
   showSettings?: boolean;
   expires?: string;
-  isFolder?: boolean;
   isSnapshot?: boolean;
   folderTitle?: string;
   folderUrl?: string;
@@ -36,41 +34,18 @@ export interface DashboardMeta {
   createdBy?: string;
   updated?: string;
   updatedBy?: string;
-  fromScript?: boolean;
-  fromFile?: boolean;
   hasUnsavedFolderChange?: boolean;
-  annotationsPermissions?: AnnotationsPermissions;
-  publicDashboardAccessToken?: string;
-  publicDashboardUid?: string;
-  publicDashboardEnabled?: boolean;
-  dashboardNotFound?: boolean;
 }
 
-export interface AnnotationActions {
-  canAdd: boolean;
-  canEdit: boolean;
-  canDelete: boolean;
-}
-
-export interface AnnotationsPermissions {
-  dashboard: AnnotationActions;
-  organization: AnnotationActions;
-}
-
-// FIXME: This should not override Dashboard types
-export interface DashboardDataDTO extends Dashboard {
+export interface DashboardDataDTO {
   title: string;
-  uid: string;
-  panels?: any[];
 }
 
-export enum DashboardRoutes {
+export enum DashboardRouteInfo {
   Home = 'home-dashboard',
   New = 'new-dashboard',
   Normal = 'normal-dashboard',
-  Path = 'path-dashboard',
   Scripted = 'scripted-dashboard',
-  Public = 'public-dashboard',
 }
 
 export enum DashboardInitPhase {
@@ -83,14 +58,11 @@ export enum DashboardInitPhase {
 
 export interface DashboardInitError {
   message: string;
-  error: unknown;
+  error: any;
 }
 
-export enum KioskMode {
-  TV = 'tv',
-  Full = 'full',
-}
-
+export const KIOSK_MODE_TV = 'tv';
+export type KioskUrlValue = 'tv' | '1' | true;
 export type GetMutableDashboardModelFn = () => DashboardModel | null;
 
 export interface QueriesToUpdateOnDashboardLoad {
@@ -98,10 +70,18 @@ export interface QueriesToUpdateOnDashboardLoad {
   queries: DataQuery[];
 }
 
+export interface PanelState {
+  pluginId: string;
+  plugin?: PanelPlugin;
+  angularComponent?: AngularComponent | null;
+}
+
 export interface DashboardState {
   getModel: GetMutableDashboardModelFn;
   initPhase: DashboardInitPhase;
-  initialDatasource?: DataSourceRef['uid'];
+  isInitSlow: boolean;
   initError: DashboardInitError | null;
   permissions: DashboardAcl[];
+  modifiedQueries: QueriesToUpdateOnDashboardLoad | null;
+  panels: { [id: string]: PanelState };
 }

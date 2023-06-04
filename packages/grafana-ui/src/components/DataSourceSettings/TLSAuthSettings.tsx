@@ -1,22 +1,19 @@
-import { css, cx } from '@emotion/css';
 import React from 'react';
-
 import { KeyValue } from '@grafana/data';
-
-import { FormField } from '../FormField/FormField';
-import { Icon } from '../Icon/Icon';
+import { css, cx } from 'emotion';
 import { Tooltip } from '../Tooltip/Tooltip';
-
+import { Icon } from '../Icon/Icon';
 import { CertificationKey } from './CertificationKey';
 import { HttpSettingsBaseProps } from './types';
+import { FormField } from '../FormField/FormField';
 
-export const TLSAuthSettings = ({ dataSourceConfig, onChange }: HttpSettingsBaseProps) => {
+export const TLSAuthSettings: React.FC<HttpSettingsBaseProps> = ({ dataSourceConfig, onChange }) => {
   const hasTLSCACert = dataSourceConfig.secureJsonFields && dataSourceConfig.secureJsonFields.tlsCACert;
   const hasTLSClientCert = dataSourceConfig.secureJsonFields && dataSourceConfig.secureJsonFields.tlsClientCert;
   const hasTLSClientKey = dataSourceConfig.secureJsonFields && dataSourceConfig.secureJsonFields.tlsClientKey;
   const hasServerName = dataSourceConfig.jsonData && dataSourceConfig.jsonData.serverName;
 
-  const onResetClickFactory = (field: string) => (event: React.MouseEvent<HTMLButtonElement>) => {
+  const onResetClickFactory = (field: string) => (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     const newSecureJsonFields: KeyValue<boolean> = { ...dataSourceConfig.secureJsonFields };
     newSecureJsonFields[field] = false;

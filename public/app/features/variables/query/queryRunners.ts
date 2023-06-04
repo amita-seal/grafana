@@ -1,6 +1,5 @@
 import { from, Observable, of } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
-
 import {
   DataQuery,
   DataQueryRequest,
@@ -11,15 +10,15 @@ import {
   VariableSupportType,
 } from '@grafana/data';
 
-import { TimeSrv } from '../../dashboard/services/TimeSrv';
+import { QueryVariableModel } from '../types';
 import {
   hasCustomVariableSupport,
   hasDatasourceVariableSupport,
   hasLegacyVariableSupport,
   hasStandardVariableSupport,
 } from '../guard';
-import { QueryVariableModel } from '../types';
 import { getLegacyQueryOptions } from '../utils';
+import { TimeSrv } from '../../dashboard/services/TimeSrv';
 
 export interface RunnerArgs {
   variable: QueryVariableModel;
@@ -150,8 +149,6 @@ class CustomQueryRunner implements QueryRunner {
   }
 }
 
-export const variableDummyRefId = 'variable-query';
-
 class DatasourceQueryRunner implements QueryRunner {
   type = VariableSupportType.Datasource;
 
@@ -161,7 +158,7 @@ class DatasourceQueryRunner implements QueryRunner {
 
   getTarget({ datasource, variable }: GetTargetArgs) {
     if (hasDatasourceVariableSupport(datasource)) {
-      return { ...variable.query, refId: variable.query.refId ?? variableDummyRefId };
+      return variable.query;
     }
 
     throw new Error("Couldn't create a target with supplied arguments.");

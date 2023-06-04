@@ -1,9 +1,4 @@
-import { dateTime } from '../datetime/moment_wrapper';
-import { DataFrameDTO, FieldType, TableData, TimeSeries } from '../types/index';
-
-import { ArrayDataFrame } from './ArrayDataFrame';
 import {
-  createDataFrame,
   guessFieldTypeFromValue,
   guessFieldTypes,
   isDataFrame,
@@ -12,8 +7,10 @@ import {
   toDataFrame,
   toLegacyResponseData,
 } from './processDataFrame';
-
-import { getFieldTypeFromValue } from '.';
+import { DataFrameDTO, FieldType, TableData, TimeSeries } from '../types/index';
+import { dateTime } from '../datetime/moment_wrapper';
+import { MutableDataFrame } from './MutableDataFrame';
+import { ArrayDataFrame } from './ArrayDataFrame';
 
 describe('toDataFrame', () => {
   it('converts timeseries to series', () => {
@@ -83,9 +80,10 @@ describe('toDataFrame', () => {
       { a: 1, b: 2 },
       { a: 3, b: 4 },
     ];
-    const array = new ArrayDataFrame(orig); // will return a simple DataFrame
+    const array = new ArrayDataFrame(orig);
     const frame = toDataFrame(array);
     expect(frame).toEqual(array);
+    expect(frame instanceof ArrayDataFrame).toEqual(true);
     expect(frame.length).toEqual(orig.length);
     expect(frame.fields.map((f) => f.name)).toEqual(['a', 'b']);
   });
@@ -120,17 +118,19 @@ describe('toDataFrame', () => {
     expect(guessFieldTypeFromValue('xxxx')).toBe(FieldType.string);
   });
 
-  it('Get column types from values', () => {
-    expect(getFieldTypeFromValue(1)).toBe(FieldType.number);
-    expect(getFieldTypeFromValue(1.234)).toBe(FieldType.number);
-    expect(getFieldTypeFromValue(NaN)).toBe(FieldType.number);
-    expect(getFieldTypeFromValue(3.125e7)).toBe(FieldType.number);
-    expect(getFieldTypeFromValue(true)).toBe(FieldType.boolean);
-    expect(getFieldTypeFromValue('xxxx')).toBe(FieldType.string);
+  it('Guess Column Types from strings', () => {
+    expect(guessFieldTypeFromValue('1')).toBe(FieldType.number);
+    expect(guessFieldTypeFromValue('1.234')).toBe(FieldType.number);
+    expect(guessFieldTypeFromValue('NaN')).toBe(FieldType.number);
+    expect(guessFieldTypeFromValue('3.125e7')).toBe(FieldType.number);
+    expect(guessFieldTypeFromValue('True')).toBe(FieldType.boolean);
+    expect(guessFieldTypeFromValue('FALSE')).toBe(FieldType.boolean);
+    expect(guessFieldTypeFromValue('true')).toBe(FieldType.boolean);
+    expect(guessFieldTypeFromValue('xxxx')).toBe(FieldType.string);
   });
 
   it('Guess Column Types from series', () => {
-    const series = createDataFrame({
+    const series = new MutableDataFrame({
       fields: [
         { name: 'A (number)', values: [123, null] },
         { name: 'B (strings)', values: [null, 'Hello'] },
@@ -173,48 +173,6 @@ describe('toDataFrame', () => {
     const v0 = dataFrame.fields[0].values;
     expect(v0.length).toEqual(1);
     expect(v0.get(0)).toEqual(input1.datapoints[0]);
-  });
-
-  it('converts JSON response to dataframes', () => {
-    const msg = {
-      schema: {
-        fields: [
-          {
-            name: 'First',
-            type: 'string',
-          },
-          {
-            name: 'Second',
-            type: 'number',
-          },
-        ],
-      },
-      data: {
-        values: [
-          ['2019-02-15', '2019-03-15', '2019-04-15'],
-          [3, 9, 16],
-        ],
-      },
-    };
-    const dataFrame = toDataFrame(msg);
-    expect(dataFrame.fields.map((f) => ({ [f.name]: f.values }))).toMatchInlineSnapshot(`
-      [
-        {
-          "First": [
-            "2019-02-15",
-            "2019-03-15",
-            "2019-04-15",
-          ],
-        },
-        {
-          "Second": [
-            3,
-            9,
-            16,
-          ],
-        },
-      ]
-    `);
   });
 });
 
@@ -365,14 +323,14 @@ describe('sorted DataFrame', () => {
   it('Should sort numbers', () => {
     const sorted = sortDataFrame(frame, 0, true);
     expect(sorted.length).toEqual(3);
-    expect(sorted.fields[0].values).toEqual([3, 2, 1]);
-    expect(sorted.fields[1].values).toEqual(['c', 'b', 'a']);
+    expect(sorted.fields[0].values.toArray()).toEqual([3, 2, 1]);
+    expect(sorted.fields[1].values.toArray()).toEqual(['c', 'b', 'a']);
   });
 
   it('Should sort strings', () => {
     const sorted = sortDataFrame(frame, 1, true);
     expect(sorted.length).toEqual(3);
-    expect(sorted.fields[0].values).toEqual([3, 2, 1]);
-    expect(sorted.fields[1].values).toEqual(['c', 'b', 'a']);
+    expect(sorted.fields[0].values.toArray()).toEqual([3, 2, 1]);
+    expect(sorted.fields[1].values.toArray()).toEqual(['c', 'b', 'a']);
   });
 });

@@ -5,36 +5,33 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/grafana/pkg/services/validations"
+
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/services/rendering"
+	"github.com/grafana/grafana/pkg/setting"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/grafana/pkg/components/imguploader"
-	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/models"
-	alertmodels "github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/annotations/annotationstest"
-	"github.com/grafana/grafana/pkg/services/dashboards"
-	"github.com/grafana/grafana/pkg/services/notifications"
-	"github.com/grafana/grafana/pkg/services/rendering"
-	"github.com/grafana/grafana/pkg/services/validations"
-	"github.com/grafana/grafana/pkg/setting"
 )
 
 func TestNotificationService(t *testing.T) {
 	testRule := &Rule{Name: "Test", Message: "Something is bad"}
-	store := &AlertStoreMock{}
-	evalCtx := NewEvalContext(context.Background(), testRule, &validations.OSSPluginRequestValidator{}, store, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+	evalCtx := NewEvalContext(context.Background(), testRule, &validations.OSSPluginRequestValidator{})
 
 	testRuleTemplated := &Rule{Name: "Test latency ${quantile}", Message: "Something is bad on instance ${instance}"}
-
-	evalCtxWithMatch := NewEvalContext(context.Background(), testRuleTemplated, &validations.OSSPluginRequestValidator{}, store, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+	evalCtxWithMatch := NewEvalContext(context.Background(), testRuleTemplated, &validations.OSSPluginRequestValidator{})
 	evalCtxWithMatch.EvalMatches = []*EvalMatch{{
 		Tags: map[string]string{
 			"instance": "localhost:3000",
 			"quantile": "0.99",
 		},
 	}}
-	evalCtxWithoutMatch := NewEvalContext(context.Background(), testRuleTemplated, &validations.OSSPluginRequestValidator{}, store, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+	evalCtxWithoutMatch := NewEvalContext(context.Background(), testRuleTemplated, &validations.OSSPluginRequestValidator{})
 
 	notificationServiceScenario(t, "Given alert rule with upload image enabled should render and upload image and send notification",
 		evalCtx, true, func(sc *scenarioContext) {
@@ -178,31 +175,39 @@ func notificationServiceScenario(t *testing.T, name string, evalCtx *EvalContext
 			Factory:     newTestNotifier,
 		})
 
-		evalCtx.dashboardRef = &dashboards.DashboardRef{UID: "db-uid"}
+		evalCtx.dashboardRef = &models.DashboardRef{Uid: "db-uid"}
 
-		store := evalCtx.Store.(*AlertStoreMock)
-
-		store.getAlertNotificationsWithUidToSend = func(ctx context.Context, query *alertmodels.GetAlertNotificationsWithUidToSendQuery) (res []*alertmodels.AlertNotification, err error) {
-			return []*alertmodels.AlertNotification{
+		bus.AddHandlerCtx("test", func(ctx context.Context, query *models.GetAlertNotificationsWithUidToSendQuery) error {
+			query.Result = []*models.AlertNotification{
 				{
-					ID:   1,
+					Id:   1,
 					Type: "test",
 					Settings: simplejson.NewFromAny(map[string]interface{}{
 						"uploadImage": uploadImage,
 					}),
 				},
-			}, nil
-		}
+			}
+			return nil
+		})
 
-		store.getOrCreateNotificationState = func(ctx context.Context, query *alertmodels.GetOrCreateNotificationStateQuery) (res *alertmodels.AlertNotificationState, err error) {
-			return &alertmodels.AlertNotificationState{
-				AlertID:                      evalCtx.Rule.ID,
+		bus.AddHandlerCtx("test", func(ctx context.Context, query *models.GetOrCreateNotificationStateQuery) error {
+			query.Result = &models.AlertNotificationState{
+				AlertId:                      evalCtx.Rule.ID,
 				AlertRuleStateUpdatedVersion: 1,
-				ID:                           1,
-				OrgID:                        evalCtx.Rule.OrgID,
-				State:                        alertmodels.AlertNotificationStateUnknown,
-			}, nil
-		}
+				Id:                           1,
+				OrgId:                        evalCtx.Rule.OrgID,
+				State:                        models.AlertNotificationStateUnknown,
+			}
+			return nil
+		})
+
+		bus.AddHandlerCtx("test", func(ctx context.Context, cmd *models.SetAlertNotificationStateToPendingCommand) error {
+			return nil
+		})
+
+		bus.AddHandlerCtx("test", func(ctx context.Context, cmd *models.SetAlertNotificationStateToCompleteCommand) error {
+			return nil
+		})
 
 		setting.AlertingNotificationTimeout = 30 * time.Second
 
@@ -244,7 +249,7 @@ func notificationServiceScenario(t *testing.T, name string, evalCtx *EvalContext
 		scenarioCtx.rendererAvailable = true
 
 		renderService := &testRenderService{
-			isAvailableProvider: func(ctx context.Context) bool {
+			isAvailableProvider: func() bool {
 				return scenarioCtx.rendererAvailable
 			},
 			renderProvider: func(ctx context.Context, opts rendering.Opts) (*rendering.RenderResult, error) {
@@ -258,7 +263,7 @@ func notificationServiceScenario(t *testing.T, name string, evalCtx *EvalContext
 			},
 		}
 
-		scenarioCtx.notificationService = newNotificationService(renderService, store, nil, nil)
+		scenarioCtx.notificationService = newNotificationService(renderService)
 		fn(scenarioCtx)
 	})
 }
@@ -274,7 +279,7 @@ type testNotifier struct {
 	Frequency             time.Duration
 }
 
-func newTestNotifier(model *alertmodels.AlertNotification, _ GetDecryptedValueFn, ns notifications.Service) (Notifier, error) {
+func newTestNotifier(model *models.AlertNotification) (Notifier, error) {
 	uploadImage := true
 	value, exist := model.Settings.CheckGet("uploadImage")
 	if exist {
@@ -282,7 +287,7 @@ func newTestNotifier(model *alertmodels.AlertNotification, _ GetDecryptedValueFn
 	}
 
 	return &testNotifier{
-		UID:                   model.UID,
+		UID:                   model.Uid,
 		Name:                  model.Name,
 		IsDefault:             model.IsDefault,
 		Type:                  model.Type,
@@ -300,7 +305,7 @@ func (n *testNotifier) Notify(evalCtx *EvalContext) error {
 	return nil
 }
 
-func (n *testNotifier) ShouldNotify(ctx context.Context, evalCtx *EvalContext, notifierState *alertmodels.AlertNotificationState) bool {
+func (n *testNotifier) ShouldNotify(ctx context.Context, evalCtx *EvalContext, notifierState *models.AlertNotificationState) bool {
 	return true
 }
 
@@ -335,28 +340,20 @@ func (n *testNotifier) GetFrequency() time.Duration {
 var _ Notifier = &testNotifier{}
 
 type testRenderService struct {
-	isAvailableProvider      func(ctx context.Context) bool
+	isAvailableProvider      func() bool
 	renderProvider           func(ctx context.Context, opts rendering.Opts) (*rendering.RenderResult, error)
 	renderErrorImageProvider func(error error) (*rendering.RenderResult, error)
 }
 
-func (s *testRenderService) SanitizeSVG(ctx context.Context, req *rendering.SanitizeSVGRequest) (*rendering.SanitizeSVGResponse, error) {
-	return &rendering.SanitizeSVGResponse{Sanitized: req.Content}, nil
-}
-
-func (s *testRenderService) HasCapability(_ context.Context, feature rendering.CapabilityName) (rendering.CapabilitySupportRequestResult, error) {
-	return rendering.CapabilitySupportRequestResult{}, nil
-}
-
-func (s *testRenderService) IsAvailable(ctx context.Context) bool {
+func (s *testRenderService) IsAvailable() bool {
 	if s.isAvailableProvider != nil {
-		return s.isAvailableProvider(ctx)
+		return s.isAvailableProvider()
 	}
 
 	return true
 }
 
-func (s *testRenderService) Render(ctx context.Context, opts rendering.Opts, session rendering.Session) (*rendering.RenderResult, error) {
+func (s *testRenderService) Render(ctx context.Context, opts rendering.Opts) (*rendering.RenderResult, error) {
 	if s.renderProvider != nil {
 		return s.renderProvider(ctx, opts)
 	}
@@ -364,11 +361,7 @@ func (s *testRenderService) Render(ctx context.Context, opts rendering.Opts, ses
 	return &rendering.RenderResult{FilePath: "image.png"}, nil
 }
 
-func (s *testRenderService) RenderCSV(ctx context.Context, opts rendering.CSVOpts, session rendering.Session) (*rendering.RenderCSVResult, error) {
-	return nil, nil
-}
-
-func (s *testRenderService) RenderErrorImage(theme models.Theme, err error) (*rendering.RenderResult, error) {
+func (s *testRenderService) RenderErrorImage(err error) (*rendering.RenderResult, error) {
 	if s.renderErrorImageProvider != nil {
 		return s.renderErrorImageProvider(err)
 	}
@@ -376,16 +369,8 @@ func (s *testRenderService) RenderErrorImage(theme models.Theme, err error) (*re
 	return &rendering.RenderResult{FilePath: "image.png"}, nil
 }
 
-func (s *testRenderService) GetRenderUser(ctx context.Context, key string) (*rendering.RenderUser, bool) {
+func (s *testRenderService) GetRenderUser(key string) (*rendering.RenderUser, bool) {
 	return nil, false
-}
-
-func (s *testRenderService) Version() string {
-	return ""
-}
-
-func (s *testRenderService) CreateRenderingSession(ctx context.Context, authOpts rendering.AuthOpts, sessionOpts rendering.SessionOpts) (rendering.Session, error) {
-	return nil, nil
 }
 
 var _ rendering.Service = &testRenderService{}

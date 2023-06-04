@@ -7,22 +7,19 @@ import (
 
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/infra/metrics"
-	"github.com/grafana/grafana/pkg/tsdb/legacydata"
 )
 
 // DefaultEvalHandler is responsible for evaluating the alert rule.
 type DefaultEvalHandler struct {
 	log             log.Logger
 	alertJobTimeout time.Duration
-	requestHandler  legacydata.RequestHandler
 }
 
 // NewEvalHandler is the `DefaultEvalHandler` constructor.
-func NewEvalHandler(requestHandler legacydata.RequestHandler) *DefaultEvalHandler {
+func NewEvalHandler() *DefaultEvalHandler {
 	return &DefaultEvalHandler{
 		log:             log.New("alerting.evalHandler"),
 		alertJobTimeout: time.Second * 5,
-		requestHandler:  requestHandler,
 	}
 }
 
@@ -34,7 +31,7 @@ func (e *DefaultEvalHandler) Eval(context *EvalContext) {
 
 	for i := 0; i < len(context.Rule.Conditions); i++ {
 		condition := context.Rule.Conditions[i]
-		cr, err := condition.Eval(context, e.requestHandler)
+		cr, err := condition.Eval(context)
 		if err != nil {
 			context.Error = err
 		}
@@ -68,7 +65,6 @@ func (e *DefaultEvalHandler) Eval(context *EvalContext) {
 		}
 
 		context.EvalMatches = append(context.EvalMatches, cr.EvalMatches...)
-		context.AllMatches = append(context.AllMatches, cr.AllMatches...)
 	}
 
 	context.ConditionEvals = conditionEvals + " = " + strconv.FormatBool(firing)

@@ -1,16 +1,9 @@
-import { css } from '@emotion/css';
-import React from 'react';
-
-import { LinkButton, CallToActionCard, Icon, useTheme2 } from '@grafana/ui';
-import { contextSrv } from 'app/core/core';
-import { AccessControlAction } from 'app/types';
+import React, { useContext } from 'react';
+import { css } from 'emotion';
+import { ThemeContext, LinkButton, CallToActionCard, Icon } from '@grafana/ui';
 
 export const NoDataSourceCallToAction = () => {
-  const theme = useTheme2();
-
-  const canCreateDataSource =
-    contextSrv.hasPermission(AccessControlAction.DataSourcesCreate) &&
-    contextSrv.hasPermission(AccessControlAction.DataSourcesWrite);
+  const theme = useContext(ThemeContext);
 
   const message =
     'Explore requires at least one data source. Once you have added a data source, you can query it here.';
@@ -19,7 +12,7 @@ export const NoDataSourceCallToAction = () => {
       <Icon name="rocket" />
       <> ProTip: You can also define data sources through configuration files. </>
       <a
-        href="http://docs.grafana.org/administration/provisioning/?utm_source=explore#data-sources"
+        href="http://docs.grafana.org/administration/provisioning/#datasources?utm_source=explore"
         target="_blank"
         rel="noreferrer"
         className="text-link"
@@ -30,18 +23,24 @@ export const NoDataSourceCallToAction = () => {
   );
 
   const ctaElement = (
-    <LinkButton size="lg" href="datasources/new" icon="database" disabled={!canCreateDataSource}>
+    <LinkButton size="lg" href="datasources/new" icon="database">
       Add data source
     </LinkButton>
   );
 
   const cardClassName = css`
-    max-width: ${theme.breakpoints.values.lg}px;
-    margin-top: ${theme.spacing(2)};
+    max-width: ${theme.breakpoints.lg};
+    margin-top: ${theme.spacing.md};
     align-self: center;
   `;
 
   return (
-    <CallToActionCard callToActionElement={ctaElement} className={cardClassName} footer={footer} message={message} />
+    <CallToActionCard
+      callToActionElement={ctaElement}
+      className={cardClassName}
+      footer={footer}
+      message={message}
+      theme={theme}
+    />
   );
 };

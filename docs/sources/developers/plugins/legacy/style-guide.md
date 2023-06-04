@@ -1,8 +1,7 @@
----
-aliases:
-  - ../../../plugins/developing/code-styleguide/
-title: Legacy code style guide
----
++++
+title = "Legacy code style guide"
+aliases = ["/docs/grafana/latest/plugins/developing/code-styleguide/"]
++++
 
 # Legacy code style guide
 
@@ -27,7 +26,7 @@ grafana-piechart-panel
 mtanda-histogram-panel
 ```
 
-For more information about the file format for `plugin.json` file, refer to [metadata]({{< relref "../metadata/" >}}).
+For more information about the file format for `plugin.json` file, refer to [metadata]({{< relref "../metadata.md" >}}).
 
 Minimal plugin.json:
 

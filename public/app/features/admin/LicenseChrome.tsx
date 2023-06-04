@@ -1,19 +1,18 @@
-import { css } from '@emotion/css';
 import React from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-import { useStyles2 } from '@grafana/ui';
+import { stylesFactory, useTheme } from '@grafana/ui';
+import { css } from 'emotion';
+import { GrafanaTheme } from '@grafana/data';
 
 const title = { fontWeight: 500, fontSize: '26px', lineHeight: '123%' };
 
-const getStyles = (theme: GrafanaTheme2) => {
+const getStyles = stylesFactory((theme: GrafanaTheme) => {
   const backgroundUrl = theme.isDark ? 'public/img/licensing/header_dark.svg' : 'public/img/licensing/header_light.svg';
-  const footerBg = theme.isDark ? theme.v1.palette.dark9 : theme.v1.palette.gray6;
+  const footerBg = theme.isDark ? theme.palette.dark9 : theme.palette.gray6;
 
   return {
     container: css`
       padding: 36px 79px;
-      background: ${theme.components.panel.background};
+      background: ${theme.colors.panelBg};
     `,
     footer: css`
       text-align: center;
@@ -27,17 +26,17 @@ const getStyles = (theme: GrafanaTheme2) => {
       background: url('${backgroundUrl}') right;
     `,
   };
-};
+});
 
 interface Props {
   header: string;
   subheader?: string;
   editionNotice?: string;
-  children?: React.ReactNode;
 }
 
-export function LicenseChrome({ header, editionNotice, subheader, children }: Props) {
-  const styles = useStyles2(getStyles);
+export const LicenseChrome: React.FC<Props> = ({ header, editionNotice, subheader, children }) => {
+  const theme = useTheme();
+  const styles = getStyles(theme);
 
   return (
     <>
@@ -69,14 +68,14 @@ export function LicenseChrome({ header, editionNotice, subheader, children }: Pr
       {editionNotice && <div className={styles.footer}>{editionNotice}</div>}
     </>
   );
-}
+};
 
 interface CircleProps {
   size: string;
   style?: React.CSSProperties;
 }
 
-export const Circle = ({ size, style, children }: React.PropsWithChildren<CircleProps>) => {
+export const Circle: React.FC<CircleProps> = ({ size, style, children }) => {
   return (
     <div
       style={{

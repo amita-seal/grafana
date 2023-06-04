@@ -1,5 +1,3 @@
-import { DataQuery } from '@grafana/data';
-
 export type ZipkinSpan = {
   traceId: string;
   parentId?: string;
@@ -12,7 +10,6 @@ export type ZipkinSpan = {
   annotations?: ZipkinAnnotation[];
   tags?: { [key: string]: string };
   kind?: 'CLIENT' | 'SERVER' | 'PRODUCER' | 'CONSUMER';
-  shared?: boolean;
 };
 
 export type ZipkinEndpoint = {
@@ -26,9 +23,3 @@ export type ZipkinAnnotation = {
   timestamp: number;
   value: string;
 };
-export type ZipkinQueryType = 'traceID' | 'upload';
-
-export interface ZipkinQuery extends DataQuery {
-  query: string;
-  queryType?: ZipkinQueryType;
-}

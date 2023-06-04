@@ -1,9 +1,8 @@
 import { DataSourcePlugin } from '@grafana/data';
-
-import { ConfigEditor } from './ConfigEditor';
-import { ZipkinQueryField } from './QueryField';
 import { ZipkinDatasource } from './datasource';
+import { QueryField } from './QueryField';
+import { ConfigEditor } from './ConfigEditor';
 
 export const plugin = new DataSourcePlugin(ZipkinDatasource)
-  .setQueryEditor(ZipkinQueryField)
-  .setConfigEditor(ConfigEditor);
+  .setConfigEditor(ConfigEditor)
+  .setExploreQueryField(QueryField);

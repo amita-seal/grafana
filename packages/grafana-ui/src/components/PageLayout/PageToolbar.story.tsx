@@ -1,16 +1,12 @@
-import { action } from '@storybook/addon-actions';
-import { Meta } from '@storybook/react';
 import React from 'react';
-
 import { ToolbarButton, VerticalGroup } from '@grafana/ui';
-
-import { StoryExample } from '../../utils/storybook/StoryExample';
 import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { PageToolbar } from './PageToolbar';
+import { StoryExample } from '../../utils/storybook/StoryExample';
+import { action } from '@storybook/addon-actions';
 import { IconButton } from '../IconButton/IconButton';
 
-import { PageToolbar } from './PageToolbar';
-
-const meta: Meta<typeof PageToolbar> = {
+export default {
   title: 'Layout/PageToolbar',
   component: PageToolbar,
   decorators: [withCenteredStory],
@@ -31,8 +27,8 @@ export const Examples = () => {
           pageIcon="apps"
           title="A very long dashboard name"
           parent="A long folder name"
-          titleHref=""
-          parentHref=""
+          onClickTitle={() => action('Title clicked')}
+          onClickParent={() => action('Parent clicked')}
           leftItems={[
             <IconButton name="share-alt" size="lg" key="share" />,
             <IconButton name="favorite" iconType="mono" size="lg" key="favorite" />,
@@ -55,5 +51,3 @@ export const Examples = () => {
     </VerticalGroup>
   );
 };
-
-export default meta;

@@ -1,43 +1,46 @@
-import { css } from '@emotion/css';
-import { useId } from '@react-aria/utils';
-import React, { FormEvent, PropsWithChildren, ReactElement } from 'react';
+import React, { FormEvent, PropsWithChildren, ReactElement, useCallback } from 'react';
+import { InlineField, TextArea, useStyles } from '@grafana/ui';
+import { GrafanaTheme } from '@grafana/data';
+import { css } from 'emotion';
 
-import { GrafanaTheme2 } from '@grafana/data';
-import { Field, TextArea, useStyles2 } from '@grafana/ui';
-
-interface VariableTextAreaFieldProps {
+interface VariableTextAreaFieldProps<T> {
   name: string;
   value: string;
   placeholder: string;
   onChange: (event: FormEvent<HTMLTextAreaElement>) => void;
   width: number;
+  tooltip?: string;
   ariaLabel?: string;
   required?: boolean;
-  testId?: string;
+  labelWidth?: number;
   onBlur?: (event: FormEvent<HTMLTextAreaElement>) => void;
-  description?: React.ReactNode;
 }
 
 export function VariableTextAreaField({
-  value,
   name,
-  description,
+  value,
   placeholder,
+  tooltip,
   onChange,
   onBlur,
   ariaLabel,
   required,
   width,
-  testId,
-}: PropsWithChildren<VariableTextAreaFieldProps>): ReactElement {
-  const styles = useStyles2(getStyles);
-  const id = useId();
+  labelWidth,
+}: PropsWithChildren<VariableTextAreaFieldProps<any>>): ReactElement {
+  const styles = useStyles(getStyles);
+  const getLineCount = useCallback((value: any) => {
+    if (value && typeof value === 'string') {
+      return value.split('\n').length;
+    }
+
+    return 1;
+  }, []);
 
   return (
-    <Field label={name} description={description} htmlFor={id}>
+    <InlineField label={name} labelWidth={labelWidth ?? 12} tooltip={tooltip}>
       <TextArea
-        id={id}
-        rows={2}
+        rows={getLineCount(value)}
         value={value}
         onChange={onChange}
         onBlur={onBlur}
@@ -46,21 +49,19 @@ export function VariableTextAreaField({
         aria-label={ariaLabel}
         cols={width}
         className={styles.textarea}
-        data-testid={testId}
       />
-    </Field>
+    </InlineField>
   );
 }
 
-export function getStyles(theme: GrafanaTheme2) {
+function getStyles(theme: GrafanaTheme) {
   return {
     textarea: css`
       white-space: pre-wrap;
-      min-height: ${theme.spacing(4)};
+      min-height: 32px;
       height: auto;
       overflow: auto;
-      padding: ${theme.spacing(0.75, 1)};
-      width: inherit;
+      padding: 6px 8px;
     `,
   };
 }

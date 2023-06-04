@@ -1,22 +1,15 @@
-import {
-  DataSourceApi,
-  PluginMeta,
-  DataTransformerConfig,
-  DataSourceInstanceSettings,
-  DataSourceRef,
-} from '@grafana/data';
 import { DataSourceSrv } from '@grafana/runtime';
+import { DataSourceApi, PluginMeta, DataTransformerConfig, DataSourceInstanceSettings } from '@grafana/data';
 
 import { ElasticsearchQuery } from '../../plugins/datasource/elasticsearch/types';
-
 import { getAlertingValidationMessage } from './getAlertingValidationMessage';
 
 describe('getAlertingValidationMessage', () => {
   describe('when called with some targets containing template variables', () => {
     it('then it should return false', async () => {
       let call = 0;
-      const datasource: DataSourceApi = {
-        meta: { alerting: true } as unknown as PluginMeta,
+      const datasource: DataSourceApi = ({
+        meta: ({ alerting: true } as any) as PluginMeta,
         targetContainsTemplate: () => {
           if (call === 0) {
             call++;
@@ -25,18 +18,14 @@ describe('getAlertingValidationMessage', () => {
           return false;
         },
         name: 'some name',
-        uid: 'some uid',
-      } as unknown as DataSourceApi;
+      } as any) as DataSourceApi;
       const getMock = jest.fn().mockResolvedValue(datasource);
       const datasourceSrv: DataSourceSrv = {
-        get: (ref: DataSourceRef) => {
-          return getMock(ref.uid);
-        },
+        get: getMock,
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        getInstanceSettings: jest.fn(),
-        reload: jest.fn(),
+        getInstanceSettings: (() => {}) as any,
       };
       const targets: ElasticsearchQuery[] = [
         { refId: 'A', query: '@hostname:$hostname' },
@@ -44,28 +33,26 @@ describe('getAlertingValidationMessage', () => {
       ];
       const transformations: DataTransformerConfig[] = [];
 
-      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, {
-        uid: datasource.uid,
-      });
+      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, datasource.name);
 
       expect(result).toBe('');
       expect(getMock).toHaveBeenCalledTimes(2);
-      expect(getMock).toHaveBeenCalledWith(datasource.uid);
+      expect(getMock).toHaveBeenCalledWith(datasource.name);
     });
   });
 
   describe('when called with some targets using a datasource that does not support alerting', () => {
     it('then it should return false', async () => {
-      const alertingDatasource: DataSourceApi = {
-        meta: { alerting: true } as unknown as PluginMeta,
+      const alertingDatasource: DataSourceApi = ({
+        meta: ({ alerting: true } as any) as PluginMeta,
         targetContainsTemplate: () => false,
         name: 'alertingDatasource',
-      } as unknown as DataSourceApi;
-      const datasource: DataSourceApi = {
-        meta: { alerting: false } as unknown as PluginMeta,
+      } as any) as DataSourceApi;
+      const datasource: DataSourceApi = ({
+        meta: ({ alerting: false } as any) as PluginMeta,
         targetContainsTemplate: () => false,
         name: 'datasource',
-      } as unknown as DataSourceApi;
+      } as any) as DataSourceApi;
 
       const datasourceSrv: DataSourceSrv = {
         get: (name: string) => {
@@ -75,11 +62,10 @@ describe('getAlertingValidationMessage', () => {
 
           return Promise.resolve(alertingDatasource);
         },
-        getInstanceSettings: jest.fn(),
+        getInstanceSettings: (() => {}) as any,
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        reload: jest.fn(),
       };
       const targets: any[] = [
         { refId: 'A', query: 'some query', datasource: 'alertingDatasource' },
@@ -87,9 +73,7 @@ describe('getAlertingValidationMessage', () => {
       ];
       const transformations: DataTransformerConfig[] = [];
 
-      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, {
-        uid: datasource.name,
-      });
+      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, datasource.name);
 
       expect(result).toBe('');
     });
@@ -97,21 +81,18 @@ describe('getAlertingValidationMessage', () => {
 
   describe('when called with all targets containing template variables', () => {
     it('then it should return false', async () => {
-      const datasource: DataSourceApi = {
-        meta: { alerting: true } as unknown as PluginMeta,
+      const datasource: DataSourceApi = ({
+        meta: ({ alerting: true } as any) as PluginMeta,
         targetContainsTemplate: () => true,
         name: 'some name',
-      } as unknown as DataSourceApi;
+      } as any) as DataSourceApi;
       const getMock = jest.fn().mockResolvedValue(datasource);
       const datasourceSrv: DataSourceSrv = {
-        get: (ref: DataSourceRef) => {
-          return getMock(ref.uid);
-        },
-        getInstanceSettings: jest.fn(),
+        get: getMock,
+        getInstanceSettings: (() => {}) as any,
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        reload: jest.fn(),
       };
       const targets: ElasticsearchQuery[] = [
         { refId: 'A', query: '@hostname:$hostname' },
@@ -119,9 +100,7 @@ describe('getAlertingValidationMessage', () => {
       ];
       const transformations: DataTransformerConfig[] = [];
 
-      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, {
-        uid: datasource.name,
-      });
+      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, datasource.name);
 
       expect(result).toBe('Template variables are not supported in alert queries');
       expect(getMock).toHaveBeenCalledTimes(2);
@@ -131,22 +110,18 @@ describe('getAlertingValidationMessage', () => {
 
   describe('when called with all targets using a datasource that does not support alerting', () => {
     it('then it should return false', async () => {
-      const datasource: DataSourceApi = {
-        meta: { alerting: false } as unknown as PluginMeta,
+      const datasource: DataSourceApi = ({
+        meta: ({ alerting: false } as any) as PluginMeta,
         targetContainsTemplate: () => false,
         name: 'some name',
-        uid: 'theid',
-      } as unknown as DataSourceApi;
+      } as any) as DataSourceApi;
       const getMock = jest.fn().mockResolvedValue(datasource);
       const datasourceSrv: DataSourceSrv = {
-        get: (ref: DataSourceRef) => {
-          return getMock(ref.uid);
-        },
-        getInstanceSettings: jest.fn(),
+        get: getMock,
+        getInstanceSettings: (() => {}) as any,
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        reload: jest.fn(),
       };
       const targets: ElasticsearchQuery[] = [
         { refId: 'A', query: '@hostname:hostname' },
@@ -154,33 +129,28 @@ describe('getAlertingValidationMessage', () => {
       ];
       const transformations: DataTransformerConfig[] = [];
 
-      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, {
-        uid: datasource.uid,
-      });
+      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, datasource.name);
 
       expect(result).toBe('The datasource does not support alerting queries');
       expect(getMock).toHaveBeenCalledTimes(2);
-      expect(getMock).toHaveBeenCalledWith(datasource.uid);
+      expect(getMock).toHaveBeenCalledWith(datasource.name);
     });
   });
 
   describe('when called with transformations', () => {
     it('then it should return false', async () => {
-      const datasource: DataSourceApi = {
-        meta: { alerting: true } as unknown as PluginMeta,
+      const datasource: DataSourceApi = ({
+        meta: ({ alerting: true } as any) as PluginMeta,
         targetContainsTemplate: () => false,
         name: 'some name',
-      } as unknown as DataSourceApi;
+      } as any) as DataSourceApi;
       const getMock = jest.fn().mockResolvedValue(datasource);
       const datasourceSrv: DataSourceSrv = {
-        get: (ref: DataSourceRef) => {
-          return getMock(ref.uid);
-        },
-        getInstanceSettings: jest.fn(),
+        get: getMock,
+        getInstanceSettings: (() => {}) as any,
         getList(): DataSourceInstanceSettings[] {
           return [];
         },
-        reload: jest.fn(),
       };
       const targets: ElasticsearchQuery[] = [
         { refId: 'A', query: '@hostname:hostname' },
@@ -188,9 +158,7 @@ describe('getAlertingValidationMessage', () => {
       ];
       const transformations: DataTransformerConfig[] = [{ id: 'A', options: null }];
 
-      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, {
-        uid: datasource.uid,
-      });
+      const result = await getAlertingValidationMessage(transformations, targets, datasourceSrv, datasource.name);
 
       expect(result).toBe('Transformations are not supported in alert queries');
       expect(getMock).toHaveBeenCalledTimes(0);

@@ -1,11 +1,9 @@
-﻿import { Placement, VirtualElement } from '@popperjs/core';
-import React, { PureComponent } from 'react';
+﻿import React, { PureComponent } from 'react';
+import { Placement, VirtualElement } from '@popperjs/core';
 import { Manager, Popper as ReactPopper, PopperArrowProps } from 'react-popper';
-import Transition from 'react-transition-group/Transition';
-
 import { Portal } from '../Portal/Portal';
-
-import { PopoverContent } from './types';
+import Transition from 'react-transition-group/Transition';
+import { PopoverContent } from './Tooltip';
 
 const defaultTransitionStyles = {
   transitionProperty: 'opacity',
@@ -44,7 +42,6 @@ class Popover extends PureComponent<Props> {
       wrapperClassName,
       renderArrow,
       referenceElement,
-      onKeyDown,
     } = this.props;
 
     return (
@@ -69,7 +66,6 @@ class Popover extends PureComponent<Props> {
                       <div
                         onMouseEnter={onMouseEnter}
                         onMouseLeave={onMouseLeave}
-                        onKeyDown={onKeyDown}
                         ref={ref}
                         style={{
                           ...style,

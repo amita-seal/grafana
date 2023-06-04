@@ -1,3 +1,5 @@
+// +build integration
+
 package serverlock
 
 import (
@@ -5,60 +7,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestIntegrationServerLock_LockAndExecute(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
+func TestServerLok(t *testing.T) {
 	sl := createTestableServerLock(t)
 
 	counter := 0
-	fn := func(context.Context) { counter++ }
-	atInterval := time.Hour
+	fn := func() { counter++ }
+	atInterval := time.Second * 1
 	ctx := context.Background()
 
 	//this time `fn` should be executed
-	require.Nil(t, sl.LockAndExecute(ctx, "test-operation", atInterval, fn))
-	require.Equal(t, 1, counter)
+	assert.Nil(t, sl.LockAndExecute(ctx, "test-operation", atInterval, fn))
 
 	//this should not execute `fn`
-	require.Nil(t, sl.LockAndExecute(ctx, "test-operation", atInterval, fn))
-	require.Nil(t, sl.LockAndExecute(ctx, "test-operation", atInterval, fn))
-	require.Equal(t, 1, counter)
+	assert.Nil(t, sl.LockAndExecute(ctx, "test-operation", atInterval, fn))
+	assert.Nil(t, sl.LockAndExecute(ctx, "test-operation", atInterval, fn))
 
-	atInterval = time.Millisecond
+	// wait 2 second.
+	<-time.After(time.Second * 2)
 
 	// now `fn` should be executed again
 	err := sl.LockAndExecute(ctx, "test-operation", atInterval, fn)
-	require.Nil(t, err)
-	require.Equal(t, 2, counter)
-}
-
-func TestIntegrationServerLock_LockExecuteAndRelease(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
-	sl := createTestableServerLock(t)
-
-	counter := 0
-	fn := func(context.Context) { counter++ }
-	atInterval := time.Hour
-	ctx := context.Background()
-
-	//
-	err := sl.LockExecuteAndRelease(ctx, "test-operation", atInterval, fn)
-	require.NoError(t, err)
-	require.Equal(t, 1, counter)
-
-	// the function will be executed again, as everytime the lock is released
-	err = sl.LockExecuteAndRelease(ctx, "test-operation", atInterval, fn)
-	require.NoError(t, err)
-	err = sl.LockExecuteAndRelease(ctx, "test-operation", atInterval, fn)
-	require.NoError(t, err)
-	err = sl.LockExecuteAndRelease(ctx, "test-operation", atInterval, fn)
-	require.NoError(t, err)
-
-	require.Equal(t, 4, counter)
+	assert.Nil(t, err)
+	assert.Equal(t, counter, 2)
 }

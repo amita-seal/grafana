@@ -1,16 +1,13 @@
 import {
   DataLink,
   DataQuery,
-  ExplorePanelsState,
   Field,
   InternalDataLink,
   InterpolateFunction,
   LinkModel,
   ScopedVars,
-  SplitOpen,
   TimeRange,
 } from '../types';
-
 import { locationUtil } from './location';
 import { serializeStateToUrlParam } from './url';
 
@@ -36,33 +33,31 @@ export type LinkToExploreOptions = {
   range: TimeRange;
   field: Field;
   internalLink: InternalDataLink;
-  onClickFn?: SplitOpen;
+  onClickFn?: (options: { datasourceUid: string; query: any; range?: TimeRange }) => void;
   replaceVariables: InterpolateFunction;
 };
 
 export function mapInternalLinkToExplore(options: LinkToExploreOptions): LinkModel<Field> {
   const { onClickFn, replaceVariables, link, scopedVars, range, field, internalLink } = options;
 
-  const interpolatedQuery = interpolateObject(link.internal?.query, scopedVars, replaceVariables);
-  const interpolatedPanelsState = interpolateObject(link.internal?.panelsState, scopedVars, replaceVariables);
+  const interpolatedQuery = interpolateQuery(link, scopedVars, replaceVariables);
   const title = link.title ? link.title : internalLink.datasourceName;
 
   return {
     title: replaceVariables(title, scopedVars),
     // In this case this is meant to be internal link (opens split view by default) the href will also points
     // to explore but this way you can open it in new tab.
-    href: generateInternalHref(internalLink.datasourceUid, interpolatedQuery, range, interpolatedPanelsState),
+    href: generateInternalHref(internalLink.datasourceName, interpolatedQuery, range),
     onClick: onClickFn
       ? () => {
           onClickFn({
             datasourceUid: internalLink.datasourceUid,
             query: interpolatedQuery,
-            panelsState: interpolatedPanelsState,
             range,
           });
         }
       : undefined,
-    target: link?.targetBlank ? '_blank' : '_self',
+    target: '_self',
     origin: field,
   };
 }
@@ -70,56 +65,40 @@ export function mapInternalLinkToExplore(options: LinkToExploreOptions): LinkMod
 /**
  * Generates href for internal derived field link.
  */
-function generateInternalHref<T extends DataQuery = any>(
-  datasourceUid: string,
-  query: T,
-  range: TimeRange,
-  panelsState?: ExplorePanelsState
-): string {
+function generateInternalHref<T extends DataQuery = any>(datasourceName: string, query: T, range: TimeRange): string {
   return locationUtil.assureBaseUrl(
-    `/explore?left=${encodeURIComponent(
-      serializeStateToUrlParam({
-        range: range.raw,
-        datasource: datasourceUid,
-        queries: [query],
-        panelsState: panelsState,
-      })
-    )}`
+    `/explore?left=${serializeStateToUrlParam({
+      range: range.raw,
+      datasource: datasourceName,
+      queries: [query],
+    })}`
   );
 }
 
-function interpolateObject<T>(
-  obj: T | undefined,
-  scopedVars: ScopedVars,
-  replaceVariables: InterpolateFunction
-): T | undefined {
-  if (!obj) {
-    return obj;
-  }
-  if (typeof obj === 'string') {
-    // @ts-ignore this is complaining we are returning string, but we are checking if obj is a string so should be fine.
-    return replaceVariables(obj, scopedVars);
-  }
-  const copy = JSON.parse(JSON.stringify(obj));
-  return interpolateObjectRecursive(copy, scopedVars, replaceVariables);
-}
-
-function interpolateObjectRecursive<T extends Object>(
-  obj: T,
+function interpolateQuery<T extends DataQuery = any>(
+  link: DataLink,
   scopedVars: ScopedVars,
   replaceVariables: InterpolateFunction
 ): T {
-  for (const k of Object.keys(obj)) {
-    // Honestly not sure how to type this to make TS happy.
-    // @ts-ignore
-    if (typeof obj[k] === 'string') {
-      // @ts-ignore
-      obj[k] = replaceVariables(obj[k], scopedVars);
-      // @ts-ignore
-    } else if (typeof obj[k] === 'object' && obj[k] !== null) {
-      // @ts-ignore
-      obj[k] = interpolateObjectRecursive(obj[k], scopedVars, replaceVariables);
-    }
+  let stringifiedQuery = '';
+  try {
+    stringifiedQuery = JSON.stringify(link.internal?.query || '');
+  } catch (err) {
+    // should not happen and not much to do about this, possibly something non stringifiable in the query
+    console.error(err);
   }
-  return obj;
+
+  // Replace any variables inside the query. This may not be the safest as it can also replace keys etc so may not
+  // actually work with every datasource query right now.
+  stringifiedQuery = replaceVariables(stringifiedQuery, scopedVars);
+
+  let replacedQuery = {} as T;
+  try {
+    replacedQuery = JSON.parse(stringifiedQuery);
+  } catch (err) {
+    // again should not happen and not much to do about this, probably some issue with how we replaced the variables.
+    console.error(stringifiedQuery, err);
+  }
+
+  return replacedQuery;
 }

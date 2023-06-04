@@ -1,6 +1,5 @@
-import { kebabCase } from 'lodash';
-
 import { SelectableValue } from '@grafana/data';
+import { kebabCase } from 'lodash';
 
 export const generateOptions = (desc = false) => {
   const values = [
@@ -31,14 +30,4 @@ export const generateOptions = (desc = false) => {
     label: name,
     description: desc ? `This is a description of ${name}` : undefined,
   }));
-};
-
-export const generateThousandsOfOptions = () => {
-  const options: Array<SelectableValue<string>> = new Array(10000).fill(null).map((_, index) => ({
-    value: String(index),
-    label: 'Option ' + index,
-    description: 'This is option number ' + index,
-  }));
-
-  return options;
 };

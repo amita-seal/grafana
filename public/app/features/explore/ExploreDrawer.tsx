@@ -1,17 +1,17 @@
 // Libraries
-import { css, cx, keyframes } from '@emotion/css';
-import { Resizable, ResizeCallback } from 're-resizable';
 import React from 'react';
+import { Resizable, ResizeCallback } from 're-resizable';
+import { css, cx, keyframes } from 'emotion';
 
 // Services & Utils
-import { GrafanaTheme2 } from '@grafana/data';
-import { stylesFactory, useTheme2 } from '@grafana/ui';
+import { stylesFactory, useTheme } from '@grafana/ui';
 
 // Types
+import { GrafanaTheme } from '@grafana/data';
 
-const drawerSlide = (theme: GrafanaTheme2) => keyframes`
+const drawerSlide = keyframes`
   0% {
-    transform: translateY(${theme.components.horizontalDrawer.defaultHeight}px);
+    transform: translateY(400px);
   }
 
   100% {
@@ -19,23 +19,27 @@ const drawerSlide = (theme: GrafanaTheme2) => keyframes`
   }
 `;
 
-const getStyles = stylesFactory((theme: GrafanaTheme2) => {
+const getStyles = stylesFactory((theme: GrafanaTheme) => {
+  const shadowColor = theme.isLight ? theme.palette.gray4 : theme.palette.black;
+
   return {
     container: css`
       position: fixed !important;
       bottom: 0;
-      background: ${theme.colors.background.primary};
-      border-top: 1px solid ${theme.colors.border.weak};
-      margin: ${theme.spacing(0, -2, 0, -2)};
-      box-shadow: ${theme.shadows.z3};
-      z-index: ${theme.zIndex.navbarFixed};
+      background: ${theme.colors.pageHeaderBg};
+      border-top: 1px solid ${theme.colors.formInputBorder};
+      margin: 0px;
+      margin-right: -${theme.spacing.md};
+      margin-left: -${theme.spacing.md};
+      box-shadow: 0 0 4px ${shadowColor};
+      z-index: ${theme.zIndex.sidemenu};
     `,
     drawerActive: css`
       opacity: 1;
-      animation: 0.5s ease-out ${drawerSlide(theme)};
+      animation: 0.5s ease-out ${drawerSlide};
     `,
     rzHandle: css`
-      background: ${theme.colors.secondary.main};
+      background: ${theme.colors.formInputBorder};
       transition: 0.3s background ease-in-out;
       position: relative;
       width: 200px !important;
@@ -43,9 +47,9 @@ const getStyles = stylesFactory((theme: GrafanaTheme2) => {
       left: calc(50% - 100px) !important;
       top: -4px !important;
       cursor: grab;
-      border-radius: ${theme.shape.radius.pill};
+      border-radius: 4px;
       &:hover {
-        background: ${theme.colors.secondary.shade};
+        background: ${theme.colors.formInputBorderHover};
       }
     `,
   };
@@ -59,14 +63,14 @@ export interface Props {
 
 export function ExploreDrawer(props: Props) {
   const { width, children, onResize } = props;
-  const theme = useTheme2();
+  const theme = useTheme();
   const styles = getStyles(theme);
   const drawerWidth = `${width + 31.5}px`;
 
   return (
     <Resizable
       className={cx(styles.container, styles.drawerActive)}
-      defaultSize={{ width: drawerWidth, height: `${theme.components.horizontalDrawer.defaultHeight}px` }}
+      defaultSize={{ width: drawerWidth, height: '400px' }}
       handleClasses={{ top: styles.rzHandle }}
       enable={{
         top: true,

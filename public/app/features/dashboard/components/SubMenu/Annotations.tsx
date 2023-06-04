@@ -1,18 +1,15 @@
-import React, { useEffect, useState } from 'react';
-
-import { AnnotationQuery, DataQuery, EventBus } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-
-import { AnnotationPicker } from './AnnotationPicker';
+import React, { FunctionComponent, useEffect, useState } from 'react';
+import { LegacyForms } from '@grafana/ui';
+import { AnnotationQuery } from '@grafana/data';
+const { Switch } = LegacyForms;
 
 interface Props {
-  events: EventBus;
   annotations: AnnotationQuery[];
-  onAnnotationChanged: (annotation: AnnotationQuery<DataQuery>) => void;
+  onAnnotationChanged: (annotation: any) => void;
 }
 
-export const Annotations = ({ annotations, onAnnotationChanged, events }: Props) => {
-  const [visibleAnnotations, setVisibleAnnotations] = useState<AnnotationQuery[]>([]);
+export const Annotations: FunctionComponent<Props> = ({ annotations, onAnnotationChanged }) => {
+  const [visibleAnnotations, setVisibleAnnotations] = useState<any>([]);
   useEffect(() => {
     setVisibleAnnotations(annotations.filter((annotation) => annotation.hide !== true));
   }, [annotations]);
@@ -22,15 +19,22 @@ export const Annotations = ({ annotations, onAnnotationChanged, events }: Props)
   }
 
   return (
-    <div data-testid={selectors.pages.Dashboard.SubMenu.Annotations.annotationsWrapper}>
-      {visibleAnnotations.map((annotation) => (
-        <AnnotationPicker
-          events={events}
-          annotation={annotation}
-          onEnabledChanged={onAnnotationChanged}
-          key={annotation.name}
-        />
-      ))}
-    </div>
+    <>
+      {visibleAnnotations.map((annotation: any) => {
+        return (
+          <div
+            key={annotation.name}
+            className={annotation.enable ? 'submenu-item' : 'submenu-item annotation-disabled'}
+          >
+            <Switch
+              label={annotation.name}
+              className="gf-form"
+              checked={annotation.enable}
+              onChange={() => onAnnotationChanged(annotation)}
+            />
+          </div>
+        );
+      })}
+    </>
   );
 };

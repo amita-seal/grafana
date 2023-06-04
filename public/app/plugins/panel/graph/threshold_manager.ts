@@ -1,17 +1,17 @@
 import 'vendor/flot/jquery.flot';
 import $ from 'jquery';
-import { isNumber } from 'lodash';
-
-import { PanelCtrl } from 'app/angular/panel/panel_ctrl';
-import { config } from 'app/core/config';
+import _ from 'lodash';
+import { getColorForTheme } from '@grafana/data';
 import { CoreEvents } from 'app/types';
+import { PanelCtrl } from 'app/features/panel/panel_ctrl';
+import { config } from 'app/core/config';
 
 export class ThresholdManager {
   plot: any;
   placeholder: any;
   height: any;
   thresholds: any;
-  needsCleanup = false;
+  needsCleanup: boolean;
   hasSecondYAxis: any;
 
   constructor(private panelCtrl: PanelCtrl) {}
@@ -87,8 +87,7 @@ export class ThresholdManager {
 
   renderHandle(handleIndex: number, defaultHandleTopPos: number) {
     const model = this.thresholds[handleIndex];
-    // alerting defines
-    if (!model.visible && (this.panelCtrl as any).alert) {
+    if (!model.visible) {
       return;
     }
 
@@ -97,7 +96,7 @@ export class ThresholdManager {
     let handleTopPos = 0;
 
     // handle no value
-    if (!isNumber(value)) {
+    if (!_.isNumber(value)) {
       valueStr = '';
       handleTopPos = defaultHandleTopPos;
     } else {
@@ -172,7 +171,7 @@ export class ThresholdManager {
 
     for (i = 0; i < panel.thresholds.length; i++) {
       threshold = panel.thresholds[i];
-      if (!isNumber(threshold.value)) {
+      if (!_.isNumber(threshold.value)) {
         continue;
       }
 
@@ -234,12 +233,12 @@ export class ThresholdManager {
         if (threshold.yaxis === 'right' && this.hasSecondYAxis) {
           options.grid.markings.push({
             y2axis: { from: threshold.value, to: limit },
-            color: config.theme2.visualization.getColorByName(fillColor),
+            color: getColorForTheme(fillColor, config.theme),
           });
         } else {
           options.grid.markings.push({
             yaxis: { from: threshold.value, to: limit },
-            color: config.theme2.visualization.getColorByName(fillColor),
+            color: getColorForTheme(fillColor, config.theme),
           });
         }
       }
@@ -247,12 +246,12 @@ export class ThresholdManager {
         if (threshold.yaxis === 'right' && this.hasSecondYAxis) {
           options.grid.markings.push({
             y2axis: { from: threshold.value, to: threshold.value },
-            color: config.theme2.visualization.getColorByName(lineColor),
+            color: getColorForTheme(lineColor, config.theme),
           });
         } else {
           options.grid.markings.push({
             yaxis: { from: threshold.value, to: threshold.value },
-            color: config.theme2.visualization.getColorByName(lineColor),
+            color: getColorForTheme(lineColor, config.theme),
           });
         }
       }

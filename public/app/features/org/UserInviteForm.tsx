@@ -1,13 +1,23 @@
-import React from 'react';
-
-import { locationUtil } from '@grafana/data';
-import { Stack } from '@grafana/experimental';
-import { locationService } from '@grafana/runtime';
-import { Button, LinkButton, Input, Switch, RadioButtonGroup, Form, Field, InputControl, FieldSet } from '@grafana/ui';
+import React, { FC } from 'react';
+import {
+  HorizontalGroup,
+  Button,
+  LinkButton,
+  Input,
+  Switch,
+  RadioButtonGroup,
+  Form,
+  Field,
+  InputControl,
+} from '@grafana/ui';
 import { getConfig } from 'app/core/config';
-import { OrgRole, useDispatch } from 'app/types';
-
-import { addInvitee } from '../invites/state/actions';
+import { OrgRole } from 'app/types';
+import { getBackendSrv } from '@grafana/runtime';
+import { updateLocation } from 'app/core/actions';
+import { connect } from 'react-redux';
+import { hot } from 'react-hot-loader';
+import { appEvents } from 'app/core/core';
+import { AppEvents, locationUtil } from '@grafana/data';
 
 const roles = [
   { label: 'Viewer', value: OrgRole.Viewer },
@@ -15,7 +25,7 @@ const roles = [
   { label: 'Admin', value: OrgRole.Admin },
 ];
 
-export interface FormModel {
+interface FormModel {
   role: OrgRole;
   name: string;
   loginOrEmail?: string;
@@ -23,19 +33,24 @@ export interface FormModel {
   email: string;
 }
 
-const defaultValues: FormModel = {
-  name: '',
-  email: '',
-  role: OrgRole.Editor,
-  sendEmail: true,
-};
+interface Props {
+  updateLocation: typeof updateLocation;
+}
 
-export const UserInviteForm = () => {
-  const dispatch = useDispatch();
-
+export const UserInviteForm: FC<Props> = ({ updateLocation }) => {
   const onSubmit = async (formData: FormModel) => {
-    await dispatch(addInvitee(formData)).unwrap();
-    locationService.push('/admin/users/');
+    try {
+      await getBackendSrv().post('/api/org/invites', formData);
+    } catch (err) {
+      appEvents.emit(AppEvents.alertError, ['Failed to send invite', err.message]);
+    }
+    updateLocation({ path: 'org/users/' });
+  };
+  const defaultValues: FormModel = {
+    name: '',
+    email: '',
+    role: OrgRole.Editor,
+    sendEmail: true,
   };
 
   return (
@@ -43,34 +58,28 @@ export const UserInviteForm = () => {
       {({ register, control, errors }) => {
         return (
           <>
-            <FieldSet>
-              <Field
-                invalid={!!errors.loginOrEmail}
-                error={!!errors.loginOrEmail ? 'Email or username is required' : undefined}
-                label="Email or username"
-              >
-                <Input {...register('loginOrEmail', { required: true })} placeholder="email@example.com" />
-              </Field>
-              <Field invalid={!!errors.name} label="Name">
-                <Input {...register('name')} placeholder="(optional)" />
-              </Field>
-              <Field invalid={!!errors.role} label="Role">
-                <InputControl
-                  render={({ field: { ref, ...field } }) => <RadioButtonGroup {...field} options={roles} />}
-                  control={control}
-                  name="role"
-                />
-              </Field>
-              <Field label="Send invite email">
-                <Switch id="send-email-switch" {...register('sendEmail')} />
-              </Field>
-            </FieldSet>
-            <Stack>
+            <Field
+              invalid={!!errors.loginOrEmail}
+              error={!!errors.loginOrEmail ? 'Email or Username is required' : undefined}
+              label="Email or Username"
+            >
+              <Input name="loginOrEmail" placeholder="email@example.com" ref={register({ required: true })} />
+            </Field>
+            <Field invalid={!!errors.name} label="Name">
+              <Input name="name" placeholder="(optional)" ref={register} />
+            </Field>
+            <Field invalid={!!errors.role} label="Role">
+              <InputControl as={RadioButtonGroup} control={control} options={roles} name="role" />
+            </Field>
+            <Field label="Send invite email">
+              <Switch name="sendEmail" ref={register} />
+            </Field>
+            <HorizontalGroup>
               <Button type="submit">Submit</Button>
-              <LinkButton href={locationUtil.assureBaseUrl(getConfig().appSubUrl + '/admin/users')} variant="secondary">
+              <LinkButton href={locationUtil.assureBaseUrl(getConfig().appSubUrl + '/org/users')} variant="secondary">
                 Back
               </LinkButton>
-            </Stack>
+            </HorizontalGroup>
           </>
         );
       }}
@@ -78,4 +87,8 @@ export const UserInviteForm = () => {
   );
 };
 
-export default UserInviteForm;
+const mapDispatchToProps = {
+  updateLocation,
+};
+
+export default hot(module)(connect(null, mapDispatchToProps)(UserInviteForm));

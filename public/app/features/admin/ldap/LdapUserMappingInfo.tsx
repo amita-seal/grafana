@@ -1,5 +1,4 @@
-import React from 'react';
-
+import React, { FC } from 'react';
 import { LdapUserInfo } from 'app/types';
 
 interface Props {
@@ -7,7 +6,7 @@ interface Props {
   showAttributeMapping?: boolean;
 }
 
-export const LdapUserMappingInfo = ({ info, showAttributeMapping }: Props) => {
+export const LdapUserMappingInfo: FC<Props> = ({ info, showAttributeMapping }) => {
   return (
     <div className="gf-form-group">
       <div className="gf-form">

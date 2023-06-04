@@ -1,129 +1,110 @@
 package search
 
 import (
-	"context"
 	"sort"
 
-	"github.com/grafana/grafana/pkg/infra/db"
-	"github.com/grafana/grafana/pkg/services/dashboards"
-	"github.com/grafana/grafana/pkg/services/search/model"
-	"github.com/grafana/grafana/pkg/services/star"
-	"github.com/grafana/grafana/pkg/services/user"
 	"github.com/grafana/grafana/pkg/setting"
+
+	"github.com/grafana/grafana/pkg/bus"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/registry"
 )
 
-func ProvideService(cfg *setting.Cfg, sqlstore db.DB, starService star.Service, dashboardService dashboards.DashboardService) *SearchService {
-	s := &SearchService{
-		Cfg: cfg,
-		sortOptions: map[string]model.SortOption{
-			SortAlphaAsc.Name:  SortAlphaAsc,
-			SortAlphaDesc.Name: SortAlphaDesc,
-		},
-		sqlstore:         sqlstore,
-		starService:      starService,
-		dashboardService: dashboardService,
-	}
-	return s
+func init() {
+	registry.RegisterService(&SearchService{})
 }
 
 type Query struct {
-	Title         string
-	Tags          []string
-	OrgId         int64
-	SignedInUser  *user.SignedInUser
-	Limit         int64
-	Page          int64
-	IsStarred     bool
-	Type          string
-	DashboardUIDs []string
-	DashboardIds  []int64
-	FolderIds     []int64
-	Permission    dashboards.PermissionType
-	Sort          string
+	Title        string
+	Tags         []string
+	OrgId        int64
+	SignedInUser *models.SignedInUser
+	Limit        int64
+	Page         int64
+	IsStarred    bool
+	Type         string
+	DashboardIds []int64
+	FolderIds    []int64
+	Permission   models.PermissionType
+	Sort         string
+
+	Result HitList
 }
 
-type Service interface {
-	SearchHandler(context.Context, *Query) (model.HitList, error)
-	SortOptions() []model.SortOption
+type FindPersistedDashboardsQuery struct {
+	Title        string
+	OrgId        int64
+	SignedInUser *models.SignedInUser
+	IsStarred    bool
+	DashboardIds []int64
+	Type         string
+	FolderIds    []int64
+	Tags         []string
+	Limit        int64
+	Page         int64
+	Permission   models.PermissionType
+	Sort         SortOption
+
+	Filters []interface{}
+
+	Result HitList
 }
 
 type SearchService struct {
-	Cfg              *setting.Cfg
-	sortOptions      map[string]model.SortOption
-	sqlstore         db.DB
-	starService      star.Service
-	dashboardService dashboards.DashboardService
+	Bus bus.Bus      `inject:""`
+	Cfg *setting.Cfg `inject:""`
+
+	sortOptions map[string]SortOption
 }
 
-func (s *SearchService) SearchHandler(ctx context.Context, query *Query) (model.HitList, error) {
-	starredQuery := star.GetUserStarsQuery{
-		UserID: query.SignedInUser.UserID,
-	}
-	staredDashIDs, err := s.starService.GetByUser(ctx, &starredQuery)
-	if err != nil {
-		return nil, err
+func (s *SearchService) Init() error {
+	s.Bus.AddHandler(s.searchHandler)
+	s.sortOptions = map[string]SortOption{
+		sortAlphaAsc.Name:  sortAlphaAsc,
+		sortAlphaDesc.Name: sortAlphaDesc,
 	}
 
-	// No starred dashboards will be found
-	if query.IsStarred && len(staredDashIDs.UserStars) == 0 {
-		return model.HitList{}, nil
-	}
+	return nil
+}
 
-	// filter by starred dashboard IDs when starred dashboards are requested and no UID or ID filters are specified to improve query performance
-	if query.IsStarred && len(query.DashboardIds) == 0 && len(query.DashboardUIDs) == 0 {
-		for id := range staredDashIDs.UserStars {
-			query.DashboardIds = append(query.DashboardIds, id)
-		}
-	}
-
-	dashboardQuery := dashboards.FindPersistedDashboardsQuery{
-		Title:         query.Title,
-		SignedInUser:  query.SignedInUser,
-		DashboardUIDs: query.DashboardUIDs,
-		DashboardIds:  query.DashboardIds,
-		Type:          query.Type,
-		FolderIds:     query.FolderIds,
-		Tags:          query.Tags,
-		Limit:         query.Limit,
-		Page:          query.Page,
-		Permission:    query.Permission,
+func (s *SearchService) searchHandler(query *Query) error {
+	dashboardQuery := FindPersistedDashboardsQuery{
+		Title:        query.Title,
+		SignedInUser: query.SignedInUser,
+		IsStarred:    query.IsStarred,
+		DashboardIds: query.DashboardIds,
+		Type:         query.Type,
+		FolderIds:    query.FolderIds,
+		Tags:         query.Tags,
+		Limit:        query.Limit,
+		Page:         query.Page,
+		Permission:   query.Permission,
 	}
 
 	if sortOpt, exists := s.sortOptions[query.Sort]; exists {
 		dashboardQuery.Sort = sortOpt
 	}
 
-	hits, err := s.dashboardService.SearchDashboards(ctx, &dashboardQuery)
-	if err != nil {
-		return nil, err
+	if err := bus.Dispatch(&dashboardQuery); err != nil {
+		return err
 	}
 
+	hits := dashboardQuery.Result
 	if query.Sort == "" {
 		hits = sortedHits(hits)
 	}
 
-	// set starred dashboards
-	for _, dashboard := range hits {
-		if _, ok := staredDashIDs.UserStars[dashboard.ID]; ok {
-			dashboard.IsStarred = true
-		}
+	if err := setStarredDashboards(query.SignedInUser.UserId, hits); err != nil {
+		return err
 	}
 
-	// filter for starred dashboards if requested
-	if !query.IsStarred {
-		return hits, nil
-	}
-	result := model.HitList{}
-	for _, dashboard := range hits {
-		if dashboard.IsStarred {
-			result = append(result, dashboard)
-		}
-	}
-	return result, nil
+	query.Result = hits
+
+	return nil
 }
 
-func sortedHits(unsorted model.HitList) model.HitList {
-	hits := make(model.HitList, 0)
+func sortedHits(unsorted HitList) HitList {
+	hits := make(HitList, 0)
 	hits = append(hits, unsorted...)
 
 	sort.Sort(hits)
@@ -133,4 +114,22 @@ func sortedHits(unsorted model.HitList) model.HitList {
 	}
 
 	return hits
+}
+
+func setStarredDashboards(userID int64, hits []*Hit) error {
+	query := models.GetUserStarsQuery{
+		UserId: userID,
+	}
+
+	if err := bus.Dispatch(&query); err != nil {
+		return err
+	}
+
+	for _, dashboard := range hits {
+		if _, ok := query.Result[dashboard.ID]; ok {
+			dashboard.IsStarred = true
+		}
+	}
+
+	return nil
 }

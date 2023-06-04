@@ -1,24 +1,19 @@
-import { css, cx } from '@emotion/css';
 import React, { useState, useCallback } from 'react';
-
-import { SelectableValue } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-
-import { useTheme2 } from '../../themes';
+import { css, cx } from 'emotion';
+import { DataSourceSettings, SelectableValue } from '@grafana/data';
+import { BasicAuthSettings } from './BasicAuthSettings';
+import { HttpProxySettings } from './HttpProxySettings';
+import { TLSAuthSettings } from './TLSAuthSettings';
+import { CustomHeadersSettings } from './CustomHeadersSettings';
+import { Select } from '../Forms/Legacy/Select/Select';
+import { Input } from '../Forms/Legacy/Input/Input';
+import { Switch } from '../Forms/Legacy/Switch/Switch';
+import { Icon } from '../Icon/Icon';
 import { FormField } from '../FormField/FormField';
 import { InlineFormLabel } from '../FormLabel/FormLabel';
-import { InlineField } from '../Forms/InlineField';
-import { Input } from '../Forms/Legacy/Input/Input';
-import { Icon } from '../Icon/Icon';
-import { Select } from '../Select/Select';
-import { InlineSwitch } from '../Switch/Switch';
 import { TagsInput } from '../TagsInput/TagsInput';
-
-import { BasicAuthSettings } from './BasicAuthSettings';
-import { CustomHeadersSettings } from './CustomHeadersSettings';
-import { HttpProxySettings } from './HttpProxySettings';
-import { SecureSocksProxySettings } from './SecureSocksProxySettings';
-import { TLSAuthSettings } from './TLSAuthSettings';
+import { SigV4AuthSettings } from './SigV4AuthSettings';
+import { useTheme } from '../../themes';
 import { HttpSettingsProps } from './types';
 
 const ACCESS_OPTIONS: Array<SelectableValue<string>> = [
@@ -60,29 +55,14 @@ const HttpAccessHelp = () => (
   </div>
 );
 
-const LABEL_WIDTH = 26;
-
-export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
-  const {
-    defaultUrl,
-    dataSourceConfig,
-    onChange,
-    showAccessOptions,
-    sigV4AuthToggleEnabled,
-    showForwardOAuthIdentityOption,
-    azureAuthSettings,
-    renderSigV4Editor,
-    secureSocksDSProxyEnabled,
-    urlLabel,
-    urlDocs,
-  } = props;
-
-  const [isAccessHelpVisible, setIsAccessHelpVisible] = useState(false);
-  const theme = useTheme2();
+export const DataSourceHttpSettings: React.FC<HttpSettingsProps> = (props) => {
+  const { defaultUrl, dataSourceConfig, onChange, showAccessOptions, sigV4AuthToggleEnabled } = props;
   let urlTooltip;
+  const [isAccessHelpVisible, setIsAccessHelpVisible] = useState(false);
+  const theme = useTheme();
 
   const onSettingsChange = useCallback(
-    (change: Partial<typeof dataSourceConfig>) => {
+    (change: Partial<DataSourceSettings<any, any>>) => {
       onChange({
         ...dataSourceConfig,
         ...change,
@@ -96,7 +76,6 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
       urlTooltip = (
         <>
           Your access method is <em>Browser</em>, this means the URL needs to be accessible from the browser.
-          {urlDocs}
         </>
       );
       break;
@@ -105,22 +84,19 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
         <>
           Your access method is <em>Server</em>, this means the URL needs to be accessible from the grafana
           backend/server.
-          {urlDocs}
         </>
       );
       break;
     default:
-      urlTooltip = <>Specify a complete HTTP URL (for example http://your_server:8080) {urlDocs}</>;
+      urlTooltip = 'Specify a complete HTTP URL (for example http://your_server:8080)';
   }
 
   const accessSelect = (
     <Select
-      aria-label="Access"
-      className="width-20 gf-form-input"
+      width={20}
       options={ACCESS_OPTIONS}
       value={ACCESS_OPTIONS.filter((o) => o.value === dataSourceConfig.access)[0] || DEFAULT_ACCESS_OPTION}
       onChange={(selectedValue) => onSettingsChange({ access: selectedValue.value })}
-      disabled={dataSourceConfig.readOnly}
     />
   );
 
@@ -129,7 +105,7 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
   );
 
   const notValidStyle = css`
-    box-shadow: inset 0 0px 5px ${theme.v1.palette.red};
+    box-shadow: inset 0 0px 5px ${theme.palette.red};
   `;
 
   const inputStyle = cx({ [`width-20`]: true, [notValidStyle]: !isValidUrl });
@@ -139,14 +115,9 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
       className={inputStyle}
       placeholder={defaultUrl}
       value={dataSourceConfig.url}
-      aria-label={selectors.components.DataSource.DataSourceHttpSettings.urlInput}
       onChange={(event) => onSettingsChange({ url: event.currentTarget.value })}
-      disabled={dataSourceConfig.readOnly}
     />
   );
-
-  const azureAuthEnabled: boolean =
-    (azureAuthSettings?.azureAuthSupported && azureAuthSettings.getAzureAuthEnabled(dataSourceConfig)) || false;
 
   return (
     <div className="gf-form-group">
@@ -154,71 +125,42 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
         <h3 className="page-heading">HTTP</h3>
         <div className="gf-form-group">
           <div className="gf-form">
-            <FormField
-              interactive={urlDocs ? true : false}
-              label={urlLabel ?? 'URL'}
-              labelWidth={13}
-              tooltip={urlTooltip}
-              inputEl={urlInput}
-            />
+            <FormField label="URL" labelWidth={11} tooltip={urlTooltip} inputEl={urlInput} />
           </div>
 
           {showAccessOptions && (
             <>
               <div className="gf-form-inline">
                 <div className="gf-form">
-                  <FormField label="Access" labelWidth={13} inputWidth={20} inputEl={accessSelect} />
+                  <FormField label="Access" labelWidth={11} inputWidth={20} inputEl={accessSelect} />
                 </div>
                 <div className="gf-form">
-                  <button
-                    type="button"
+                  <label
                     className="gf-form-label query-keyword pointer"
                     onClick={() => setIsAccessHelpVisible((isVisible) => !isVisible)}
                   >
                     Help&nbsp;
                     <Icon name={isAccessHelpVisible ? 'angle-down' : 'angle-right'} style={{ marginBottom: 0 }} />
-                  </button>
+                  </label>
                 </div>
               </div>
               {isAccessHelpVisible && <HttpAccessHelp />}
             </>
           )}
           {dataSourceConfig.access === 'proxy' && (
-            <div className="gf-form-group">
-              <div className="gf-form">
-                <InlineFormLabel
-                  width={13}
-                  tooltip="Grafana proxy deletes forwarded cookies by default. Specify cookies by name that should be forwarded to the data source."
-                >
-                  Allowed cookies
-                </InlineFormLabel>
-                <TagsInput
-                  tags={dataSourceConfig.jsonData.keepCookies}
-                  width={40}
-                  onChange={(cookies) =>
-                    onSettingsChange({ jsonData: { ...dataSourceConfig.jsonData, keepCookies: cookies } })
-                  }
-                  disabled={dataSourceConfig.readOnly}
-                />
-              </div>
-              <div className="gf-form">
-                <FormField
-                  label="Timeout"
-                  type="number"
-                  labelWidth={13}
-                  inputWidth={20}
-                  tooltip="HTTP request timeout in seconds"
-                  placeholder="Timeout in seconds"
-                  aria-label="Timeout in seconds"
-                  value={dataSourceConfig.jsonData.timeout}
-                  onChange={(event) => {
-                    onSettingsChange({
-                      jsonData: { ...dataSourceConfig.jsonData, timeout: parseInt(event.currentTarget.value, 10) },
-                    });
-                  }}
-                  disabled={dataSourceConfig.readOnly}
-                />
-              </div>
+            <div className="gf-form">
+              <InlineFormLabel
+                width={11}
+                tooltip="Grafana Proxy deletes forwarded cookies by default. Specify cookies by name that should be forwarded to the data source."
+              >
+                Whitelisted Cookies
+              </InlineFormLabel>
+              <TagsInput
+                tags={dataSourceConfig.jsonData.keepCookies}
+                onChange={(cookies) =>
+                  onSettingsChange({ jsonData: { ...dataSourceConfig.jsonData, keepCookies: cookies } })
+                }
+              />
             </div>
           )}
         </div>
@@ -228,66 +170,37 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
         <h3 className="page-heading">Auth</h3>
         <div className="gf-form-group">
           <div className="gf-form-inline">
-            <InlineField label="Basic auth" labelWidth={LABEL_WIDTH} disabled={dataSourceConfig.readOnly}>
-              <InlineSwitch
-                id="http-settings-basic-auth"
-                value={dataSourceConfig.basicAuth}
-                onChange={(event) => {
-                  onSettingsChange({ basicAuth: event!.currentTarget.checked });
-                }}
-              />
-            </InlineField>
-
-            <InlineField
+            <Switch
+              label="Basic auth"
+              labelClass="width-13"
+              checked={dataSourceConfig.basicAuth}
+              onChange={(event) => {
+                onSettingsChange({ basicAuth: event!.currentTarget.checked });
+              }}
+            />
+            <Switch
               label="With Credentials"
+              labelClass="width-13"
+              checked={dataSourceConfig.withCredentials}
+              onChange={(event) => {
+                onSettingsChange({ withCredentials: event!.currentTarget.checked });
+              }}
               tooltip="Whether credentials such as cookies or auth headers should be sent with cross-site requests."
-              labelWidth={LABEL_WIDTH}
-              disabled={dataSourceConfig.readOnly}
-            >
-              <InlineSwitch
-                id="http-settings-with-credentials"
-                value={dataSourceConfig.withCredentials}
-                onChange={(event) => {
-                  onSettingsChange({ withCredentials: event!.currentTarget.checked });
-                }}
-              />
-            </InlineField>
+            />
           </div>
-
-          {azureAuthSettings?.azureAuthSupported && (
-            <div className="gf-form-inline">
-              <InlineField
-                label="Azure Authentication"
-                tooltip="Use Azure authentication for Azure endpoint."
-                labelWidth={LABEL_WIDTH}
-                disabled={dataSourceConfig.readOnly}
-              >
-                <InlineSwitch
-                  id="http-settings-azure-auth"
-                  value={azureAuthEnabled}
-                  onChange={(event) => {
-                    onSettingsChange(
-                      azureAuthSettings.setAzureAuthEnabled(dataSourceConfig, event!.currentTarget.checked)
-                    );
-                  }}
-                />
-              </InlineField>
-            </div>
-          )}
 
           {sigV4AuthToggleEnabled && (
             <div className="gf-form-inline">
-              <InlineField label="SigV4 auth" labelWidth={LABEL_WIDTH} disabled={dataSourceConfig.readOnly}>
-                <InlineSwitch
-                  id="http-settings-sigv4-auth"
-                  value={dataSourceConfig.jsonData.sigV4Auth || false}
-                  onChange={(event) => {
-                    onSettingsChange({
-                      jsonData: { ...dataSourceConfig.jsonData, sigV4Auth: event!.currentTarget.checked },
-                    });
-                  }}
-                />
-              </InlineField>
+              <Switch
+                label="SigV4 auth"
+                labelClass="width-13"
+                checked={dataSourceConfig.jsonData.sigV4Auth || false}
+                onChange={(event) => {
+                  onSettingsChange({
+                    jsonData: { ...dataSourceConfig.jsonData, sigV4Auth: event!.currentTarget.checked },
+                  });
+                }}
+              />
             </div>
           )}
 
@@ -295,7 +208,6 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
             <HttpProxySettings
               dataSourceConfig={dataSourceConfig}
               onChange={(jsonData) => onSettingsChange({ jsonData })}
-              showForwardOAuthIdentityOption={showForwardOAuthIdentityOption}
             />
           )}
         </div>
@@ -308,11 +220,8 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
           </>
         )}
 
-        {azureAuthSettings?.azureAuthSupported && azureAuthEnabled && azureAuthSettings.azureSettingsUI && (
-          <azureAuthSettings.azureSettingsUI dataSourceConfig={dataSourceConfig} onChange={onChange} />
-        )}
+        {dataSourceConfig.jsonData.sigV4Auth && <SigV4AuthSettings {...props} />}
 
-        {dataSourceConfig.jsonData.sigV4Auth && sigV4AuthToggleEnabled && renderSigV4Editor}
         {(dataSourceConfig.jsonData.tlsAuth || dataSourceConfig.jsonData.tlsAuthWithCACert) && (
           <TLSAuthSettings dataSourceConfig={dataSourceConfig} onChange={onChange} />
         )}
@@ -321,7 +230,6 @@ export const DataSourceHttpSettings = (props: HttpSettingsProps) => {
           <CustomHeadersSettings dataSourceConfig={dataSourceConfig} onChange={onChange} />
         )}
       </>
-      {secureSocksDSProxyEnabled && <SecureSocksProxySettings options={dataSourceConfig} onOptionsChange={onChange} />}
     </div>
   );
 };

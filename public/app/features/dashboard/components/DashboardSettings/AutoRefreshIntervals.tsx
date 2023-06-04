@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-
+import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { Input, defaultIntervals, Field } from '@grafana/ui';
 
 import { getTimeSrv } from '../../services/TimeSrv';
@@ -11,19 +10,19 @@ export interface Props {
   validateIntervalsFunc?: typeof validateIntervals;
 }
 
-export const AutoRefreshIntervals = ({
+export const AutoRefreshIntervals: FC<Props> = ({
   refreshIntervals,
   onRefreshIntervalChange,
   getIntervalsFunc = getValidIntervals,
   validateIntervalsFunc = validateIntervals,
-}: Props) => {
+}) => {
   const [intervals, setIntervals] = useState<string[]>(getIntervalsFunc(refreshIntervals ?? defaultIntervals));
   const [invalidIntervalsMessage, setInvalidIntervalsMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const intervals = getIntervalsFunc(refreshIntervals ?? defaultIntervals);
     setIntervals(intervals);
-  }, [getIntervalsFunc, refreshIntervals]);
+  }, [refreshIntervals]);
 
   const intervalsString = useMemo(() => {
     if (!Array.isArray(intervals)) {
@@ -53,18 +52,17 @@ export const AutoRefreshIntervals = ({
 
       setInvalidIntervalsMessage(invalidMessage);
     },
-    [getIntervalsFunc, intervals, onRefreshIntervalChange, validateIntervalsFunc]
+    [intervals, onRefreshIntervalChange, setInvalidIntervalsMessage]
   );
 
   return (
     <Field
       label="Auto refresh"
-      description="Define the auto refresh intervals that should be available in the auto refresh list."
+      description="Define the auto refresh intervals that should be available in the auto refresh dropdown"
       error={invalidIntervalsMessage}
       invalid={!!invalidIntervalsMessage}
     >
       <Input
-        id="auto-refresh-input"
         invalid={!!invalidIntervalsMessage}
         value={intervalsString}
         onChange={onIntervalsChange}
@@ -82,7 +80,7 @@ export const validateIntervals = (
     getValidIntervals(intervals, dependencies);
     return null;
   } catch (err) {
-    return err instanceof Error ? err.message : 'Invalid intervals';
+    return err.message;
   }
 };
 

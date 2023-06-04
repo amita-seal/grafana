@@ -1,25 +1,8 @@
-.git
-.github
-.yarn
-build
+node_modules
 compiled
-data
-deployment_tools_config.json
+build
+vendor
 devenv
+data
 dist
 e2e/tmp
-node_modules
-pkg
-public/lib/monaco
-scripts/grafana-server/tmp
-vendor
-
-# TS generate from cue by cuetsy
-**/*.gen.ts
-
-# Auto-generated internationalization files
-public/locales/_build/
-public/locales/**/*.js
-
-# Auto-generated icon file
-packages/grafana-ui/src/components/Icon/iconBundle.ts

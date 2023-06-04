@@ -1,62 +1,46 @@
-import { css, cx } from '@emotion/css';
-import React, { ReactNode } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-
-import { Link, ToolbarButtonRow } from '..';
-import { useStyles2 } from '../../themes/ThemeContext';
-import { getFocusStyles } from '../../themes/mixins';
+import React, { FC, ReactNode } from 'react';
+import { css, cx } from 'emotion';
+import { GrafanaTheme } from '@grafana/data';
+import { useStyles } from '../../themes/ThemeContext';
 import { IconName } from '../../types';
 import { Icon } from '../Icon/Icon';
+import { styleMixins } from '../../themes';
 import { IconButton } from '../IconButton/IconButton';
+import { selectors } from '@grafana/e2e-selectors';
 
 export interface Props {
   pageIcon?: IconName;
-  title?: string;
-  section?: string;
+  title: string;
   parent?: string;
   onGoBack?: () => void;
-  titleHref?: string;
-  parentHref?: string;
+  onClickTitle?: () => void;
+  onClickParent?: () => void;
   leftItems?: ReactNode[];
   children?: ReactNode;
   className?: string;
   isFullscreen?: boolean;
-  'aria-label'?: string;
-  buttonOverflowAlignment?: 'left' | 'right';
-  /**
-   * Forces left items to be visible on small screens.
-   * By default left items are hidden on small screens.
-   */
-  forceShowLeftItems?: boolean;
 }
 
 /** @alpha */
-export const PageToolbar = React.memo(
+export const PageToolbar: FC<Props> = React.memo(
   ({
     title,
-    section,
     parent,
     pageIcon,
     onGoBack,
     children,
-    titleHref,
-    parentHref,
+    onClickTitle,
+    onClickParent,
     leftItems,
     isFullscreen,
     className,
-    /** main nav-container aria-label **/
-    'aria-label': ariaLabel,
-    buttonOverflowAlignment = 'right',
-    forceShowLeftItems = false,
-  }: Props) => {
-    const styles = useStyles2(getStyles);
+  }) => {
+    const styles = useStyles(getStyles);
 
     /**
      * .page-toolbar css class is used for some legacy css view modes (TV/Kiosk) and
      * media queries for mobile view when toolbar needs left padding to make room
-     * for mobile menu icon. This logic hopefully can be changed when we move to a full react
+     * for mobile menu icon. This logic hopefylly can be changed when we move to a full react
      * app and change how the app side menu & mobile menu is rendered.
      */
     const mainStyle = cx(
@@ -64,195 +48,155 @@ export const PageToolbar = React.memo(
       styles.toolbar,
       {
         ['page-toolbar--fullscreen']: isFullscreen,
-        [styles.noPageIcon]: !pageIcon,
       },
       className
     );
 
-    const titleEl = (
-      <>
-        <span className={styles.truncateText}>{title}</span>
-        {section && <span className={styles.pre}> / {section}</span>}
-      </>
-    );
-
     return (
-      <nav className={mainStyle} aria-label={ariaLabel}>
-        <div className={styles.leftWrapper}>
+      <div className={mainStyle}>
+        <div className={styles.toolbarLeft}>
           {pageIcon && !onGoBack && (
             <div className={styles.pageIcon}>
-              <Icon name={pageIcon} size="lg" aria-hidden />
+              <Icon name={pageIcon} size="lg" />
             </div>
           )}
           {onGoBack && (
-            <div className={styles.pageIcon}>
+            <div className={styles.goBackButton}>
               <IconButton
                 name="arrow-left"
                 tooltip="Go back (Esc)"
                 tooltipPlacement="bottom"
                 size="xxl"
+                surface="dashboard"
                 aria-label={selectors.components.BackButton.backArrow}
                 onClick={onGoBack}
               />
             </div>
           )}
-          <nav aria-label="Search links" className={styles.navElement}>
-            {parent && parentHref && (
-              <>
-                <Link
-                  aria-label={`Search dashboard in the ${parent} folder`}
-                  className={cx(styles.titleText, styles.parentLink, styles.titleLink, styles.truncateText)}
-                  href={parentHref}
-                >
-                  {parent} <span className={styles.parentIcon}></span>
-                </Link>
-                {titleHref && (
-                  <span className={cx(styles.titleText, styles.titleDivider)} aria-hidden>
-                    /
-                  </span>
-                )}
-              </>
+          <div className={styles.titleWrapper}>
+            {parent && onClickParent && (
+              <button onClick={onClickParent} className={cx(styles.titleLink, styles.parentLink)}>
+                {parent} <span className={styles.parentIcon}>/</span>
+              </button>
             )}
-
-            {(title || Boolean(leftItems?.length)) && (
-              <div className={styles.titleWrapper}>
-                {title && (
-                  <h1 className={styles.h1Styles}>
-                    {titleHref ? (
-                      <Link
-                        aria-label="Search dashboard by name"
-                        className={cx(styles.titleText, styles.titleLink)}
-                        href={titleHref}
-                      >
-                        {titleEl}
-                      </Link>
-                    ) : (
-                      <div className={styles.titleText}>{titleEl}</div>
-                    )}
-                  </h1>
-                )}
-
-                {leftItems?.map((child, index) => (
-                  <div
-                    className={cx(styles.leftActionItem, { [styles.forceShowLeftActionItems]: forceShowLeftItems })}
-                    key={index}
-                  >
-                    {child}
-                  </div>
-                ))}
-              </div>
+            {onClickTitle && (
+              <button onClick={onClickTitle} className={styles.titleLink}>
+                {title}
+              </button>
             )}
-          </nav>
+            {!onClickTitle && <div className={styles.titleText}>{title}</div>}
+          </div>
+          {leftItems?.map((child, index) => (
+            <div className={styles.leftActionItem} key={index}>
+              {child}
+            </div>
+          ))}
         </div>
-        <ToolbarButtonRow alignment={buttonOverflowAlignment}>
-          {React.Children.toArray(children).filter(Boolean)}
-        </ToolbarButtonRow>
-      </nav>
+        <div className={styles.spacer}></div>
+        {React.Children.toArray(children)
+          .filter(Boolean)
+          .map((child, index) => {
+            return (
+              <div className={styles.actionWrapper} key={index}>
+                {child}
+              </div>
+            );
+          })}
+      </div>
     );
   }
 );
 
 PageToolbar.displayName = 'PageToolbar';
 
-const getStyles = (theme: GrafanaTheme2) => {
+const getStyles = (theme: GrafanaTheme) => {
   const { spacing, typography } = theme;
 
-  const focusStyle = getFocusStyles(theme);
+  const titleStyles = `
+      font-size: ${typography.size.lg};
+      padding-left: ${spacing.sm};      
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;      
+      max-width: 240px;
+
+      // clear default button styles
+      background: none;
+      border: none;      
+      
+      @media ${styleMixins.mediaUp(theme.breakpoints.xl)} {
+        max-width: unset;
+      }
+  `;
 
   return {
-    pre: css`
-      white-space: pre;
-    `,
     toolbar: css`
-      align-items: center;
-      background: ${theme.colors.background.canvas};
       display: flex;
-      gap: ${theme.spacing(2)};
-      justify-content: space-between;
-      padding: ${theme.spacing(1.5, 2)};
-
-      ${theme.breakpoints.down('md')} {
-        padding-left: 53px;
-      }
+      background: ${theme.colors.dashboardBg};
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      padding: 0 ${spacing.md} ${spacing.sm} ${spacing.md};
     `,
-    noPageIcon: css`
-      ${theme.breakpoints.down('md')} {
-        padding-left: ${theme.spacing(2)};
-      }
-    `,
-    leftWrapper: css`
+    toolbarLeft: css`
       display: flex;
-      flex-wrap: nowrap;
-      max-width: 70%;
-    `,
-    pageIcon: css`
-      display: none;
-      ${theme.breakpoints.up('sm')} {
-        display: flex;
-        padding-right: ${theme.spacing(1)};
-        align-items: center;
-      }
-    `,
-    truncateText: css`
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    `,
-    titleWrapper: css`
-      display: flex;
-      margin: 0;
-      min-width: 0;
-    `,
-    navElement: css`
-      display: flex;
-      align-items: center;
-      min-width: 0;
-    `,
-    h1Styles: css`
-      margin: ${spacing(0, 1, 0, 0)};
-      line-height: inherit;
       flex-grow: 1;
       min-width: 0;
     `,
-    parentIcon: css`
-      margin-left: ${theme.spacing(0.5)};
+    spacer: css`
+      flex-grow: 1;
     `,
-    titleText: css`
-      display: flex;
-      font-size: ${typography.size.lg};
-      margin: 0;
-      max-width: 300px;
-      border-radius: ${theme.shape.radius.default};
-    `,
-    titleLink: css`
-      &:focus-visible {
-        ${focusStyle}
-      }
-    `,
-    titleDivider: css`
-      padding: ${spacing(0, 0.5, 0, 0.5)};
-      display: none;
-      ${theme.breakpoints.up('md')} {
-        display: unset;
-      }
-    `,
-    parentLink: css`
-      display: none;
-      ${theme.breakpoints.up('md')} {
-        display: unset;
-        flex: 1;
-      }
-    `,
-    leftActionItem: css`
-      display: none;
+    pageIcon: css`
+      padding-top: ${spacing.sm};
       align-items: center;
-      padding-right: ${spacing(0.5)};
-      ${theme.breakpoints.up('md')} {
+      display: none;
+
+      @media ${styleMixins.mediaUp(theme.breakpoints.md)} {
         display: flex;
       }
     `,
-    forceShowLeftActionItems: css`
+    titleWrapper: css`
       display: flex;
+      align-items: center;
+      padding-top: ${spacing.sm};
+      padding-right: ${spacing.sm};
+      min-width: 0;
+      overflow: hidden;
+    `,
+    goBackButton: css`
+      position: relative;
+      top: 8px;
+    `,
+    parentIcon: css`
+      margin-left: 4px;
+    `,
+    titleText: css`
+      ${titleStyles};
+    `,
+    titleLink: css`
+      ${titleStyles};
+    `,
+    parentLink: css`
+      display: none;
+
+      @media ${styleMixins.mediaUp(theme.breakpoints.md)} {
+        display: inline-block;
+      }
+    `,
+    actionWrapper: css`
+      padding-left: ${spacing.sm};
+      padding-top: ${spacing.sm};
+    `,
+    leftActionItem: css`
+      display: none;
+      height: 40px;
+      position: relative;
+      top: 5px;
+      align-items: center;
+      padding-left: ${spacing.xs};
+
+      @media ${styleMixins.mediaUp(theme.breakpoints.md)} {
+        display: flex;
+      }
     `,
   };
 };

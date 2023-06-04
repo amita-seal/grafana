@@ -1,10 +1,3 @@
-export enum TeamPermissionLevel {
-  Admin = 4,
-  Editor = 2,
-  Member = 0,
-  Viewer = 1,
-}
-
 export enum OrgRole {
   Viewer = 'Viewer',
   Editor = 'Editor',
@@ -70,18 +63,6 @@ export enum PermissionLevel {
   Admin = 4,
 }
 
-export enum PermissionLevelString {
-  View = 'View',
-  Edit = 'Edit',
-  Admin = 'Admin',
-}
-
-export enum SearchQueryType {
-  Folder = 'dash-folder',
-  Dashboard = 'dash-db',
-  AlertFolder = 'dash-folder-alerting',
-}
-
 export enum DataSourcePermissionLevel {
   Query = 1,
   Admin = 2,
@@ -111,18 +92,19 @@ export const dashboardAclTargets: AclTargetInfo[] = [
 ];
 
 export const dashboardPermissionLevels: DashboardPermissionInfo[] = [
-  { value: PermissionLevel.View, label: PermissionLevelString.View, description: 'Can view dashboards.' },
-  {
-    value: PermissionLevel.Edit,
-    label: PermissionLevelString.Edit,
-    description: 'Can add, edit and delete dashboards.',
-  },
+  { value: PermissionLevel.View, label: 'View', description: 'Can view dashboards.' },
+  { value: PermissionLevel.Edit, label: 'Edit', description: 'Can add, edit and delete dashboards.' },
   {
     value: PermissionLevel.Admin,
     label: 'Admin',
     description: 'Can add/remove permissions and can add, edit and delete dashboards.',
   },
 ];
+
+export enum TeamPermissionLevel {
+  Member = 0,
+  Admin = 4,
+}
 
 export interface TeamPermissionInfo {
   value: TeamPermissionLevel;

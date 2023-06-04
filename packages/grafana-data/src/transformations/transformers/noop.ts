@@ -1,19 +1,20 @@
-import { DataFrame } from '../../types';
-import { SynchronousDataTransformerInfo } from '../../types/transformations';
-
 import { DataTransformerID } from './ids';
+import { DataTransformerInfo } from '../../types/transformations';
 
-export interface NoopTransformerOptions {}
+export interface NoopTransformerOptions {
+  include?: string;
+  exclude?: string;
+}
 
-export const noopTransformer: SynchronousDataTransformerInfo<NoopTransformerOptions> = {
+export const noopTransformer: DataTransformerInfo<NoopTransformerOptions> = {
   id: DataTransformerID.noop,
   name: 'noop',
   description: 'No-operation transformer',
   defaultOptions: {},
 
-  /** no operation */
+  /**
+   * Return a modified copy of the series.  If the transform is not or should not
+   * be applied, just return the input series
+   */
   operator: (options: NoopTransformerOptions) => (source) => source,
-
-  /** no operation */
-  transformer: (options: NoopTransformerOptions) => (data: DataFrame[]) => data,
 };

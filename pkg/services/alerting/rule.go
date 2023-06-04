@@ -1,30 +1,15 @@
 package alerting
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"time"
 
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/tag"
-)
-
-var unitMultiplier = map[string]int{
-	"s": 1,
-	"m": 60,
-	"h": 3600,
-	"d": 86400,
-}
-
-var (
-	valueFormatRegex = regexp.MustCompile(`^\d+`)
-	isDigitRegex     = regexp.MustCompile(`^[0-9]+$`)
-	unitFormatRegex  = regexp.MustCompile(`[a-z]+`)
+	"github.com/grafana/grafana/pkg/models"
 )
 
 var (
@@ -33,9 +18,6 @@ var (
 
 	// ErrFrequencyCouldNotBeParsed frequency cannot be parsed
 	ErrFrequencyCouldNotBeParsed = errors.New(`"evaluate every" field could not be parsed`)
-
-	// ErrWrongUnitFormat wrong unit format
-	ErrWrongUnitFormat = fmt.Errorf(`time unit not supported. supported units: %s`, reflect.ValueOf(unitMultiplier).MapKeys())
 )
 
 // Rule is the in-memory version of an alert rule.
@@ -54,7 +36,7 @@ type Rule struct {
 	State               models.AlertStateType
 	Conditions          []Condition
 	Notifications       []string
-	AlertRuleTags       []*tag.Tag
+	AlertRuleTags       []*models.Tag
 
 	StateChanges int64
 }
@@ -90,18 +72,20 @@ func (e ValidationError) Error() string {
 	return fmt.Sprintf("alert validation error: %s", extraInfo)
 }
 
+var (
+	valueFormatRegex = regexp.MustCompile(`^\d+`)
+	unitFormatRegex  = regexp.MustCompile(`\w{1}$`)
+)
+
+var unitMultiplier = map[string]int{
+	"s": 1,
+	"m": 60,
+	"h": 3600,
+	"d": 86400,
+}
+
 func getTimeDurationStringToSeconds(str string) (int64, error) {
-	// Check if frequency lacks unit
-	if isDigitRegex.MatchString(str) || str == "" {
-		return 0, ErrFrequencyCouldNotBeParsed
-	}
-
-	unit := unitFormatRegex.FindAllString(str, 1)[0]
-	if _, ok := unitMultiplier[unit]; !ok {
-		return 0, ErrWrongUnitFormat
-	}
-
-	multiplier := unitMultiplier[unit]
+	multiplier := 1
 
 	matches := valueFormatRegex.FindAllString(str, 1)
 
@@ -118,39 +102,23 @@ func getTimeDurationStringToSeconds(str string) (int64, error) {
 		return 0, ErrFrequencyCannotBeZeroOrLess
 	}
 
-	return int64(value * multiplier), nil
-}
+	unit := unitFormatRegex.FindAllString(str, 1)[0]
 
-func getForValue(rawFor string) (time.Duration, error) {
-	var forValue time.Duration
-	var err error
-
-	if rawFor != "" {
-		if rawFor != "0" {
-			strings := unitFormatRegex.FindAllString(rawFor, 1)
-			if strings == nil {
-				return 0, ValidationError{Reason: fmt.Sprintf("no specified unit, error: %s", ErrWrongUnitFormat.Error())}
-			}
-			if _, ok := unitMultiplier[strings[0]]; !ok {
-				return 0, ValidationError{Reason: fmt.Sprintf("could not parse for field, error: %s", ErrWrongUnitFormat.Error())}
-			}
-		}
-		forValue, err = time.ParseDuration(rawFor)
-		if err != nil {
-			return 0, ValidationError{Reason: "Could not parse for field"}
-		}
+	if val, ok := unitMultiplier[unit]; ok {
+		multiplier = val
 	}
-	return forValue, nil
+
+	return int64(value * multiplier), nil
 }
 
 // NewRuleFromDBAlert maps a db version of
 // alert to an in-memory version.
-func NewRuleFromDBAlert(ctx context.Context, store AlertStore, ruleDef *models.Alert, logTranslationFailures bool) (*Rule, error) {
+func NewRuleFromDBAlert(ruleDef *models.Alert, logTranslationFailures bool) (*Rule, error) {
 	model := &Rule{}
-	model.ID = ruleDef.ID
-	model.OrgID = ruleDef.OrgID
-	model.DashboardID = ruleDef.DashboardID
-	model.PanelID = ruleDef.PanelID
+	model.ID = ruleDef.Id
+	model.OrgID = ruleDef.OrgId
+	model.DashboardID = ruleDef.DashboardId
+	model.PanelID = ruleDef.PanelId
 	model.Name = ruleDef.Name
 	model.Message = ruleDef.Message
 	model.State = ruleDef.State
@@ -170,7 +138,7 @@ func NewRuleFromDBAlert(ctx context.Context, store AlertStore, ruleDef *models.A
 	for _, v := range ruleDef.Settings.Get("notifications").MustArray() {
 		jsonModel := simplejson.NewFromAny(v)
 		if id, err := jsonModel.Get("id").Int64(); err == nil {
-			uid, err := translateNotificationIDToUID(ctx, store, id, ruleDef.OrgID)
+			uid, err := translateNotificationIDToUID(id, ruleDef.OrgId)
 			if err != nil {
 				if !errors.Is(err, models.ErrAlertNotificationFailedTranslateUniqueID) {
 					logger.Error("Failed to translate notification id to uid", "error", err.Error(), "dashboardId", model.DashboardID, "alert", model.Name, "panelId", model.PanelID, "notificationId", id)
@@ -211,8 +179,8 @@ func NewRuleFromDBAlert(ctx context.Context, store AlertStore, ruleDef *models.A
 	return model, nil
 }
 
-func translateNotificationIDToUID(ctx context.Context, store AlertStore, id int64, orgID int64) (string, error) {
-	notificationUID, err := getAlertNotificationUIDByIDAndOrgID(ctx, store, id, orgID)
+func translateNotificationIDToUID(id int64, orgID int64) (string, error) {
+	notificationUID, err := getAlertNotificationUIDByIDAndOrgID(id, orgID)
 	if err != nil {
 		return "", err
 	}
@@ -220,18 +188,17 @@ func translateNotificationIDToUID(ctx context.Context, store AlertStore, id int6
 	return notificationUID, nil
 }
 
-func getAlertNotificationUIDByIDAndOrgID(ctx context.Context, store AlertStore, notificationID int64, orgID int64) (string, error) {
+func getAlertNotificationUIDByIDAndOrgID(notificationID int64, orgID int64) (string, error) {
 	query := &models.GetAlertNotificationUidQuery{
-		OrgID: orgID,
-		ID:    notificationID,
+		OrgId: orgID,
+		Id:    notificationID,
 	}
 
-	uid, err := store.GetAlertNotificationUidWithId(ctx, query)
-	if err != nil {
+	if err := bus.Dispatch(query); err != nil {
 		return "", err
 	}
 
-	return uid, nil
+	return query.Result, nil
 }
 
 // ConditionFactory is the function signature for creating `Conditions`.

@@ -1,10 +1,7 @@
 import memoizeOne from 'memoize-one';
-
 import { getBackendSrv, config } from '@grafana/runtime';
-import { notifyApp } from 'app/core/actions';
-import { createErrorNotification, createSuccessNotification } from 'app/core/copy/appNotification';
-import { dispatch } from 'app/store/store';
-
+import { AppEvents } from '@grafana/data';
+import appEvents from 'app/core/app_events';
 import { copyStringToClipboard } from './explore';
 
 function buildHostUrl() {
@@ -24,7 +21,7 @@ export const createShortLink = memoizeOne(async function (path: string) {
     return shortLink.url;
   } catch (err) {
     console.error('Error when creating shortened link: ', err);
-    dispatch(notifyApp(createErrorNotification('Error generating shortened link')));
+    appEvents.emit(AppEvents.alertError, ['Error generating shortened link']);
   }
 });
 
@@ -32,8 +29,8 @@ export const createAndCopyShortLink = async (path: string) => {
   const shortLink = await createShortLink(path);
   if (shortLink) {
     copyStringToClipboard(shortLink);
-    dispatch(notifyApp(createSuccessNotification('Shortened link copied to clipboard')));
+    appEvents.emit(AppEvents.alertSuccess, ['Shortened link copied to clipboard']);
   } else {
-    dispatch(notifyApp(createErrorNotification('Error generating shortened link')));
+    appEvents.emit(AppEvents.alertError, ['Error generating shortened link']);
   }
 };

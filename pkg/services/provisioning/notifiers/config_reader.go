@@ -1,37 +1,29 @@
 package notifiers
 
 import (
-	"context"
 	"fmt"
-	"io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
+	"github.com/grafana/grafana/pkg/components/securejsondata"
 	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/encryption"
-	"github.com/grafana/grafana/pkg/services/notifications"
-	"github.com/grafana/grafana/pkg/services/org"
 	"github.com/grafana/grafana/pkg/services/provisioning/utils"
-	"github.com/grafana/grafana/pkg/setting"
+	"gopkg.in/yaml.v2"
 )
 
 type configReader struct {
-	encryptionService   encryption.Internal
-	notificationService *notifications.NotificationService
-	orgService          org.Service
-	log                 log.Logger
+	log log.Logger
 }
 
-func (cr *configReader) readConfig(ctx context.Context, path string) ([]*notificationsAsConfig, error) {
+func (cr *configReader) readConfig(path string) ([]*notificationsAsConfig, error) {
 	var notifications []*notificationsAsConfig
 	cr.log.Debug("Looking for alert notification provisioning files", "path", path)
 
-	files, err := os.ReadDir(path)
+	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		cr.log.Error("Can't read alert notification provisioning files from directory", "path", path, "error", err)
 		return notifications, nil
@@ -52,27 +44,27 @@ func (cr *configReader) readConfig(ctx context.Context, path string) ([]*notific
 	}
 
 	cr.log.Debug("Validating alert notifications")
-	if err = cr.validateRequiredField(notifications); err != nil {
+	if err = validateRequiredField(notifications); err != nil {
 		return nil, err
 	}
 
-	if err := cr.checkOrgIDAndOrgName(ctx, notifications); err != nil {
+	if err := checkOrgIDAndOrgName(notifications); err != nil {
 		return nil, err
 	}
 
-	if err := cr.validateNotifications(notifications); err != nil {
+	if err := validateNotifications(notifications); err != nil {
 		return nil, err
 	}
 
 	return notifications, nil
 }
 
-func (cr *configReader) parseNotificationConfig(path string, file fs.DirEntry) (*notificationsAsConfig, error) {
+func (cr *configReader) parseNotificationConfig(path string, file os.FileInfo) (*notificationsAsConfig, error) {
 	filename, _ := filepath.Abs(filepath.Join(path, file.Name()))
 
 	// nolint:gosec
 	// We can ignore the gosec G304 warning on this one because `filename` comes from ps.Cfg.ProvisioningPath
-	yamlFile, err := os.ReadFile(filename)
+	yamlFile, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +78,7 @@ func (cr *configReader) parseNotificationConfig(path string, file fs.DirEntry) (
 	return cfg.mapToNotificationFromConfig(), nil
 }
 
-func (cr *configReader) checkOrgIDAndOrgName(ctx context.Context, notifications []*notificationsAsConfig) error {
+func checkOrgIDAndOrgName(notifications []*notificationsAsConfig) error {
 	for i := range notifications {
 		for _, notification := range notifications[i].Notifications {
 			if notification.OrgID < 1 {
@@ -96,7 +88,7 @@ func (cr *configReader) checkOrgIDAndOrgName(ctx context.Context, notifications 
 					notification.OrgID = 0
 				}
 			} else {
-				if err := utils.CheckOrgExists(ctx, cr.orgService, notification.OrgID); err != nil {
+				if err := utils.CheckOrgExists(notification.OrgID); err != nil {
 					return fmt.Errorf("failed to provision %q notification: %w", notification.Name, err)
 				}
 			}
@@ -115,7 +107,7 @@ func (cr *configReader) checkOrgIDAndOrgName(ctx context.Context, notifications 
 	return nil
 }
 
-func (cr *configReader) validateRequiredField(notifications []*notificationsAsConfig) error {
+func validateRequiredField(notifications []*notificationsAsConfig) error {
 	for i := range notifications {
 		var errStrings []string
 		for index, notification := range notifications[i].Notifications {
@@ -158,29 +150,19 @@ func (cr *configReader) validateRequiredField(notifications []*notificationsAsCo
 	return nil
 }
 
-func (cr *configReader) validateNotifications(notifications []*notificationsAsConfig) error {
+func validateNotifications(notifications []*notificationsAsConfig) error {
 	for i := range notifications {
 		if notifications[i].Notifications == nil {
 			continue
 		}
 
 		for _, notification := range notifications[i].Notifications {
-			encryptedSecureSettings, err := cr.encryptionService.EncryptJsonData(
-				context.Background(),
-				notification.SecureSettings,
-				setting.SecretKey,
-			)
-
-			if err != nil {
-				return err
-			}
-
-			_, err = alerting.InitNotifier(&models.AlertNotification{
+			_, err := alerting.InitNotifier(&models.AlertNotification{
 				Name:           notification.Name,
 				Settings:       notification.SettingsToJSON(),
-				SecureSettings: encryptedSecureSettings,
+				SecureSettings: securejsondata.GetEncryptedJsonData(notification.SecureSettings),
 				Type:           notification.Type,
-			}, cr.encryptionService.GetDecryptedValue, cr.notificationService)
+			})
 
 			if err != nil {
 				return err

@@ -1,7 +1,5 @@
 import { reducerTester } from 'test/core/redux/reducerTester';
-
-import { PipelineVariable } from '../../../../../../types';
-
+import { PipelineVariable } from '../../../aggregations';
 import {
   addPipelineVariable,
   changePipelineVariableMetric,
@@ -50,7 +48,7 @@ describe('BucketScript Settings Reducer', () => {
       pipelineAgg: '',
     };
 
-    reducerTester<PipelineVariable[]>()
+    reducerTester()
       .givenReducer(reducer, [firstVar, secondVar])
       .whenActionIsDispatched(removePipelineVariable(0))
       .thenStateShouldEqual([secondVar]);
@@ -72,9 +70,9 @@ describe('BucketScript Settings Reducer', () => {
       name: 'new name',
     };
 
-    reducerTester<PipelineVariable[]>()
+    reducerTester()
       .givenReducer(reducer, [firstVar, secondVar])
-      .whenActionIsDispatched(renamePipelineVariable({ newName: expectedSecondVar.name, index: 1 }))
+      .whenActionIsDispatched(renamePipelineVariable(expectedSecondVar.name, 1))
       .thenStateShouldEqual([firstVar, expectedSecondVar]);
   });
 
@@ -94,9 +92,9 @@ describe('BucketScript Settings Reducer', () => {
       pipelineAgg: 'some new agg',
     };
 
-    reducerTester<PipelineVariable[]>()
+    reducerTester()
       .givenReducer(reducer, [firstVar, secondVar])
-      .whenActionIsDispatched(changePipelineVariableMetric({ newMetric: expectedSecondVar.pipelineAgg, index: 1 }))
+      .whenActionIsDispatched(changePipelineVariableMetric(expectedSecondVar.pipelineAgg, 1))
       .thenStateShouldEqual([firstVar, expectedSecondVar]);
   });
 
@@ -112,7 +110,7 @@ describe('BucketScript Settings Reducer', () => {
       },
     ];
 
-    reducerTester<PipelineVariable[]>()
+    reducerTester()
       .givenReducer(reducer, initialState)
       .whenActionIsDispatched({ type: 'THIS ACTION SHOULD NOT HAVE ANY EFFECT IN THIS REDUCER' })
       .thenStateShouldEqual(initialState);

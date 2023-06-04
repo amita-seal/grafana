@@ -1,33 +1,23 @@
-import { chain, difference, once } from 'lodash';
+import _ from 'lodash';
 import LRU from 'lru-cache';
-import Prism from 'prismjs';
 import { Value } from 'slate';
 
-import {
-  AbstractLabelMatcher,
-  AbstractLabelOperator,
-  AbstractQuery,
-  dateTime,
-  HistoryItem,
-  LanguageProvider,
-} from '@grafana/data';
-import { BackendSrvRequest, config } from '@grafana/runtime';
-import { CompletionItem, CompletionItemGroup, SearchFunctionType, TypeaheadInput, TypeaheadOutput } from '@grafana/ui';
+import { dateTime, HistoryItem, LanguageProvider } from '@grafana/data';
+import { CompletionItem, CompletionItemGroup, TypeaheadInput, TypeaheadOutput } from '@grafana/ui';
 
-import { Label } from './components/monaco-query-field/monaco-completion-provider/situation';
-import { PrometheusDatasource } from './datasource';
 import {
-  addLimitInfo,
-  extractLabelMatchers,
   fixSummariesMetadata,
   parseSelector,
-  processHistogramMetrics,
+  processHistogramLabels,
   processLabels,
   roundSecToMin,
-  toPromLikeQuery,
+  addLimitInfo,
+  limitSuggestions,
 } from './language_utils';
 import PromqlSyntax, { FUNCTIONS, RATE_RANGES } from './promql';
-import { PrometheusCacheLevel, PromMetricsMetadata, PromQuery } from './types';
+
+import { PrometheusDatasource } from './datasource';
+import { PromMetricsMetadata, PromQuery } from './types';
 
 const DEFAULT_KEYS = ['job', 'instance'];
 const EMPTY_SELECTOR = '{}';
@@ -41,14 +31,6 @@ const wrapLabel = (label: string): CompletionItem => ({ label });
 const setFunctionKind = (suggestion: CompletionItem): CompletionItem => {
   suggestion.kind = 'function';
   return suggestion;
-};
-
-const buildCacheHeaders = (durationInSeconds: number) => {
-  return {
-    headers: {
-      'X-Grafana-Cache': `private, max-age=${durationInSeconds}`,
-    },
-  };
 };
 
 export function addHistoryMetadata(item: CompletionItem, history: any[]): CompletionItem {
@@ -72,57 +54,29 @@ export function addHistoryMetadata(item: CompletionItem, history: any[]): Comple
 function addMetricsMetadata(metric: string, metadata?: PromMetricsMetadata): CompletionItem {
   const item: CompletionItem = { label: metric };
   if (metadata && metadata[metric]) {
-    item.documentation = getMetadataString(metric, metadata);
+    const { type, help } = metadata[metric][0];
+    item.documentation = `${type.toUpperCase()}: ${help}`;
   }
   return item;
 }
 
-export function getMetadataString(metric: string, metadata: PromMetricsMetadata): string | undefined {
-  if (!metadata[metric]) {
-    return undefined;
-  }
-  const { type, help } = metadata[metric];
-  return `${type.toUpperCase()}: ${help}`;
-}
+const PREFIX_DELIMITER_REGEX = /(="|!="|=~"|!~"|\{|\[|\(|\+|-|\/|\*|%|\^|\band\b|\bor\b|\bunless\b|==|>=|!=|<=|>|<|=|~|,)/;
 
-export function getMetadataHelp(metric: string, metadata: PromMetricsMetadata): string | undefined {
-  if (!metadata[metric]) {
-    return undefined;
-  }
-  return metadata[metric].help;
-}
-
-export function getMetadataType(metric: string, metadata: PromMetricsMetadata): string | undefined {
-  if (!metadata[metric]) {
-    return undefined;
-  }
-  return metadata[metric].type;
-}
-
-const PREFIX_DELIMITER_REGEX =
-  /(="|!="|=~"|!~"|\{|\[|\(|\+|-|\/|\*|%|\^|\band\b|\bor\b|\bunless\b|==|>=|!=|<=|>|<|=|~|,)/;
-
-interface AutocompleteContext {
-  history?: Array<HistoryItem<PromQuery>>;
-}
-
-const secondsInDay = 86400;
 export default class PromQlLanguageProvider extends LanguageProvider {
   histogramMetrics: string[];
   timeRange?: { start: number; end: number };
   metrics: string[];
   metricsMetadata?: PromMetricsMetadata;
-  declare startTask: Promise<any>;
+  startTask: Promise<any>;
   datasource: PrometheusDatasource;
-  labelKeys: string[] = [];
-  declare labelFetchTs: number;
+
   /**
    *  Cache for labels of series. This is bit simplistic in the sense that it just counts responses each as a 1 and does
    *  not account for different size of a response. If that is needed a `length` function can be added in the options.
    *  10 as a max size is totally arbitrary right now.
    */
-  private labelsCache = new LRU<string, Record<string, string[]>>({ max: 10 });
-  private labelValuesCache = new LRU<string, string[]>({ max: 10 });
+  private labelsCache = new LRU<string, Record<string, string[]>>(10);
+
   constructor(datasource: PrometheusDatasource, initialValues?: Partial<PromQlLanguageProvider>) {
     super();
 
@@ -132,16 +86,6 @@ export default class PromQlLanguageProvider extends LanguageProvider {
     this.metrics = [];
 
     Object.assign(this, initialValues);
-  }
-
-  getDefaultCacheHeaders() {
-    // @todo clean up prometheusResourceBrowserCache feature flag
-    if (config.featureToggles.prometheusResourceBrowserCache) {
-      if (this.datasource.cacheLevel !== PrometheusCacheLevel.None) {
-        return buildCacheHeaders(this.datasource.getCacheDurationInMinutes() * 60);
-      }
-    }
-    return;
   }
 
   // Strip syntax chars so that typeahead suggestions can work on clean inputs
@@ -155,9 +99,9 @@ export default class PromQlLanguageProvider extends LanguageProvider {
     return PromqlSyntax;
   }
 
-  request = async (url: string, defaultValue: any, params = {}, options?: Partial<BackendSrvRequest>): Promise<any> => {
+  request = async (url: string, defaultValue: any, params = {}): Promise<any> => {
     try {
-      const res = await this.datasource.metadataRequest(url, params, options);
+      const res = await this.datasource.metadataRequest(url, params);
       return res.data.data;
     } catch (error) {
       console.error(error);
@@ -171,36 +115,31 @@ export default class PromQlLanguageProvider extends LanguageProvider {
       return [];
     }
 
-    this.metrics = (await this.fetchLabelValues('__name__')) || [];
-    this.histogramMetrics = processHistogramMetrics(this.metrics).sort();
-    return Promise.all([this.loadMetricsMetadata(), this.fetchLabels()]);
+    const tRange = this.datasource.getTimeRange();
+    const params = {
+      start: tRange['start'].toString(),
+      end: tRange['end'].toString(),
+    };
+    const url = `/api/v1/label/__name__/values`;
+
+    this.metrics = await this.request(url, [], params);
+    this.metricsMetadata = fixSummariesMetadata(await this.request('/api/v1/metadata', {}));
+    this.processHistogramMetrics(this.metrics);
+
+    return [];
   };
 
-  async loadMetricsMetadata() {
-    // @todo clean up prometheusResourceBrowserCache feature flag
-    const headers = config.featureToggles.prometheusResourceBrowserCache
-      ? buildCacheHeaders(this.datasource.getDaysToCacheMetadata() * secondsInDay)
-      : {};
-    this.metricsMetadata = fixSummariesMetadata(
-      await this.request(
-        '/api/v1/metadata',
-        {},
-        {},
-        {
-          showErrorAlert: false,
-          ...headers,
-        }
-      )
-    );
-  }
+  processHistogramMetrics = (data: string[]) => {
+    const { values } = processHistogramLabels(data);
 
-  getLabelKeys(): string[] {
-    return this.labelKeys;
-  }
+    if (values && values['__name__']) {
+      this.histogramMetrics = values['__name__'].slice().sort();
+    }
+  };
 
   provideCompletionItems = async (
     { prefix, text, value, labelKey, wrapperClasses }: TypeaheadInput,
-    context: AutocompleteContext = {}
+    context: { history: Array<HistoryItem<PromQuery>> } = { history: [] }
   ): Promise<TypeaheadOutput> => {
     const emptyResult: TypeaheadOutput = { suggestions: [] };
 
@@ -254,18 +193,18 @@ export default class PromQlLanguageProvider extends LanguageProvider {
     return emptyResult;
   };
 
-  getBeginningCompletionItems = (context: AutocompleteContext): TypeaheadOutput => {
+  getBeginningCompletionItems = (context: { history: Array<HistoryItem<PromQuery>> }): TypeaheadOutput => {
     return {
       suggestions: [...this.getEmptyCompletionItems(context).suggestions, ...this.getTermCompletionItems().suggestions],
     };
   };
 
-  getEmptyCompletionItems = (context: AutocompleteContext): TypeaheadOutput => {
+  getEmptyCompletionItems = (context: { history: Array<HistoryItem<PromQuery>> }): TypeaheadOutput => {
     const { history } = context;
-    const suggestions: CompletionItemGroup[] = [];
+    const suggestions = [];
 
     if (history && history.length) {
-      const historyItems = chain(history)
+      const historyItems = _.chain(history)
         .map((h) => h.query.expr)
         .filter()
         .uniq()
@@ -275,7 +214,7 @@ export default class PromQlLanguageProvider extends LanguageProvider {
         .value();
 
       suggestions.push({
-        searchFunctionType: SearchFunctionType.Prefix,
+        prefixMatch: true,
         skipSort: true,
         label: 'History',
         items: historyItems,
@@ -287,19 +226,19 @@ export default class PromQlLanguageProvider extends LanguageProvider {
 
   getTermCompletionItems = (): TypeaheadOutput => {
     const { metrics, metricsMetadata } = this;
-    const suggestions: CompletionItemGroup[] = [];
+    const suggestions = [];
 
     suggestions.push({
-      searchFunctionType: SearchFunctionType.Prefix,
+      prefixMatch: true,
       label: 'Functions',
       items: FUNCTIONS.map(setFunctionKind),
     });
 
     if (metrics && metrics.length) {
+      const limitInfo = addLimitInfo(metrics);
       suggestions.push({
-        label: 'Metrics',
-        items: metrics.map((m) => addMetricsMetadata(m, metricsMetadata)),
-        searchFunctionType: SearchFunctionType.Fuzzy,
+        label: `Metrics${limitInfo}`,
+        items: limitSuggestions(metrics).map((m) => addMetricsMetadata(m, metricsMetadata)),
       });
     }
 
@@ -323,10 +262,7 @@ export default class PromQlLanguageProvider extends LanguageProvider {
 
     // Stitch all query lines together to support multi-line queries
     let queryOffset;
-    const queryText = value.document.getBlocks().reduce((text, block) => {
-      if (text === undefined) {
-        return '';
-      }
+    const queryText = value.document.getBlocks().reduce((text: string, block) => {
       if (!block) {
         return text;
       }
@@ -371,14 +307,12 @@ export default class PromQlLanguageProvider extends LanguageProvider {
 
     const selector = parseSelector(selectorString, selectorString.length - 2).selector;
 
-    const series = await this.getSeries(selector);
-    const labelKeys = Object.keys(series);
-    if (labelKeys.length > 0) {
-      const limitInfo = addLimitInfo(labelKeys);
+    const labelValues = await this.getLabelValues(selector);
+    if (labelValues) {
+      const limitInfo = addLimitInfo(labelValues[0]);
       suggestions.push({
         label: `Labels${limitInfo}`,
-        items: labelKeys.map(wrapLabel),
-        searchFunctionType: SearchFunctionType.Fuzzy,
+        items: Object.keys(labelValues).map(wrapLabel),
       });
     }
     return result;
@@ -424,13 +358,13 @@ export default class PromQlLanguageProvider extends LanguageProvider {
     const containsMetric = selector.includes('__name__=');
     const existingKeys = parsedSelector ? parsedSelector.labelKeys : [];
 
-    let series: Record<string, string[]> = {};
+    let labelValues;
     // Query labels for selector
     if (selector) {
-      series = await this.getSeries(selector, !containsMetric);
+      labelValues = await this.getLabelValues(selector, !containsMetric);
     }
 
-    if (Object.keys(series).length === 0) {
+    if (!labelValues) {
       console.warn(`Server did not return any values for selector = ${selector}`);
       return { suggestions };
     }
@@ -439,30 +373,25 @@ export default class PromQlLanguageProvider extends LanguageProvider {
 
     if ((text && isValueStart) || wrapperClasses.includes('attr-value')) {
       // Label values
-      if (labelKey && series[labelKey]) {
+      if (labelKey && labelValues[labelKey]) {
         context = 'context-label-values';
-        const limitInfo = addLimitInfo(series[labelKey]);
+        const limitInfo = addLimitInfo(labelValues[labelKey]);
         suggestions.push({
           label: `Label values for "${labelKey}"${limitInfo}`,
-          items: series[labelKey].map(wrapLabel),
-          searchFunctionType: SearchFunctionType.Fuzzy,
+          items: labelValues[labelKey].map(wrapLabel),
         });
       }
     } else {
       // Label keys
-      const labelKeys = series ? Object.keys(series) : containsMetric ? null : DEFAULT_KEYS;
+      const labelKeys = labelValues ? Object.keys(labelValues) : containsMetric ? null : DEFAULT_KEYS;
 
       if (labelKeys) {
-        const possibleKeys = difference(labelKeys, existingKeys);
+        const possibleKeys = _.difference(labelKeys, existingKeys);
         if (possibleKeys.length) {
           context = 'context-labels';
           const newItems = possibleKeys.map((key) => ({ label: key }));
           const limitInfo = addLimitInfo(newItems);
-          const newSuggestion: CompletionItemGroup = {
-            label: `Labels${limitInfo}`,
-            items: newItems,
-            searchFunctionType: SearchFunctionType.Fuzzy,
-          };
+          const newSuggestion: CompletionItemGroup = { label: `Labels${limitInfo}`, items: newItems };
           suggestions.push(newSuggestion);
         }
       }
@@ -471,229 +400,56 @@ export default class PromQlLanguageProvider extends LanguageProvider {
     return { context, suggestions };
   };
 
-  importFromAbstractQuery(labelBasedQuery: AbstractQuery): PromQuery {
-    return toPromLikeQuery(labelBasedQuery);
-  }
-
-  exportToAbstractQuery(query: PromQuery): AbstractQuery {
-    const promQuery = query.expr;
-    if (!promQuery || promQuery.length === 0) {
-      return { refId: query.refId, labelMatchers: [] };
-    }
-    const tokens = Prism.tokenize(promQuery, PromqlSyntax);
-    const labelMatchers: AbstractLabelMatcher[] = extractLabelMatchers(tokens);
-    const nameLabelValue = getNameLabelValue(promQuery, tokens);
-    if (nameLabelValue && nameLabelValue.length > 0) {
-      labelMatchers.push({
-        name: '__name__',
-        operator: AbstractLabelOperator.Equal,
-        value: nameLabelValue,
-      });
-    }
-
-    return {
-      refId: query.refId,
-      labelMatchers,
-    };
-  }
-
-  async getSeries(selector: string, withName?: boolean): Promise<Record<string, string[]>> {
+  async getLabelValues(selector: string, withName?: boolean) {
     if (this.datasource.lookupsDisabled) {
-      return {};
+      return undefined;
     }
     try {
       if (selector === EMPTY_SELECTOR) {
-        return await this.fetchDefaultSeries();
+        return await this.fetchDefaultLabels();
       } else {
         return await this.fetchSeriesLabels(selector, withName);
       }
     } catch (error) {
       // TODO: better error handling
       console.error(error);
-      return {};
+      return undefined;
     }
   }
 
-  /**
-   * @param key
-   */
-  fetchLabelValues = async (key: string): Promise<string[]> => {
-    const params = this.datasource.getAdjustedInterval();
-    const interpolatedName = this.datasource.interpolateString(key);
-    const url = `/api/v1/label/${interpolatedName}/values`;
-    const value = await this.request(url, [], params, this.getDefaultCacheHeaders());
-    return value ?? [];
-  };
-
-  async getLabelValues(key: string): Promise<string[]> {
-    return await this.fetchLabelValues(key);
-  }
-
-  /**
-   * Fetches all label keys
-   */
-  async fetchLabels(): Promise<string[]> {
-    const url = '/api/v1/labels';
-    const params = this.datasource.getAdjustedInterval();
-    this.labelFetchTs = Date.now().valueOf();
-
-    const res = await this.request(url, [], params, this.getDefaultCacheHeaders());
-    if (Array.isArray(res)) {
-      this.labelKeys = res.slice().sort();
-    }
-
-    return [];
-  }
-
-  /**
-   * Gets series values
-   * Function to replace old getSeries calls in a way that will provide faster endpoints for new prometheus instances,
-   * while maintaining backward compatability
-   * @param labelName
-   * @param selector
-   */
-  getSeriesValues = async (labelName: string, selector: string): Promise<string[]> => {
-    if (!this.datasource.hasLabelsMatchAPISupport()) {
-      const data = await this.getSeries(selector);
-      return data[labelName] ?? [];
-    }
-    return await this.fetchSeriesValuesWithMatch(labelName, selector);
-  };
-
-  /**
-   * Fetches all values for a label, with optional match[]
-   * @param name
-   * @param match
-   */
-  fetchSeriesValuesWithMatch = async (name: string, match?: string): Promise<string[]> => {
-    const interpolatedName = name ? this.datasource.interpolateString(name) : null;
-    const range = this.datasource.getAdjustedInterval();
-    const urlParams = {
-      ...range,
-      ...(match && { 'match[]': match }),
+  fetchLabelValues = async (key: string): Promise<Record<string, string[]>> => {
+    const tRange = this.datasource.getTimeRange();
+    const params = {
+      start: tRange['start'].toString(),
+      end: tRange['end'].toString(),
     };
-
-    // @todo clean up prometheusResourceBrowserCache feature flag
-    if (!config.featureToggles.prometheusResourceBrowserCache) {
-      return await this.fetchSeriesValuesLRUCache(interpolatedName, range, name, urlParams);
-    }
-
-    const value = await this.request(
-      `/api/v1/label/${interpolatedName}/values`,
-      [],
-      urlParams,
-      this.getDefaultCacheHeaders()
-    );
-    return value ?? [];
+    const url = `/api/v1/label/${key}/values`;
+    const data = await this.request(url, [], params);
+    return { [key]: data };
   };
 
   /**
-   * @deprecated
-   * @todo clean up prometheusResourceBrowserCache feature flag
-   * @param interpolatedName
-   * @param range
-   * @param name
-   * @param urlParams
-   * @private
-   */
-  private async fetchSeriesValuesLRUCache(
-    interpolatedName: string | null,
-    range: { start: string; end: string },
-    name: string,
-    urlParams: { start: string; end: string }
-  ) {
-    const cacheParams = new URLSearchParams({
-      'match[]': interpolatedName ?? '',
-      start: roundSecToMin(parseInt(range.start, 10)).toString(),
-      end: roundSecToMin(parseInt(range.end, 10)).toString(),
-      name: name,
-    });
-
-    const cacheKey = `/api/v1/label/?${cacheParams.toString()}/values`;
-    let value: string[] | undefined = this.labelValuesCache.get(cacheKey);
-    if (!value) {
-      value = await this.request(`/api/v1/label/${interpolatedName}/values`, [], urlParams);
-      if (value) {
-        this.labelValuesCache.set(cacheKey, value);
-      }
-    }
-    return value ?? [];
-  }
-
-  /**
-   * Gets series labels
-   * Function to replace old getSeries calls in a way that will provide faster endpoints for new prometheus instances,
-   * while maintaining backward compatability. The old API call got the labels and the values in a single query,
-   * but with the new query we need two calls, one to get the labels, and another to get the values.
-   *
-   * @param selector
-   * @param otherLabels
-   */
-  getSeriesLabels = async (selector: string, otherLabels: Label[]): Promise<string[]> => {
-    let possibleLabelNames, data: Record<string, string[]>;
-
-    if (!this.datasource.hasLabelsMatchAPISupport()) {
-      data = await this.getSeries(selector);
-      possibleLabelNames = Object.keys(data); // all names from prometheus
-    } else {
-      // Exclude __name__ from output
-      otherLabels.push({ name: '__name__', value: '', op: '!=' });
-      data = await this.fetchSeriesLabelsMatch(selector);
-      possibleLabelNames = Object.keys(data);
-    }
-
-    const usedLabelNames = new Set(otherLabels.map((l) => l.name)); // names used in the query
-    return possibleLabelNames.filter((l) => !usedLabelNames.has(l));
-  };
-
-  /**
-   * Fetch labels for a series using /series endpoint. This is cached by its args but also by the global timeRange currently selected as
+   * Fetch labels for a series. This is cached by it's args but also by the global timeRange currently selected as
    * they can change over requested time.
    * @param name
    * @param withName
    */
   fetchSeriesLabels = async (name: string, withName?: boolean): Promise<Record<string, string[]>> => {
-    const interpolatedName = this.datasource.interpolateString(name);
-    const range = this.datasource.getAdjustedInterval();
+    const tRange = this.datasource.getTimeRange();
     const urlParams = {
-      ...range,
-      'match[]': interpolatedName,
+      'match[]': name,
+      start: tRange['start'].toString(),
+      end: tRange['end'].toString(),
     };
     const url = `/api/v1/series`;
-
-    if (!config.featureToggles.prometheusResourceBrowserCache) {
-      return await this.fetchSeriesLabelsLRUCache(interpolatedName, range, withName, url, urlParams);
-    }
-
-    const data = await this.request(url, [], urlParams, this.getDefaultCacheHeaders());
-    const { values } = processLabels(data, withName);
-    return values;
-  };
-
-  /**
-   * @deprecated
-   * @param interpolatedName
-   * @param range
-   * @param withName
-   * @param url
-   * @param urlParams
-   * @private
-   */
-  private async fetchSeriesLabelsLRUCache(
-    interpolatedName: string,
-    range: { start: string; end: string },
-    withName: boolean | undefined,
-    url: string,
-    urlParams: { start: string; 'match[]': string; end: string }
-  ) {
     // Cache key is a bit different here. We add the `withName` param and also round up to a minute the intervals.
     // The rounding may seem strange but makes relative intervals like now-1h less prone to need separate request every
     // millisecond while still actually getting all the keys for the correct interval. This still can create problems
     // when user does not the newest values for a minute if already cached.
     const cacheParams = new URLSearchParams({
-      'match[]': interpolatedName,
-      start: roundSecToMin(parseInt(range.start, 10)).toString(),
-      end: roundSecToMin(parseInt(range.end, 10)).toString(),
+      'match[]': name,
+      start: roundSecToMin(tRange['start']).toString(),
+      end: roundSecToMin(tRange['end']).toString(),
       withName: withName ? 'true' : 'false',
     });
 
@@ -706,78 +462,6 @@ export default class PromQlLanguageProvider extends LanguageProvider {
       this.labelsCache.set(cacheKey, value);
     }
     return value;
-  }
-
-  /**
-   * Fetch labels for a series using /labels endpoint.  This is cached by its args but also by the global timeRange currently selected as
-   * they can change over requested time.
-   * @param name
-   * @param withName
-   */
-  fetchSeriesLabelsMatch = async (name: string, withName?: boolean): Promise<Record<string, string[]>> => {
-    const interpolatedName = this.datasource.interpolateString(name);
-    const range = this.datasource.getAdjustedInterval();
-    const urlParams = {
-      ...range,
-      'match[]': interpolatedName,
-    };
-    const url = `/api/v1/labels`;
-    if (!config.featureToggles.prometheusResourceBrowserCache) {
-      return await this.fetchSeriesLabelMatchLRUCache(interpolatedName, range, withName, url, urlParams);
-    }
-
-    const data: string[] = await this.request(url, [], urlParams, this.getDefaultCacheHeaders());
-    // Convert string array to Record<string , []>
-    return data.reduce((ac, a) => ({ ...ac, [a]: '' }), {});
-  };
-
-  /**
-   * @deprecated
-   * @param interpolatedName
-   * @param range
-   * @param withName
-   * @param url
-   * @param urlParams
-   * @private
-   */
-  private async fetchSeriesLabelMatchLRUCache(
-    interpolatedName: string,
-    range: { start: string; end: string },
-    withName: boolean | undefined,
-    url: string,
-    urlParams: { start: string; 'match[]': string; end: string }
-  ) {
-    // Cache key is a bit different here. We add the `withName` param and also round up to a minute the intervals.
-    // The rounding may seem strange but makes relative intervals like now-1h less prone to need separate request every
-    // millisecond while still actually getting all the keys for the correct interval. This still can create problems
-    // when user does not the newest values for a minute if already cached.
-    const cacheParams = new URLSearchParams({
-      'match[]': interpolatedName,
-      start: roundSecToMin(parseInt(range.start, 10)).toString(),
-      end: roundSecToMin(parseInt(range.end, 10)).toString(),
-      withName: withName ? 'true' : 'false',
-    });
-
-    const cacheKey = `${url}?${cacheParams.toString()}`;
-    let value = this.labelsCache.get(cacheKey);
-    if (!value) {
-      const data: string[] = await this.request(url, [], urlParams);
-      // Convert string array to Record<string , []>
-      value = data.reduce((ac, a) => ({ ...ac, [a]: '' }), {});
-      this.labelsCache.set(cacheKey, value);
-    }
-    return value;
-  }
-
-  /**
-   * Fetch series for a selector. Use this for raw results. Use fetchSeriesLabels() to get labels.
-   * @param match
-   */
-  fetchSeries = async (match: string): Promise<Array<Record<string, string>>> => {
-    const url = '/api/v1/series';
-    const range = this.datasource.getTimeRangeParams();
-    const params = { ...range, 'match[]': match };
-    return await this.request(url, {}, params, this.getDefaultCacheHeaders());
   };
 
   /**
@@ -785,19 +469,8 @@ export default class PromQlLanguageProvider extends LanguageProvider {
    * because we can cache more aggressively here and also we do not want to invalidate this cache the same way as in
    * fetchSeriesLabels.
    */
-  fetchDefaultSeries = once(async () => {
+  fetchDefaultLabels = _.once(async () => {
     const values = await Promise.all(DEFAULT_KEYS.map((key) => this.fetchLabelValues(key)));
-    return DEFAULT_KEYS.reduce((acc, key, i) => ({ ...acc, [key]: values[i] }), {});
+    return values.reduce((acc, value) => ({ ...acc, ...value }), {});
   });
-}
-
-function getNameLabelValue(promQuery: string, tokens: any): string {
-  let nameLabelValue = '';
-  for (let prop in tokens) {
-    if (typeof tokens[prop] === 'string') {
-      nameLabelValue = tokens[prop] as string;
-      break;
-    }
-  }
-  return nameLabelValue;
 }

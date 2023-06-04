@@ -16,7 +16,7 @@ export interface TreeNode {
  *  ]
  */
 function buildMetricTree(parent: string, depth: number): TreeNode[] {
-  const chars = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const chars = ['A', 'B', 'C'];
   const children: TreeNode[] = [];
 
   if (depth > 5) {

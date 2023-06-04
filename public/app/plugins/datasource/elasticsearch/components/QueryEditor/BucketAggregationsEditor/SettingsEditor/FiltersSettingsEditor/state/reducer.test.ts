@@ -1,13 +1,11 @@
 import { reducerTester } from 'test/core/redux/reducerTester';
-
-import { Filter } from '../../../../../../types';
-
+import { Filter } from '../../../aggregations';
 import { addFilter, changeFilter, removeFilter } from './actions';
 import { reducer } from './reducer';
 
 describe('Filters Bucket Aggregation Settings Reducer', () => {
   it('Should correctly add new filter', () => {
-    reducerTester<Filter[]>()
+    reducerTester()
       .givenReducer(reducer, [])
       .whenActionIsDispatched(addFilter())
       .thenStatePredicateShouldEqual((state: Filter[]) => state.length === 1);
@@ -24,7 +22,7 @@ describe('Filters Bucket Aggregation Settings Reducer', () => {
       query: '*',
     };
 
-    reducerTester<Filter[]>()
+    reducerTester()
       .givenReducer(reducer, [firstFilter, secondFilter])
       .whenActionIsDispatched(removeFilter(0))
       .thenStateShouldEqual([secondFilter]);
@@ -46,9 +44,9 @@ describe('Filters Bucket Aggregation Settings Reducer', () => {
       query: 'Changed query',
     };
 
-    reducerTester<Filter[]>()
+    reducerTester()
       .givenReducer(reducer, [firstFilter, secondFilter])
-      .whenActionIsDispatched(changeFilter({ index: 1, filter: expectedSecondFilter }))
+      .whenActionIsDispatched(changeFilter(1, expectedSecondFilter))
       .thenStateShouldEqual([firstFilter, expectedSecondFilter]);
   });
 });

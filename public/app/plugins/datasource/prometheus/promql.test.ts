@@ -1,6 +1,5 @@
-import Prism from 'prismjs';
-
 import promql from './promql';
+import Prism from 'prismjs';
 
 describe('Loki syntax', () => {
   it('should highlight Loki query correctly', () => {

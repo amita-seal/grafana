@@ -1,54 +1,53 @@
-import { css } from '@emotion/css';
+import { css } from 'emotion';
+import { GrafanaTheme } from '@grafana/data';
 
-import { GrafanaTheme2 } from '@grafana/data';
-
-export function getModalStyles(theme: GrafanaTheme2) {
+export function getModalStyles(theme: GrafanaTheme) {
   return {
     myTable: css`
       max-height: 204px;
       overflow-y: auto;
       margin-top: 11px;
       margin-bottom: 28px;
-      border-radius: ${theme.shape.borderRadius(1)};
-      border: 1px solid ${theme.colors.action.hover};
-      background: ${theme.colors.background.primary};
-      color: ${theme.colors.text.secondary};
-      font-size: ${theme.typography.h6.fontSize};
+      border-radius: ${theme.border.radius.sm};
+      border: 1px solid ${theme.colors.bg3};
+      background: ${theme.colors.bg1};
+      color: ${theme.colors.textSemiWeak};
+      font-size: ${theme.typography.size.md};
       width: 100%;
 
       thead {
         color: #538ade;
-        font-size: ${theme.typography.bodySmall.fontSize};
+        font-size: ${theme.typography.size.sm};
       }
 
       th,
       td {
         padding: 6px 13px;
-        height: ${theme.spacing(4)};
+        height: ${theme.spacing.xl};
       }
 
       tbody > tr:nth-child(odd) {
-        background: ${theme.colors.background.secondary};
+        background: ${theme.colors.bg2};
       }
     `,
     noteTextbox: css`
-      margin-bottom: ${theme.spacing(4)};
+      margin-bottom: ${theme.spacing.xl};
     `,
     textInfo: css`
-      color: ${theme.colors.text.secondary};
+      color: ${theme.colors.textSemiWeak};
       font-size: ${theme.typography.size.sm};
     `,
     dashboardSearch: css`
-      margin-top: ${theme.spacing(2)};
+      margin-top: ${theme.spacing.md};
     `,
     modal: css`
       width: 500px;
     `,
     modalText: css`
-      font-size: ${theme.typography.h4.fontSize};
-      color: ${theme.colors.text.primary};
-      margin-bottom: ${theme.spacing(4)};
-      padding-top: ${theme.spacing(2)};
+      font-size: ${theme.typography.heading.h4};
+      color: ${theme.colors.link};
+      margin-bottom: calc(${theme.spacing.d} * 2);
+      padding-top: ${theme.spacing.d};
     `,
   };
 }

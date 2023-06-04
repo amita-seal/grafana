@@ -4,4 +4,5 @@ export const editPanel = (config: Partial<PartialEditPanelConfig>) =>
   configurePanel({
     ...config,
     isEdit: true,
+    isExplore: false,
   });

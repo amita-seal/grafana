@@ -2,227 +2,181 @@ package loki
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"regexp"
 	"strings"
-	"sync"
+	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
-	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"go.opentelemetry.io/otel/attribute"
-
-	"github.com/grafana/grafana/pkg/infra/httpclient"
+	"github.com/grafana/grafana/pkg/components/null"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/infra/tracing"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
-	"github.com/grafana/grafana/pkg/tsdb/loki/kinds/dataquery"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/tsdb"
+	"github.com/grafana/loki/pkg/logcli/client"
+	"github.com/grafana/loki/pkg/loghttp"
+	"github.com/grafana/loki/pkg/logproto"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 )
 
-var logger = log.New("tsdb.loki")
+type LokiExecutor struct{}
 
-type Service struct {
-	im       instancemgmt.InstanceManager
-	features featuremgmt.FeatureToggles
-	tracer   tracing.Tracer
+func NewLokiExecutor(dsInfo *models.DataSource) (tsdb.TsdbQueryEndpoint, error) {
+	return &LokiExecutor{}, nil
 }
 
 var (
-	_ backend.QueryDataHandler    = (*Service)(nil)
-	_ backend.StreamHandler       = (*Service)(nil)
-	_ backend.CallResourceHandler = (*Service)(nil)
+	plog               log.Logger
+	legendFormat       *regexp.Regexp
+	intervalCalculator tsdb.IntervalCalculator
 )
 
-func ProvideService(httpClientProvider httpclient.Provider, features featuremgmt.FeatureToggles, tracer tracing.Tracer) *Service {
-	return &Service{
-		im:       datasource.NewInstanceManager(newInstanceSettings(httpClientProvider)),
-		features: features,
-		tracer:   tracer,
-	}
-}
-
-var (
+func init() {
+	plog = log.New("tsdb.loki")
+	tsdb.RegisterTsdbQueryEndpoint("loki", NewLokiExecutor)
 	legendFormat = regexp.MustCompile(`\{\{\s*(.+?)\s*\}\}`)
-)
-
-type datasourceInfo struct {
-	HTTPClient *http.Client
-	URL        string
-
-	// open streams
-	streams   map[string]data.FrameJSONCache
-	streamsMu sync.RWMutex
+	intervalCalculator = tsdb.NewIntervalCalculator(&tsdb.IntervalOptions{MinInterval: time.Second * 1})
 }
 
-type QueryJSONModel struct {
-	dataquery.LokiDataQuery
-	Direction           *string `json:"direction,omitempty"`
-	SupportingQueryType *string `json:"supportingQueryType"`
-}
-
-type ResponseOpts struct {
-	metricDataplane bool
-}
-
-func parseQueryModel(raw json.RawMessage) (*QueryJSONModel, error) {
-	model := &QueryJSONModel{}
-	err := json.Unmarshal(raw, model)
-	return model, err
-}
-
-func newInstanceSettings(httpClientProvider httpclient.Provider) datasource.InstanceFactoryFunc {
-	return func(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-		opts, err := settings.HTTPClientOptions()
-		if err != nil {
-			return nil, err
-		}
-
-		client, err := httpClientProvider.New(opts)
-		if err != nil {
-			return nil, err
-		}
-
-		model := &datasourceInfo{
-			HTTPClient: client,
-			URL:        settings.URL,
-			streams:    make(map[string]data.FrameJSONCache),
-		}
-		return model, nil
-	}
-}
-
-func (s *Service) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
-	dsInfo, err := s.getDSInfo(ctx, req.PluginContext)
-	if err != nil {
-		return err
-	}
-	return callResource(ctx, req, sender, dsInfo, logger.FromContext(ctx), s.tracer)
-}
-
-func callResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender, dsInfo *datasourceInfo, plog log.Logger, tracer tracing.Tracer) error {
-	url := req.URL
-
-	// a very basic is-this-url-valid check
-	if req.Method != "GET" {
-		return fmt.Errorf("invalid resource method: %s", req.Method)
-	}
-	if (!strings.HasPrefix(url, "labels?")) &&
-		(!strings.HasPrefix(url, "label/")) && // the `/label/$label_name/values` form
-		(!strings.HasPrefix(url, "series?")) &&
-		(!strings.HasPrefix(url, "index/stats?")) {
-		return fmt.Errorf("invalid resource URL: %s", url)
-	}
-	lokiURL := fmt.Sprintf("/loki/api/v1/%s", url)
-
-	ctx, span := tracer.Start(ctx, "datasource.loki.CallResource")
-	span.SetAttributes("url", lokiURL, attribute.Key("url").String(lokiURL))
-	defer span.End()
-
-	api := newLokiAPI(dsInfo.HTTPClient, dsInfo.URL, plog)
-	rawLokiResponse, err := api.RawQuery(ctx, lokiURL)
-
-	if err != nil {
-		return err
+func (e *LokiExecutor) Query(ctx context.Context, dsInfo *models.DataSource, tsdbQuery *tsdb.TsdbQuery) (*tsdb.Response, error) {
+	result := &tsdb.Response{
+		Results: map[string]*tsdb.QueryResult{},
 	}
 
-	respHeaders := map[string][]string{
-		"content-type": {"application/json"},
-	}
-	if rawLokiResponse.Encoding != "" {
-		respHeaders["content-encoding"] = []string{rawLokiResponse.Encoding}
-	}
-	return sender.Send(&backend.CallResourceResponse{
-		Status:  rawLokiResponse.Status,
-		Headers: respHeaders,
-		Body:    rawLokiResponse.Body,
-	})
-}
-
-func (s *Service) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	dsInfo, err := s.getDSInfo(ctx, req.PluginContext)
-	if err != nil {
-		result := backend.NewQueryDataResponse()
-		return result, err
-	}
-
-	responseOpts := ResponseOpts{
-		metricDataplane: s.features.IsEnabled(featuremgmt.FlagLokiMetricDataplane),
-	}
-
-	return queryData(ctx, req, dsInfo, responseOpts, s.tracer)
-}
-
-func queryData(ctx context.Context, req *backend.QueryDataRequest, dsInfo *datasourceInfo, responseOpts ResponseOpts, tracer tracing.Tracer) (*backend.QueryDataResponse, error) {
-	result := backend.NewQueryDataResponse()
-
-	api := newLokiAPI(dsInfo.HTTPClient, dsInfo.URL, logger.FromContext(ctx))
-
-	queries, err := parseQuery(req)
-	if err != nil {
-		return result, err
-	}
-
-	for _, query := range queries {
-		_, span := tracer.Start(ctx, "datasource.loki")
-		span.SetAttributes("expr", query.Expr, attribute.Key("expr").String(query.Expr))
-		span.SetAttributes("start_unixnano", query.Start, attribute.Key("start_unixnano").Int64(query.Start.UnixNano()))
-		span.SetAttributes("stop_unixnano", query.End, attribute.Key("stop_unixnano").Int64(query.End.UnixNano()))
-
-		if req.GetHTTPHeader("X-Query-Group-Id") != "" {
-			span.SetAttributes("query_group_id", req.GetHTTPHeader("X-Query-Group-Id"), attribute.Key("query_group_id").String(req.GetHTTPHeader("X-Query-Group-Id")))
-		}
-
-		logger := logger.FromContext(ctx) // get logger with trace-id and other contextual info
-		logger.Debug("Sending query", "start", query.Start, "end", query.End, "step", query.Step, "query", query.Expr)
-
-		frames, err := runQuery(ctx, api, query, responseOpts)
-
-		span.End()
-		queryRes := backend.DataResponse{}
-
-		if err != nil {
-			queryRes.Error = err
-		} else {
-			queryRes.Frames = frames
-		}
-
-		result.Responses[query.RefID] = queryRes
-	}
-	return result, nil
-}
-
-// we extracted this part of the functionality to make it easy to unit-test it
-func runQuery(ctx context.Context, api *LokiAPI, query *lokiQuery, responseOpts ResponseOpts) (data.Frames, error) {
-	frames, err := api.DataQuery(ctx, *query, responseOpts)
-	if err != nil {
-		return data.Frames{}, err
-	}
-
-	for _, frame := range frames {
-		if err = adjustFrame(frame, query, !responseOpts.metricDataplane); err != nil {
-			return data.Frames{}, err
-		}
-		if err != nil {
-			return data.Frames{}, err
-		}
-	}
-
-	return frames, nil
-}
-
-func (s *Service) getDSInfo(ctx context.Context, pluginCtx backend.PluginContext) (*datasourceInfo, error) {
-	i, err := s.im.Get(ctx, pluginCtx)
+	tlsConfig, err := dsInfo.GetTLSConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	instance, ok := i.(*datasourceInfo)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast datsource info")
+	client := &client.DefaultClient{
+		Address:  dsInfo.Url,
+		Username: dsInfo.BasicAuthUser,
+		Password: dsInfo.DecryptedBasicAuthPassword(),
+		TLSConfig: config.TLSConfig{
+			InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
+		},
 	}
 
-	return instance, nil
+	queries, err := parseQuery(dsInfo, tsdbQuery.Queries, tsdbQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, query := range queries {
+		plog.Debug("Sending query", "start", query.Start, "end", query.End, "step", query.Step, "query", query.Expr)
+		span, _ := opentracing.StartSpanFromContext(ctx, "alerting.loki")
+		span.SetTag("expr", query.Expr)
+		span.SetTag("start_unixnano", query.Start.UnixNano())
+		span.SetTag("stop_unixnano", query.End.UnixNano())
+		defer span.Finish()
+
+		//Currently hard coded as not used - applies to log queries
+		limit := 1000
+		//Currently hard coded as not used - applies to queries which produce a stream response
+		interval := time.Second * 1
+
+		value, err := client.QueryRange(query.Expr, limit, query.Start, query.End, logproto.BACKWARD, query.Step, interval, false)
+
+		if err != nil {
+			return nil, err
+		}
+
+		queryResult, err := parseResponse(value, query)
+		if err != nil {
+			return nil, err
+		}
+		result.Results[query.RefId] = queryResult
+	}
+
+	return result, nil
+}
+
+//If legend (using of name or pattern instead of time series name) is used, use that name/pattern for formatting
+func formatLegend(metric model.Metric, query *LokiQuery) string {
+	if query.LegendFormat == "" {
+		return metric.String()
+	}
+
+	result := legendFormat.ReplaceAllFunc([]byte(query.LegendFormat), func(in []byte) []byte {
+		labelName := strings.Replace(string(in), "{{", "", 1)
+		labelName = strings.Replace(labelName, "}}", "", 1)
+		labelName = strings.TrimSpace(labelName)
+		if val, exists := metric[model.LabelName(labelName)]; exists {
+			return []byte(val)
+		}
+		return []byte{}
+	})
+
+	return string(result)
+}
+
+func parseQuery(dsInfo *models.DataSource, queries []*tsdb.Query, queryContext *tsdb.TsdbQuery) ([]*LokiQuery, error) {
+	qs := []*LokiQuery{}
+	for _, queryModel := range queries {
+		expr, err := queryModel.Model.Get("expr").String()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse Expr: %v", err)
+		}
+
+		format := queryModel.Model.Get("legendFormat").MustString("")
+
+		start, err := queryContext.TimeRange.ParseFrom()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse From: %v", err)
+		}
+
+		end, err := queryContext.TimeRange.ParseTo()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse To: %v", err)
+		}
+
+		dsInterval, err := tsdb.GetIntervalFrom(dsInfo, queryModel.Model, time.Second)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse Interval: %v", err)
+		}
+
+		interval := intervalCalculator.Calculate(queryContext.TimeRange, dsInterval)
+		step := time.Duration(int64(interval.Value))
+
+		qs = append(qs, &LokiQuery{
+			Expr:         expr,
+			Step:         step,
+			LegendFormat: format,
+			Start:        start,
+			End:          end,
+			RefId:        queryModel.RefId,
+		})
+	}
+
+	return qs, nil
+}
+
+func parseResponse(value *loghttp.QueryResponse, query *LokiQuery) (*tsdb.QueryResult, error) {
+	queryRes := tsdb.NewQueryResult()
+
+	//We are currently processing only matrix results (for alerting)
+	data, ok := value.Data.Result.(loghttp.Matrix)
+	if !ok {
+		return queryRes, fmt.Errorf("unsupported result format: %q", value.Data.ResultType)
+	}
+
+	for _, v := range data {
+		series := tsdb.TimeSeries{
+			Name:   formatLegend(v.Metric, query),
+			Tags:   make(map[string]string, len(v.Metric)),
+			Points: make([]tsdb.TimePoint, 0, len(v.Values)),
+		}
+
+		for k, v := range v.Metric {
+			series.Tags[string(k)] = string(v)
+		}
+
+		for _, k := range v.Values {
+			series.Points = append(series.Points, tsdb.NewTimePoint(null.FloatFrom(float64(k.Value)), float64(k.Timestamp.Unix()*1000)))
+		}
+
+		queryRes.Series = append(queryRes.Series, &series)
+	}
+
+	return queryRes, nil
 }

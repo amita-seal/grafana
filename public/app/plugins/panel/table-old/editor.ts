@@ -1,5 +1,4 @@
-import { find, map, without } from 'lodash';
-
+import _ from 'lodash';
 import { transformers } from './transformers';
 import { ColumnStyle } from './types';
 
@@ -13,8 +12,7 @@ export class TablePanelEditorCtrl {
   canSetColumns = false;
   columnsHelpMessage = '';
 
-  static $inject = ['$scope', 'uiSegmentSrv'];
-
+  /** @ngInject */
   constructor($scope: any, private uiSegmentSrv: any) {
     $scope.editor = this;
     this.panelCtrl = $scope.ctrl;
@@ -49,13 +47,13 @@ export class TablePanelEditorCtrl {
       return Promise.resolve([]);
     }
     const columns = this.transformers[this.panel.transform].getColumns(this.panelCtrl.dataRaw);
-    const segments = map(columns, (c: any) => this.uiSegmentSrv.newSegment({ value: c.text }));
+    const segments = _.map(columns, (c: any) => this.uiSegmentSrv.newSegment({ value: c.text }));
     return Promise.resolve(segments);
   }
 
   addColumn() {
     const columns = transformers[this.panel.transform].getColumns(this.panelCtrl.dataRaw);
-    const column: any = find(columns, { text: this.addColumnSegment.value });
+    const column: any = _.find(columns, { text: this.addColumnSegment.value });
 
     if (column) {
       this.panel.columns.push(column);
@@ -86,7 +84,7 @@ export class TablePanelEditorCtrl {
   }
 
   removeColumn(column: ColumnStyle) {
-    this.panel.columns = without(this.panel.columns, column);
+    this.panel.columns = _.without(this.panel.columns, column);
     this.panelCtrl.render();
   }
 }

@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { FunctionComponent } from 'react';
 
 export interface Props {
   featureToggle: boolean;
 }
 
-export const WithFeatureToggle = ({ featureToggle, children }: React.PropsWithChildren<Props>) => {
+export const WithFeatureToggle: FunctionComponent<Props> = ({ featureToggle, children }) => {
   if (featureToggle === true) {
     return <>{children}</>;
   }

@@ -1,25 +1,17 @@
-import React, { useMemo } from 'react';
-
-import { Field, PanelProps, DataFrameType } from '@grafana/data';
-import { PanelDataErrorView } from '@grafana/runtime';
-import { TooltipDisplayMode } from '@grafana/schema';
-import { KeyboardPlugin, TimeSeries, TooltipPlugin, usePanelContext, ZoomPlugin } from '@grafana/ui';
-import { config } from 'app/core/config';
+import { Field, PanelProps } from '@grafana/data';
+import { GraphNG, GraphNGLegendEvent, TooltipPlugin, ZoomPlugin } from '@grafana/ui';
 import { getFieldLinksForExplore } from 'app/features/explore/utils/links';
-
-import { Options } from './panelcfg.gen';
-import { AnnotationEditorPlugin } from './plugins/AnnotationEditorPlugin';
+import React, { useCallback } from 'react';
+import { changeSeriesColorConfigFactory } from './overrides/colorSeriesConfigFactory';
+import { hideSeriesConfigFactory } from './overrides/hideSeriesConfigFactory';
 import { AnnotationsPlugin } from './plugins/AnnotationsPlugin';
 import { ContextMenuPlugin } from './plugins/ContextMenuPlugin';
-import { ExemplarsPlugin, getVisibleLabels } from './plugins/ExemplarsPlugin';
-import { OutsideRangePlugin } from './plugins/OutsideRangePlugin';
-import { ThresholdControlsPlugin } from './plugins/ThresholdControlsPlugin';
-import { getPrepareTimeseriesSuggestion } from './suggestions';
-import { getTimezones, prepareGraphableFields, regenerateLinksSupplier } from './utils';
+import { ExemplarsPlugin } from './plugins/ExemplarsPlugin';
+import { Options } from './types';
 
 interface TimeSeriesPanelProps extends PanelProps<Options> {}
 
-export const TimeSeriesPanel = ({
+export const TimeSeriesPanel: React.FC<TimeSeriesPanelProps> = ({
   data,
   timeRange,
   timeZone,
@@ -28,145 +20,53 @@ export const TimeSeriesPanel = ({
   options,
   fieldConfig,
   onChangeTimeRange,
+  onFieldConfigChange,
   replaceVariables,
-  id,
-}: TimeSeriesPanelProps) => {
-  const { sync, canAddAnnotations, onThresholdsChange, canEditThresholds, showThresholds, onSplitOpen } =
-    usePanelContext();
+}) => {
+  const onLegendClick = useCallback(
+    (event: GraphNGLegendEvent) => {
+      onFieldConfigChange(hideSeriesConfigFactory(event, fieldConfig, data.series));
+    },
+    [fieldConfig, onFieldConfigChange, data.series]
+  );
 
   const getFieldLinks = (field: Field, rowIndex: number) => {
-    return getFieldLinksForExplore({ field, rowIndex, splitOpenFn: onSplitOpen, range: timeRange });
+    return getFieldLinksForExplore({ field, rowIndex, range: timeRange });
   };
 
-  const frames = useMemo(() => prepareGraphableFields(data.series, config.theme2, timeRange), [data.series, timeRange]);
-  const timezones = useMemo(() => getTimezones(options.timezone, timeZone), [options.timezone, timeZone]);
-  const suggestions = useMemo(() => {
-    if (frames?.length && frames.every((df) => df.meta?.type === DataFrameType.TimeSeriesLong)) {
-      const s = getPrepareTimeseriesSuggestion(id);
-      return {
-        message: 'Long data must be converted to wide',
-        suggestions: s ? [s] : undefined,
-      };
-    }
-    return undefined;
-  }, [frames, id]);
+  const onSeriesColorChange = useCallback(
+    (label: string, color: string) => {
+      onFieldConfigChange(changeSeriesColorConfigFactory(label, color, fieldConfig));
+    },
+    [fieldConfig, onFieldConfigChange]
+  );
 
-  if (!frames || suggestions) {
+  if (!data || !data.series?.length) {
     return (
-      <PanelDataErrorView
-        panelId={id}
-        message={suggestions?.message}
-        fieldConfig={fieldConfig}
-        data={data}
-        needsTimeField={true}
-        needsNumberField={true}
-        suggestions={suggestions?.suggestions}
-      />
+      <div className="panel-empty">
+        <p>No data found in response</p>
+      </div>
     );
   }
 
-  const enableAnnotationCreation = Boolean(canAddAnnotations && canAddAnnotations());
-
   return (
-    <TimeSeries
-      frames={frames}
-      structureRev={data.structureRev}
+    <GraphNG
+      data={data.series}
       timeRange={timeRange}
-      timeZone={timezones}
+      timeZone={timeZone}
       width={width}
       height={height}
       legend={options.legend}
-      options={options}
+      onLegendClick={onLegendClick}
+      onSeriesColorChange={onSeriesColorChange}
     >
-      {(config, alignedDataFrame) => {
-        if (
-          alignedDataFrame.fields.filter((f) => f.config.links !== undefined && f.config.links.length > 0).length > 0
-        ) {
-          alignedDataFrame = regenerateLinksSupplier(alignedDataFrame, frames, replaceVariables, timeZone);
-        }
-
-        return (
-          <>
-            <KeyboardPlugin config={config} />
-            <ZoomPlugin config={config} onZoom={onChangeTimeRange} />
-            {options.tooltip.mode === TooltipDisplayMode.None || (
-              <TooltipPlugin
-                frames={frames}
-                data={alignedDataFrame}
-                config={config}
-                mode={options.tooltip.mode}
-                sortOrder={options.tooltip.sort}
-                sync={sync}
-                timeZone={timeZone}
-              />
-            )}
-            {/* Renders annotation markers*/}
-            {data.annotations && (
-              <AnnotationsPlugin annotations={data.annotations} config={config} timeZone={timeZone} />
-            )}
-            {/* Enables annotations creation*/}
-            {enableAnnotationCreation ? (
-              <AnnotationEditorPlugin data={alignedDataFrame} timeZone={timeZone} config={config}>
-                {({ startAnnotating }) => {
-                  return (
-                    <ContextMenuPlugin
-                      data={alignedDataFrame}
-                      config={config}
-                      timeZone={timeZone}
-                      replaceVariables={replaceVariables}
-                      defaultItems={[
-                        {
-                          items: [
-                            {
-                              label: 'Add annotation',
-                              ariaLabel: 'Add annotation',
-                              icon: 'comment-alt',
-                              onClick: (e, p) => {
-                                if (!p) {
-                                  return;
-                                }
-                                startAnnotating({ coords: p.coords });
-                              },
-                            },
-                          ],
-                        },
-                      ]}
-                    />
-                  );
-                }}
-              </AnnotationEditorPlugin>
-            ) : (
-              <ContextMenuPlugin
-                data={alignedDataFrame}
-                frames={frames}
-                config={config}
-                timeZone={timeZone}
-                replaceVariables={replaceVariables}
-                defaultItems={[]}
-              />
-            )}
-            {data.annotations && (
-              <ExemplarsPlugin
-                visibleSeries={getVisibleLabels(config, frames)}
-                config={config}
-                exemplars={data.annotations}
-                timeZone={timeZone}
-                getFieldLinks={getFieldLinks}
-              />
-            )}
-
-            {((canEditThresholds && onThresholdsChange) || showThresholds) && (
-              <ThresholdControlsPlugin
-                config={config}
-                fieldConfig={fieldConfig}
-                onThresholdsChange={canEditThresholds ? onThresholdsChange : undefined}
-              />
-            )}
-
-            <OutsideRangePlugin config={config} onChangeTimeRange={onChangeTimeRange} />
-          </>
-        );
-      }}
-    </TimeSeries>
+      <ZoomPlugin onZoom={onChangeTimeRange} />
+      <TooltipPlugin data={data.series} mode={options.tooltipOptions.mode} timeZone={timeZone} />
+      <ContextMenuPlugin data={data.series} timeZone={timeZone} replaceVariables={replaceVariables} />
+      {data.annotations && (
+        <ExemplarsPlugin exemplars={data.annotations} timeZone={timeZone} getFieldLinks={getFieldLinks} />
+      )}
+      {data.annotations && <AnnotationsPlugin annotations={data.annotations} timeZone={timeZone} />}
+    </GraphNG>
   );
 };

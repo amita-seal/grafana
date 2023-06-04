@@ -1,13 +1,13 @@
-import React, { PureComponent } from 'react';
+import React, { PureComponent, ReactNode } from 'react';
 import { connect, ConnectedProps } from 'react-redux';
-
 import { AdHocVariableFilter, AdHocVariableModel } from 'app/features/variables/types';
-
 import { VariablePickerProps } from '../../pickers/types';
-import { toKeyedVariableIdentifier } from '../../utils';
+import { SelectableValue } from '@grafana/data';
+import { AdHocFilterBuilder } from './AdHocFilterBuilder';
+import { ConditionSegment } from './ConditionSegment';
 import { addFilter, changeFilter, removeFilter } from '../actions';
-
-import { AdHocFilter } from './AdHocFilter';
+import { REMOVE_FILTER_KEY } from './AdHocFilterKey';
+import { AdHocFilterRenderer } from './AdHocFilterRenderer';
 
 const mapDispatchToProps = {
   addFilter,
@@ -21,38 +21,65 @@ interface OwnProps extends VariablePickerProps<AdHocVariableModel> {}
 
 type Props = OwnProps & ConnectedProps<typeof connector>;
 
-/**
- * Thin wrapper over AdHocFilter to add redux actions and change the props so it can be used for ad hoc variable
- * control.
- */
 export class AdHocPickerUnconnected extends PureComponent<Props> {
-  addFilter = (filter: AdHocVariableFilter) => {
-    this.props.addFilter(toKeyedVariableIdentifier(this.props.variable), filter);
-  };
+  onChange = (index: number, prop: string) => (key: SelectableValue<string | null>) => {
+    const { id, filters } = this.props.variable;
+    const { value } = key;
 
-  removeFilter = (index: number) => {
-    this.props.removeFilter(toKeyedVariableIdentifier(this.props.variable), index);
-  };
+    if (key.value === REMOVE_FILTER_KEY) {
+      return this.props.removeFilter(id, index);
+    }
 
-  changeFilter = (index: number, filter: AdHocVariableFilter) => {
-    this.props.changeFilter(toKeyedVariableIdentifier(this.props.variable), {
+    return this.props.changeFilter(id, {
       index,
-      filter,
+      filter: {
+        ...filters[index],
+        [prop]: value,
+      },
     });
   };
 
+  appendFilterToVariable = (filter: AdHocVariableFilter) => {
+    const { id } = this.props.variable;
+    this.props.addFilter(id, filter);
+  };
+
   render() {
-    const { filters, datasource } = this.props.variable;
+    const { filters } = this.props.variable;
 
     return (
-      <AdHocFilter
-        datasource={datasource}
-        filters={filters}
-        disabled={this.props.readOnly}
-        addFilter={this.addFilter}
-        removeFilter={this.removeFilter}
-        changeFilter={this.changeFilter}
-      />
+      <div className="gf-form-inline">
+        {this.renderFilters(filters)}
+        <AdHocFilterBuilder
+          datasource={this.props.variable.datasource!}
+          appendBefore={filters.length > 0 ? <ConditionSegment label="AND" /> : null}
+          onCompleted={this.appendFilterToVariable}
+        />
+      </div>
+    );
+  }
+
+  renderFilters(filters: AdHocVariableFilter[]) {
+    return filters.reduce((segments: ReactNode[], filter, index) => {
+      if (segments.length > 0) {
+        segments.push(<ConditionSegment label="AND" key={`condition-${index}`} />);
+      }
+      segments.push(this.renderFilterSegments(filter, index));
+      return segments;
+    }, []);
+  }
+
+  renderFilterSegments(filter: AdHocVariableFilter, index: number) {
+    return (
+      <React.Fragment key={`filter-${index}`}>
+        <AdHocFilterRenderer
+          datasource={this.props.variable.datasource!}
+          filter={filter}
+          onKeyChange={this.onChange(index, 'key')}
+          onOperatorChange={this.onChange(index, 'operator')}
+          onValueChange={this.onChange(index, 'value')}
+        />
+      </React.Fragment>
     );
   }
 }

@@ -1,11 +1,10 @@
 /* eslint-disable id-blacklist, no-restricted-imports, @typescript-eslint/ban-types */
-import { lowerCase } from 'lodash';
 import moment, { MomentInput } from 'moment-timezone';
-
+import { DateTimeInput, DateTime, isDateTime } from './moment_wrapper';
 import { DateTimeOptions, getTimeZone } from './common';
 import { parse, isValid } from './datemath';
+import { lowerCase } from 'lodash';
 import { systemDateFormats } from './formats';
-import { DateTimeInput, DateTime, isDateTime } from './moment_wrapper';
 
 /**
  * The type that describes options that can be passed when parsing a date and time value.
@@ -20,7 +19,6 @@ export interface DateTimeOptionsWhenParsing extends DateTimeOptions {
    * the returned DateTime value will be 06:00:00.
    */
   roundUp?: boolean;
-  fiscalYearStartMonth?: number;
 }
 
 type DateTimeParser<T extends DateTimeOptions = DateTimeOptions> = (value: DateTimeInput, options?: T) => DateTime;
@@ -58,7 +56,7 @@ const parseString = (value: string, options?: DateTimeOptionsWhenParsing): DateT
       return moment() as DateTime;
     }
 
-    const parsed = parse(value, options?.roundUp, options?.timeZone, options?.fiscalYearStartMonth);
+    const parsed = parse(value, options?.roundUp, options?.timeZone);
     return parsed || (moment() as DateTime);
   }
 

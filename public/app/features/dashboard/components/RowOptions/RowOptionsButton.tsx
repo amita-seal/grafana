@@ -1,18 +1,17 @@
-import React from 'react';
-
+import React, { FC } from 'react';
 import { Icon, ModalsController } from '@grafana/ui';
 
-import { OnRowOptionsUpdate } from './RowOptionsForm';
 import { RowOptionsModal } from './RowOptionsModal';
+import { OnRowOptionsUpdate } from './RowOptionsForm';
 
 export interface RowOptionsButtonProps {
-  title: string;
-  repeat?: string | null;
+  title: string | null;
+  repeat: string | null | undefined;
   onUpdate: OnRowOptionsUpdate;
 }
 
-export const RowOptionsButton = ({ repeat, title, onUpdate }: RowOptionsButtonProps) => {
-  const onUpdateChange = (hideModal: () => void) => (title: string, repeat?: string | null) => {
+export const RowOptionsButton: FC<RowOptionsButtonProps> = ({ repeat, title, onUpdate }) => {
+  const onUpdateChange = (hideModal: () => void) => (title: string | null, repeat: string | null) => {
     onUpdate(title, repeat);
     hideModal();
   };
@@ -21,16 +20,14 @@ export const RowOptionsButton = ({ repeat, title, onUpdate }: RowOptionsButtonPr
     <ModalsController>
       {({ showModal, hideModal }) => {
         return (
-          <button
-            type="button"
+          <a
             className="pointer"
-            aria-label="Row options"
             onClick={() => {
               showModal(RowOptionsModal, { title, repeat, onDismiss: hideModal, onUpdate: onUpdateChange(hideModal) });
             }}
           >
             <Icon name="cog" />
-          </button>
+          </a>
         );
       }}
     </ModalsController>

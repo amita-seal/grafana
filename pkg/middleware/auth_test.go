@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/grafana/grafana/pkg/bus"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
-	"github.com/grafana/grafana/pkg/services/org"
-	"github.com/grafana/grafana/pkg/setting"
 )
 
 func TestMiddlewareAuth(t *testing.T) {
@@ -17,6 +16,7 @@ func TestMiddlewareAuth(t *testing.T) {
 
 	middlewareScenario(t, "ReqSignIn true and unauthenticated request", func(t *testing.T, sc *scenarioContext) {
 		sc.m.Get("/secure", reqSignIn, sc.defaultHandler)
+
 		sc.fakeReq("GET", "/secure").exec()
 
 		assert.Equal(t, 302, sc.resp.Code)
@@ -40,7 +40,11 @@ func TestMiddlewareAuth(t *testing.T) {
 
 		middlewareScenario(t, "ReqSignIn true and NoAnonynmous true", func(
 			t *testing.T, sc *scenarioContext) {
-			sc.orgService.ExpectedOrg = &org.Org{ID: orgID, Name: "test"}
+			bus.AddHandler("test", func(query *models.GetOrgByNameQuery) error {
+				query.Result = &models.Org{Id: orgID, Name: "test"}
+				return nil
+			})
+
 			sc.m.Get("/api/secure", ReqSignedInNoAnonymous, sc.defaultHandler)
 			sc.fakeReq("GET", "/api/secure").exec()
 
@@ -49,7 +53,11 @@ func TestMiddlewareAuth(t *testing.T) {
 
 		middlewareScenario(t, "ReqSignIn true and request with forceLogin in query string", func(
 			t *testing.T, sc *scenarioContext) {
-			sc.orgService.ExpectedOrg = &org.Org{ID: orgID, Name: "test"}
+			bus.AddHandler("test", func(query *models.GetOrgByNameQuery) error {
+				query.Result = &models.Org{Id: orgID, Name: "test"}
+				return nil
+			})
+
 			sc.m.Get("/secure", reqSignIn, sc.defaultHandler)
 
 			sc.fakeReq("GET", "/secure?forceLogin=true").exec()
@@ -62,18 +70,23 @@ func TestMiddlewareAuth(t *testing.T) {
 
 		middlewareScenario(t, "ReqSignIn true and request with same org provided in query string", func(
 			t *testing.T, sc *scenarioContext) {
-			sc.orgService.ExpectedOrg = &org.Org{ID: 1, Name: sc.cfg.AnonymousOrgName}
+			org, err := sc.sqlStore.CreateOrgWithMember(sc.cfg.AnonymousOrgName, 1)
+			require.NoError(t, err)
 
 			sc.m.Get("/secure", reqSignIn, sc.defaultHandler)
 
-			sc.fakeReq("GET", fmt.Sprintf("/secure?orgId=%d", 1)).exec()
+			sc.fakeReq("GET", fmt.Sprintf("/secure?orgId=%d", org.Id)).exec()
 
 			assert.Equal(t, 200, sc.resp.Code)
 		}, configure)
 
 		middlewareScenario(t, "ReqSignIn true and request with different org provided in query string", func(
 			t *testing.T, sc *scenarioContext) {
-			sc.orgService.ExpectedOrg = &org.Org{ID: 1, Name: sc.cfg.AnonymousOrgName}
+			bus.AddHandler("test", func(query *models.GetOrgByNameQuery) error {
+				query.Result = &models.Org{Id: orgID, Name: "test"}
+				return nil
+			})
+
 			sc.m.Get("/secure", reqSignIn, sc.defaultHandler)
 
 			sc.fakeReq("GET", "/secure?orgId=2").exec()
@@ -87,7 +100,7 @@ func TestMiddlewareAuth(t *testing.T) {
 
 	middlewareScenario(t, "Snapshot public mode disabled and unauthenticated request should return 401", func(
 		t *testing.T, sc *scenarioContext) {
-		sc.m.Get("/api/snapshot", func(c *contextmodel.ReqContext) {
+		sc.m.Get("/api/snapshot", func(c *models.ReqContext) {
 			c.IsSignedIn = false
 		}, SnapshotPublicModeOrSignedIn(sc.cfg), sc.defaultHandler)
 		sc.fakeReq("GET", "/api/snapshot").exec()
@@ -96,7 +109,7 @@ func TestMiddlewareAuth(t *testing.T) {
 
 	middlewareScenario(t, "Snapshot public mode disabled and authenticated request should return 200", func(
 		t *testing.T, sc *scenarioContext) {
-		sc.m.Get("/api/snapshot", func(c *contextmodel.ReqContext) {
+		sc.m.Get("/api/snapshot", func(c *models.ReqContext) {
 			c.IsSignedIn = true
 		}, SnapshotPublicModeOrSignedIn(sc.cfg), sc.defaultHandler)
 		sc.fakeReq("GET", "/api/snapshot").exec()

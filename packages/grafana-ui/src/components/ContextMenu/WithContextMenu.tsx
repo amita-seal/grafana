@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
-
 import { ContextMenu } from '../ContextMenu/ContextMenu';
+import { MenuItemsGroup } from '../Menu/Menu';
 
-export interface WithContextMenuProps {
+interface WithContextMenuProps {
   /** Menu item trigger that accepts openMenu prop */
   children: (props: { openMenu: React.MouseEventHandler<HTMLElement> }) => JSX.Element;
   /** A function that returns an array of menu items */
-  renderMenuItems: () => React.ReactNode;
-  /** On menu open focus the first element */
-  focusOnOpen?: boolean;
+  getContextMenuItems: () => MenuItemsGroup[];
 }
 
-export const WithContextMenu = ({ children, renderMenuItems, focusOnOpen = true }: WithContextMenuProps) => {
+export const WithContextMenu: React.FC<WithContextMenuProps> = ({ children, getContextMenuItems }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+
   return (
     <>
       {children({
@@ -31,8 +30,7 @@ export const WithContextMenu = ({ children, renderMenuItems, focusOnOpen = true 
           onClose={() => setIsMenuOpen(false)}
           x={menuPosition.x}
           y={menuPosition.y}
-          renderMenuItems={renderMenuItems}
-          focusOnOpen={focusOnOpen}
+          items={getContextMenuItems()}
         />
       )}
     </>

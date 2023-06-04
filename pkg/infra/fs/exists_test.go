@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"io/ioutil"
 	"os"
 	"testing"
 
@@ -16,7 +17,7 @@ func TestExists_NonExistent(t *testing.T) {
 }
 
 func TestExists_Existent(t *testing.T) {
-	f, err := os.CreateTemp("", "")
+	f, err := ioutil.TempFile("", "")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := os.Remove(f.Name())
@@ -26,14 +27,5 @@ func TestExists_Existent(t *testing.T) {
 	exists, err := Exists(f.Name())
 	require.NoError(t, err)
 
-	require.True(t, exists)
-}
-
-func TestExists_Dir(t *testing.T) {
-	f := t.TempDir()
-
-	exists, err := Exists(f)
-
-	require.NoError(t, err)
 	require.True(t, exists)
 }

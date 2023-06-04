@@ -1,28 +1,22 @@
 import React, { PureComponent } from 'react';
-import { connect, ConnectedProps } from 'react-redux';
-
+import { connect } from 'react-redux';
+import { LegacyForms, DeleteButton } from '@grafana/ui';
+const { Select } = LegacyForms;
 import { SelectableValue } from '@grafana/data';
-import { Select, DeleteButton } from '@grafana/ui';
-import { TagBadge } from 'app/core/components/TagFilter/TagBadge';
-import { WithFeatureToggle } from 'app/core/components/WithFeatureToggle';
+
 import { TeamMember, teamsPermissionLevels, TeamPermissionLevel } from 'app/types';
-
+import { WithFeatureToggle } from 'app/core/components/WithFeatureToggle';
 import { updateTeamMember, removeTeamMember } from './state/actions';
+import { TagBadge } from 'app/core/components/TagFilter/TagBadge';
 
-const mapDispatchToProps = {
-  removeTeamMember,
-  updateTeamMember,
-};
-
-const connector = connect(null, mapDispatchToProps);
-
-interface OwnProps {
+export interface Props {
   member: TeamMember;
   syncEnabled: boolean;
   editorsCanAdmin: boolean;
   signedInUserIsTeamAdmin: boolean;
+  removeTeamMember: typeof removeTeamMember;
+  updateTeamMember: typeof updateTeamMember;
 }
-export type Props = ConnectedProps<typeof connector> & OwnProps;
 
 export class TeamMemberRow extends PureComponent<Props> {
   constructor(props: Props) {
@@ -52,18 +46,18 @@ export class TeamMemberRow extends PureComponent<Props> {
     return (
       <WithFeatureToggle featureToggle={editorsCanAdmin}>
         <td className="width-5 team-permissions">
-          {signedInUserIsTeamAdmin ? (
-            <Select
-              isSearchable={false}
-              options={teamsPermissionLevels}
-              onChange={(item) => this.onPermissionChange(item, member)}
-              value={value}
-              width={32}
-              aria-label={`Select member's ${member.name} permission level`}
-            />
-          ) : (
-            <span>{value.label}</span>
-          )}
+          <div className="gf-form">
+            {signedInUserIsTeamAdmin && (
+              <Select
+                isSearchable={false}
+                options={teamsPermissionLevels}
+                onChange={(item) => this.onPermissionChange(item, member)}
+                className="gf-form-select-box__control--menu-right"
+                value={value}
+              />
+            )}
+            {!signedInUserIsTeamAdmin && <span>{value.label}</span>}
+          </div>
         </td>
       </WithFeatureToggle>
     );
@@ -77,7 +71,7 @@ export class TeamMemberRow extends PureComponent<Props> {
     return (
       <td>
         {labels.map((label) => (
-          <TagBadge key={label} label={label} removeIcon={false} count={0} />
+          <TagBadge key={label} label={label} removeIcon={false} count={0} onClick={() => {}} />
         ))}
       </td>
     );
@@ -88,11 +82,7 @@ export class TeamMemberRow extends PureComponent<Props> {
     return (
       <tr key={member.userId}>
         <td className="width-4 text-center">
-          <img
-            alt={`Avatar for team member "${member.name}"`}
-            className="filter-table__avatar"
-            src={member.avatarUrl}
-          />
+          <img className="filter-table__avatar" src={member.avatarUrl} />
         </td>
         <td>{member.login}</td>
         <td>{member.email}</td>
@@ -100,16 +90,20 @@ export class TeamMemberRow extends PureComponent<Props> {
         {this.renderPermissions(member)}
         {syncEnabled && this.renderLabels(member.labels)}
         <td className="text-right">
-          <DeleteButton
-            aria-label={`Remove team member ${member.name}`}
-            size="sm"
-            disabled={!signedInUserIsTeamAdmin}
-            onConfirm={() => this.onRemoveMember(member)}
-          />
+          <DeleteButton size="sm" disabled={!signedInUserIsTeamAdmin} onConfirm={() => this.onRemoveMember(member)} />
         </td>
       </tr>
     );
   }
 }
 
-export default connector(TeamMemberRow);
+function mapStateToProps(state: any) {
+  return {};
+}
+
+const mapDispatchToProps = {
+  removeTeamMember,
+  updateTeamMember,
+};
+
+export default connect(mapStateToProps, mapDispatchToProps)(TeamMemberRow);

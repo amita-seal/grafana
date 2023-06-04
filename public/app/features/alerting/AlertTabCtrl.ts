@@ -1,22 +1,18 @@
-import { find, map, reduce, remove } from 'lodash';
-
-import { DataQuery, DataSourceApi, rangeUtil } from '@grafana/data';
-import { getBackendSrv } from '@grafana/runtime';
-import coreModule from 'app/angular/core_module';
-import { promiseToDigest } from 'app/angular/promiseToDigest';
-import appEvents from 'app/core/app_events';
-import config from 'app/core/config';
-import { QueryPart } from 'app/features/alerting/state/query_part';
-import { PanelModel } from 'app/features/dashboard/state';
-import { CoreEvents } from 'app/types';
-
-import { ShowConfirmModalEvent } from '../../types/events';
-import { DashboardSrv } from '../dashboard/services/DashboardSrv';
-import { DatasourceSrv } from '../plugins/datasource_srv';
-
-import { getDefaultCondition } from './getAlertingValidationMessage';
+import _ from 'lodash';
+import coreModule from 'app/core/core_module';
 import { ThresholdMapper } from './state/ThresholdMapper';
+import { QueryPart } from 'app/core/components/query_part/query_part';
 import alertDef from './state/alertDef';
+import config from 'app/core/config';
+import appEvents from 'app/core/app_events';
+import { getBackendSrv } from '@grafana/runtime';
+import { DashboardSrv } from '../dashboard/services/DashboardSrv';
+import DatasourceSrv from '../plugins/datasource_srv';
+import { DataQuery, DataSourceApi, rangeUtil } from '@grafana/data';
+import { PanelModel } from 'app/features/dashboard/state';
+import { getDefaultCondition } from './getAlertingValidationMessage';
+import { CoreEvents } from 'app/types';
+import { promiseToDigest } from 'app/core/utils/promiseToDigest';
 
 export class AlertTabCtrl {
   panel: PanelModel;
@@ -32,7 +28,7 @@ export class AlertTabCtrl {
   addNotificationSegment: any;
   notifications: any;
   alertNotifications: any;
-  error?: string;
+  error: string;
   appSubUrl: string;
   alertHistory: any;
   newAlertRuleTag: any;
@@ -40,8 +36,7 @@ export class AlertTabCtrl {
   alertingMinInterval: string;
   frequencyWarning: any;
 
-  static $inject = ['$scope', 'dashboardSrv', 'uiSegmentSrv', 'datasourceSrv'];
-
+  /** @ngInject */
   constructor(
     private $scope: any,
     private dashboardSrv: DashboardSrv,
@@ -99,8 +94,8 @@ export class AlertTabCtrl {
       getBackendSrv()
         .get(`/api/annotations?dashboardId=${this.panelCtrl.dashboard.id}&panelId=${this.panel.id}&limit=50&type=alert`)
         .then((res: any) => {
-          this.alertHistory = map(res, (ah) => {
-            ah.time = this.dashboardSrv.getCurrent()?.formatDate(ah.time, 'MMM D, YYYY HH:mm:ss');
+          this.alertHistory = _.map(res, (ah) => {
+            ah.time = this.dashboardSrv.getCurrent().formatDate(ah.time, 'MMM D, YYYY HH:mm:ss');
             ah.stateModel = alertDef.getStateDisplayModel(ah.newState);
             ah.info = alertDef.getAlertAnnotationInfo(ah);
             return ah;
@@ -144,7 +139,7 @@ export class AlertTabCtrl {
   }
 
   notificationAdded() {
-    const model: any = find(this.notifications, {
+    const model: any = _.find(this.notifications, {
       name: this.addNotificationSegment.value,
     });
     if (!model) {
@@ -159,7 +154,7 @@ export class AlertTabCtrl {
     });
 
     // avoid duplicates using both id and uid to be backwards compatible.
-    if (!find(this.alert.notifications, (n) => n.id === model.id || n.uid === model.uid)) {
+    if (!_.find(this.alert.notifications, (n) => n.id === model.id || n.uid === model.uid)) {
       this.alert.notifications.push({ uid: model.uid });
     }
 
@@ -172,8 +167,8 @@ export class AlertTabCtrl {
   removeNotification(an: any) {
     // remove notifiers referred to by id and uid to support notifiers added
     // before and after we added support for uid
-    remove(this.alert.notifications, (n: any) => n.uid === an.uid || n.id === an.id);
-    remove(this.alertNotifications, (n: any) => n.uid === an.uid || n.id === an.id);
+    _.remove(this.alert.notifications, (n: any) => n.uid === an.uid || n.id === an.id);
+    _.remove(this.alertNotifications, (n: any) => n.uid === an.uid || n.id === an.id);
   }
 
   addAlertRuleTag() {
@@ -212,7 +207,7 @@ export class AlertTabCtrl {
     const defaultName = this.panel.title + ' alert';
     alert.name = alert.name || defaultName;
 
-    this.conditionModels = reduce(
+    this.conditionModels = _.reduce(
       alert.conditions,
       (memo, value) => {
         memo.push(this.buildConditionModel(value));
@@ -226,28 +221,26 @@ export class AlertTabCtrl {
     for (const addedNotification of alert.notifications) {
       let identifier = addedNotification.uid;
       // lookup notifier type by uid
-      let model: any = find(this.notifications, { uid: identifier });
+      let model: any = _.find(this.notifications, { uid: identifier });
 
       // fallback using id if uid is missing
       if (!model && addedNotification.id) {
         identifier = addedNotification.id;
-        model = find(this.notifications, { id: identifier });
+        model = _.find(this.notifications, { id: identifier });
       }
 
       if (!model) {
-        appEvents.publish(
-          new ShowConfirmModalEvent({
-            title: 'Notifier with invalid identifier is detected',
-            text: `Do you want to delete notifier with invalid identifier: ${identifier} from the dashboard JSON?`,
-            text2: 'After successful deletion, make sure to save the dashboard for storing the update JSON.',
-            icon: 'trash-alt',
-            confirmText: 'Delete',
-            yesText: 'Delete',
-            onConfirm: async () => {
-              this.removeNotification(addedNotification);
-            },
-          })
-        );
+        appEvents.emit(CoreEvents.showConfirmModal, {
+          title: 'Notifier with invalid identifier is detected',
+          text: `Do you want to delete notifier with invalid identifier: ${identifier} from the dashboard JSON?`,
+          text2: 'After successful deletion, make sure to save the dashboard for storing the update JSON.',
+          icon: 'trash-alt',
+          confirmText: 'Delete',
+          yesText: 'Delete',
+          onConfirm: async () => {
+            this.removeNotification(addedNotification);
+          },
+        });
       }
 
       if (model && model.isDefault === false) {
@@ -268,17 +261,11 @@ export class AlertTabCtrl {
   }
 
   checkFrequency() {
-    this.frequencyWarning = '';
-
     if (!this.alert.frequency) {
       return;
     }
 
-    if (!this.alert.frequency.match(/^\d+([dhms])$/)) {
-      this.frequencyWarning =
-        'Invalid frequency, has to be numeric followed by one of the following units: "d, h, m, s"';
-      return;
-    }
+    this.frequencyWarning = '';
 
     try {
       const frequencySecs = rangeUtil.intervalToSeconds(this.alert.frequency);
@@ -437,23 +424,21 @@ export class AlertTabCtrl {
   }
 
   delete() {
-    appEvents.publish(
-      new ShowConfirmModalEvent({
-        title: 'Delete Alert',
-        text: 'Are you sure you want to delete this alert rule?',
-        text2: 'You need to save dashboard for the delete to take effect',
-        icon: 'trash-alt',
-        yesText: 'Delete',
-        onConfirm: () => {
-          delete this.panel.alert;
-          this.alert = null;
-          this.panel.thresholds = [];
-          this.conditionModels = [];
-          this.panelCtrl.alertState = null;
-          this.panelCtrl.render();
-        },
-      })
-    );
+    appEvents.emit(CoreEvents.showConfirmModal, {
+      title: 'Delete Alert',
+      text: 'Are you sure you want to delete this alert rule?',
+      text2: 'You need to save dashboard for the delete to take effect',
+      icon: 'trash-alt',
+      yesText: 'Delete',
+      onConfirm: () => {
+        delete this.panel.alert;
+        this.alert = null;
+        this.panel.thresholds = [];
+        this.conditionModels = [];
+        this.panelCtrl.alertState = null;
+        this.panelCtrl.render();
+      },
+    });
   }
 
   enable = () => {
@@ -489,30 +474,29 @@ export class AlertTabCtrl {
   }
 
   clearHistory() {
-    appEvents.publish(
-      new ShowConfirmModalEvent({
-        title: 'Delete Alert History',
-        text: 'Are you sure you want to remove all history & annotations for this alert?',
-        icon: 'trash-alt',
-        yesText: 'Yes',
-        onConfirm: () => {
-          promiseToDigest(this.$scope)(
-            getBackendSrv()
-              .post('/api/annotations/mass-delete', {
-                dashboardId: this.panelCtrl.dashboard.id,
-                panelId: this.panel.id,
-              })
-              .then(() => {
-                this.alertHistory = [];
-                this.panelCtrl.refresh();
-              })
-          );
-        },
-      })
-    );
+    appEvents.emit(CoreEvents.showConfirmModal, {
+      title: 'Delete Alert History',
+      text: 'Are you sure you want to remove all history & annotations for this alert?',
+      icon: 'trash-alt',
+      yesText: 'Yes',
+      onConfirm: () => {
+        promiseToDigest(this.$scope)(
+          getBackendSrv()
+            .post('/api/annotations/mass-delete', {
+              dashboardId: this.panelCtrl.dashboard.id,
+              panelId: this.panel.id,
+            })
+            .then(() => {
+              this.alertHistory = [];
+              this.panelCtrl.refresh();
+            })
+        );
+      },
+    });
   }
 }
 
+/** @ngInject */
 export function alertTab() {
   'use strict';
   return {

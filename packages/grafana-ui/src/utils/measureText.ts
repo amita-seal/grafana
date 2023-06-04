@@ -1,25 +1,29 @@
-let _context: CanvasRenderingContext2D;
-const cache = new Map<string, TextMetrics>();
-const cacheLimit = 500;
-let ctxFontStyle = '';
+let canvas: HTMLCanvasElement | null = null;
+const cache: Record<string, TextMetrics> = {};
 
 /**
  * @internal
  */
 export function getCanvasContext() {
-  if (!_context) {
-    _context = document.createElement('canvas').getContext('2d')!;
+  if (canvas === null) {
+    canvas = document.createElement('canvas');
   }
-  return _context;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Could not create context');
+  }
+
+  return context;
 }
 
 /**
  * @beta
  */
-export function measureText(text: string, fontSize: number, fontWeight = 400): TextMetrics {
-  const fontStyle = `${fontWeight} ${fontSize}px 'Inter'`;
+export function measureText(text: string, fontSize: number): TextMetrics {
+  const fontStyle = `${fontSize}px 'Roboto'`;
   const cacheKey = text + fontStyle;
-  const fromCache = cache.get(cacheKey);
+  const fromCache = cache[cacheKey];
 
   if (fromCache) {
     return fromCache;
@@ -27,34 +31,19 @@ export function measureText(text: string, fontSize: number, fontWeight = 400): T
 
   const context = getCanvasContext();
 
-  if (ctxFontStyle !== fontStyle) {
-    context.font = ctxFontStyle = fontStyle;
-  }
-
+  context.font = fontStyle;
   const metrics = context.measureText(text);
 
-  if (cache.size === cacheLimit) {
-    cache.clear();
-  }
-
-  cache.set(cacheKey, metrics);
-
+  cache[cacheKey] = metrics;
   return metrics;
 }
 
 /**
  * @beta
  */
-export function calculateFontSize(
-  text: string,
-  width: number,
-  height: number,
-  lineHeight: number,
-  maxSize?: number,
-  fontWeight?: number
-) {
+export function calculateFontSize(text: string, width: number, height: number, lineHeight: number, maxSize?: number) {
   // calculate width in 14px
-  const textSize = measureText(text, 14, fontWeight);
+  const textSize = measureText(text, 14);
   // how much bigger than 14px can we make it while staying within our width constraints
   const fontSizeBasedOnWidth = (width / (textSize.width + 2)) * 14;
   const fontSizeBasedOnHeight = height / lineHeight;

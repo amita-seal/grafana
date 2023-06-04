@@ -1,11 +1,10 @@
 import { map } from 'rxjs/operators';
 
+import { noopTransformer } from './noop';
 import { DataFrame, Field } from '../../types/dataFrame';
+import { DataTransformerID } from './ids';
 import { DataTransformerInfo, MatcherConfig } from '../../types/transformations';
 import { getFieldMatcher, getFrameMatchers } from '../matchers';
-
-import { DataTransformerID } from './ids';
-import { noopTransformer } from './noop';
 
 export interface FilterOptions {
   include?: MatcherConfig;
@@ -19,24 +18,12 @@ export const filterFieldsTransformer: DataTransformerInfo<FilterOptions> = {
   defaultOptions: {},
 
   /**
-   * Return a modified copy of the series. If the transform is not or should not
+   * Return a modified copy of the series.  If the transform is not or should not
    * be applied, just return the input series
    */
-  operator: (options: FilterOptions, ctx) => (source) => {
+  operator: (options: FilterOptions) => (source) => {
     if (!options.include && !options.exclude) {
-      return source.pipe(noopTransformer.operator({}, ctx));
-    }
-
-    if (typeof options.include?.options === 'string') {
-      options.include.options = ctx.interpolate(options.include?.options);
-    } else if (typeof options.include?.options?.pattern === 'string') {
-      options.include.options.pattern = ctx.interpolate(options.include?.options.pattern);
-    }
-
-    if (typeof options.exclude?.options === 'string') {
-      options.exclude.options = ctx.interpolate(options.exclude?.options);
-    } else if (typeof options.exclude?.options?.pattern === 'string') {
-      options.exclude.options.pattern = ctx.interpolate(options.exclude?.options.pattern);
+      return source.pipe(noopTransformer.operator({}));
     }
 
     return source.pipe(
@@ -86,12 +73,12 @@ export const filterFramesTransformer: DataTransformerInfo<FilterOptions> = {
   defaultOptions: {},
 
   /**
-   * Return a modified copy of the series. If the transform is not or should not
+   * Return a modified copy of the series.  If the transform is not or should not
    * be applied, just return the input series
    */
-  operator: (options, ctx) => (source) => {
+  operator: (options) => (source) => {
     if (!options.include && !options.exclude) {
-      return source.pipe(noopTransformer.operator({}, ctx));
+      return source.pipe(noopTransformer.operator({}));
     }
 
     return source.pipe(

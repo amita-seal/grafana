@@ -1,5 +1,4 @@
 import { fieldMatchers } from '../matchers';
-
 import { FieldMatcherID } from './ids';
 
 describe('Matchers', () => {

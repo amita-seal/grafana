@@ -1,35 +1,24 @@
-import { cx, css } from '@emotion/css';
-import React from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { useTheme2 } from '../../themes';
-import { getChildId } from '../../utils/reactUtils';
-import { PopoverContent } from '../Tooltip';
-
-import { FieldProps } from './Field';
-import { FieldValidationMessage } from './FieldValidationMessage';
+import React, { FC } from 'react';
+import { cx, css } from 'emotion';
+import { GrafanaTheme } from '@grafana/data';
+import { useTheme } from '../../themes';
 import { InlineLabel } from './InlineLabel';
+import { PopoverContent } from '../Tooltip/Tooltip';
+import { FieldProps } from './Field';
+import { getChildId } from '../../utils/children';
 
 export interface Props extends Omit<FieldProps, 'css' | 'horizontal' | 'description' | 'error'> {
   /** Content for the label's tooltip */
   tooltip?: PopoverContent;
-  /** Custom width for the label as a multiple of 8px */
+  /** Custom width for the label */
   labelWidth?: number | 'auto';
   /** Make the field's child to fill the width of the row. Equivalent to setting `flex-grow:1` on the field */
   grow?: boolean;
-  /** Make the field's child shrink with width of the row. Equivalent to setting `flex-shrink:1` on the field */
-  shrink?: boolean;
   /** Make field's background transparent */
   transparent?: boolean;
-  /** Error message to display */
-  error?: string | null;
-  htmlFor?: string;
-  /** Make tooltip interactive */
-  interactive?: boolean;
 }
 
-export const InlineField = ({
+export const InlineField: FC<Props> = ({
   children,
   label,
   tooltip,
@@ -37,30 +26,19 @@ export const InlineField = ({
   invalid,
   loading,
   disabled,
-  required,
   className,
-  htmlFor,
   grow,
-  shrink,
-  error,
   transparent,
-  interactive,
   ...htmlProps
-}: Props) => {
-  const theme = useTheme2();
-  const styles = getStyles(theme, grow, shrink);
-  const inputId = htmlFor ?? getChildId(children);
+}) => {
+  const theme = useTheme();
+  const styles = getStyles(theme, grow);
+  const inputId = getChildId(children);
 
   const labelElement =
     typeof label === 'string' ? (
-      <InlineLabel
-        interactive={interactive}
-        width={labelWidth}
-        tooltip={tooltip}
-        htmlFor={inputId}
-        transparent={transparent}
-      >
-        {`${label}${required ? ' *' : ''}`}
+      <InlineLabel width={labelWidth} tooltip={tooltip} htmlFor={inputId} transparent={transparent}>
+        {label}
       </InlineLabel>
     ) : (
       label
@@ -69,21 +47,14 @@ export const InlineField = ({
   return (
     <div className={cx(styles.container, className)} {...htmlProps}>
       {labelElement}
-      <div className={styles.childContainer}>
-        {React.cloneElement(children, { invalid, disabled, loading })}
-        {invalid && error && (
-          <div className={cx(styles.fieldValidationWrapper)}>
-            <FieldValidationMessage>{error}</FieldValidationMessage>
-          </div>
-        )}
-      </div>
+      {React.cloneElement(children, { invalid, disabled, loading })}
     </div>
   );
 };
 
 InlineField.displayName = 'InlineField';
 
-const getStyles = (theme: GrafanaTheme2, grow?: boolean, shrink?: boolean) => {
+const getStyles = (theme: GrafanaTheme, grow?: boolean) => {
   return {
     container: css`
       display: flex;
@@ -91,14 +62,8 @@ const getStyles = (theme: GrafanaTheme2, grow?: boolean, shrink?: boolean) => {
       align-items: flex-start;
       text-align: left;
       position: relative;
-      flex: ${grow ? 1 : 0} ${shrink ? 1 : 0} auto;
-      margin: 0 ${theme.spacing(0.5)} ${theme.spacing(0.5)} 0;
-    `,
-    childContainer: css`
-      flex: ${grow ? 1 : 0} ${shrink ? 1 : 0} auto;
-    `,
-    fieldValidationWrapper: css`
-      margin-top: ${theme.spacing(0.5)};
+      flex: ${grow ? 1 : 0} 0 auto;
+      margin: 0 ${theme.spacing.xs} ${theme.spacing.xs} 0;
     `,
   };
 };

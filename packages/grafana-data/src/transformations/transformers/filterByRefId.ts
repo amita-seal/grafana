@@ -1,8 +1,7 @@
+import { DataTransformerID } from './ids';
+import { filterFramesTransformer, FilterOptions } from './filter';
 import { DataTransformerInfo } from '../../types/transformations';
 import { FrameMatcherID } from '../matchers/ids';
-
-import { filterFramesTransformer, FilterOptions } from './filter';
-import { DataTransformerID } from './ids';
 
 export interface FilterFramesByRefIdTransformerOptions {
   include?: string;
@@ -16,10 +15,10 @@ export const filterFramesByRefIdTransformer: DataTransformerInfo<FilterFramesByR
   defaultOptions: {},
 
   /**
-   * Return a modified copy of the series. If the transform is not or should not
+   * Return a modified copy of the series.  If the transform is not or should not
    * be applied, just return the input series
    */
-  operator: (options, ctx) => (source) => {
+  operator: (options) => (source) => {
     const filterOptions: FilterOptions = {};
     if (options.include) {
       filterOptions.include = {
@@ -34,6 +33,6 @@ export const filterFramesByRefIdTransformer: DataTransformerInfo<FilterFramesByR
       };
     }
 
-    return source.pipe(filterFramesTransformer.operator(filterOptions, ctx));
+    return source.pipe(filterFramesTransformer.operator(filterOptions));
   },
 };

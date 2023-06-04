@@ -1,22 +1,23 @@
-import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
-
-import { selectors } from '@grafana/e2e-selectors';
-
-import { DashboardViewItem } from '../types';
-
-import { Props, SearchItem } from './SearchItem';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { SearchItem, Props } from './SearchItem';
+import { DashboardSearchItemType } from '../types';
 
 beforeEach(() => {
   jest.clearAllMocks();
 });
 
-const data: DashboardViewItem = {
-  kind: 'dashboard' as const,
+const data = {
+  id: 1,
   uid: 'lBdLINUWk',
   title: 'Test 1',
+  uri: 'db/test1',
   url: '/d/lBdLINUWk/test1',
+  slug: '',
+  type: DashboardSearchItemType.DashDB,
   tags: ['Tag1', 'Tag2'],
+  isStarred: false,
+  checked: false,
 };
 
 const setup = (propOverrides?: Partial<Props>) => {
@@ -34,11 +35,11 @@ const setup = (propOverrides?: Partial<Props>) => {
 describe('SearchItem', () => {
   it('should render the item', () => {
     setup();
-    expect(screen.getAllByTestId(selectors.components.Search.dashboardItem('Test 1'))).toHaveLength(1);
+    expect(screen.getAllByLabelText('Dashboard search item Test 1')).toHaveLength(1);
     expect(screen.getAllByText('Test 1')).toHaveLength(1);
   });
 
-  it('should toggle items when checked', () => {
+  it('should mark item as checked', () => {
     const mockedOnToggleChecked = jest.fn();
     setup({ editable: true, onToggleChecked: mockedOnToggleChecked });
     const checkbox = screen.getByRole('checkbox');
@@ -46,10 +47,6 @@ describe('SearchItem', () => {
     fireEvent.click(checkbox);
     expect(mockedOnToggleChecked).toHaveBeenCalledTimes(1);
     expect(mockedOnToggleChecked).toHaveBeenCalledWith(data);
-  });
-
-  it('should mark items as checked', () => {
-    setup({ editable: true, isSelected: true });
     expect(screen.getByRole('checkbox')).toBeChecked();
   });
 

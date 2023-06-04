@@ -4,11 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/grafana/grafana/pkg/services/annotations/annotationstest"
 	"github.com/grafana/grafana/pkg/services/validations"
-	"github.com/grafana/grafana/pkg/tsdb/legacydata"
+
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 type conditionStub struct {
@@ -18,191 +16,193 @@ type conditionStub struct {
 	noData   bool
 }
 
-func (c *conditionStub) Eval(context *EvalContext, reqHandler legacydata.RequestHandler) (*ConditionResult, error) {
+func (c *conditionStub) Eval(context *EvalContext) (*ConditionResult, error) {
 	return &ConditionResult{Firing: c.firing, EvalMatches: c.matches, Operator: c.operator, NoDataFound: c.noData}, nil
 }
 
 func TestAlertingEvaluationHandler(t *testing.T) {
-	handler := NewEvalHandler(nil)
+	Convey("Test alert evaluation handler", t, func() {
+		handler := NewEvalHandler()
 
-	t.Run("Show return triggered with single passing condition", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{&conditionStub{
-				firing: true,
-			}},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Show return triggered with single passing condition", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{&conditionStub{
+					firing: true,
+				}},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, true, context.Firing)
-		require.Equal(t, "true = true", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, true)
+			So(context.ConditionEvals, ShouldEqual, "true = true")
+		})
 
-	t.Run("Show return triggered with single passing condition2", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{&conditionStub{firing: true, operator: "and"}},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Show return triggered with single passing condition2", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{&conditionStub{firing: true, operator: "and"}},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, true, context.Firing)
-		require.Equal(t, "true = true", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, true)
+			So(context.ConditionEvals, ShouldEqual, "true = true")
+		})
 
-	t.Run("Show return false with not passing asdf", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{firing: true, operator: "and", matches: []*EvalMatch{{}, {}}},
-				&conditionStub{firing: false, operator: "and"},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Show return false with not passing asdf", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{firing: true, operator: "and", matches: []*EvalMatch{{}, {}}},
+					&conditionStub{firing: false, operator: "and"},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, false, context.Firing)
-		require.Equal(t, "[true AND false] = false", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, false)
+			So(context.ConditionEvals, ShouldEqual, "[true AND false] = false")
+		})
 
-	t.Run("Show return true if any of the condition is passing with OR operator", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{firing: true, operator: "and"},
-				&conditionStub{firing: false, operator: "or"},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Show return true if any of the condition is passing with OR operator", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{firing: true, operator: "and"},
+					&conditionStub{firing: false, operator: "or"},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, true, context.Firing)
-		require.Equal(t, "[true OR false] = true", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, true)
+			So(context.ConditionEvals, ShouldEqual, "[true OR false] = true")
+		})
 
-	t.Run("Show return false if any of the condition is failing with AND operator", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{firing: true, operator: "and"},
-				&conditionStub{firing: false, operator: "and"},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Show return false if any of the condition is failing with AND operator", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{firing: true, operator: "and"},
+					&conditionStub{firing: false, operator: "and"},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, false, context.Firing)
-		require.Equal(t, "[true AND false] = false", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, false)
+			So(context.ConditionEvals, ShouldEqual, "[true AND false] = false")
+		})
 
-	t.Run("Show return true if one condition is failing with nested OR operator", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{firing: true, operator: "and"},
-				&conditionStub{firing: true, operator: "and"},
-				&conditionStub{firing: false, operator: "or"},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Show return true if one condition is failing with nested OR operator", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{firing: true, operator: "and"},
+					&conditionStub{firing: true, operator: "and"},
+					&conditionStub{firing: false, operator: "or"},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, true, context.Firing)
-		require.Equal(t, "[[true AND true] OR false] = true", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, true)
+			So(context.ConditionEvals, ShouldEqual, "[[true AND true] OR false] = true")
+		})
 
-	t.Run("Show return false if one condition is passing with nested OR operator", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{firing: true, operator: "and"},
-				&conditionStub{firing: false, operator: "and"},
-				&conditionStub{firing: false, operator: "or"},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Show return false if one condition is passing with nested OR operator", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{firing: true, operator: "and"},
+					&conditionStub{firing: false, operator: "and"},
+					&conditionStub{firing: false, operator: "or"},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, false, context.Firing)
-		require.Equal(t, "[[true AND false] OR false] = false", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, false)
+			So(context.ConditionEvals, ShouldEqual, "[[true AND false] OR false] = false")
+		})
 
-	t.Run("Show return false if a condition is failing with nested AND operator", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{firing: true, operator: "and"},
-				&conditionStub{firing: false, operator: "and"},
-				&conditionStub{firing: true, operator: "and"},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Show return false if a condition is failing with nested AND operator", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{firing: true, operator: "and"},
+					&conditionStub{firing: false, operator: "and"},
+					&conditionStub{firing: true, operator: "and"},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, false, context.Firing)
-		require.Equal(t, "[[true AND false] AND true] = false", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, false)
+			So(context.ConditionEvals, ShouldEqual, "[[true AND false] AND true] = false")
+		})
 
-	t.Run("Show return true if a condition is passing with nested OR operator", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{firing: true, operator: "and"},
-				&conditionStub{firing: false, operator: "or"},
-				&conditionStub{firing: true, operator: "or"},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Show return true if a condition is passing with nested OR operator", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{firing: true, operator: "and"},
+					&conditionStub{firing: false, operator: "or"},
+					&conditionStub{firing: true, operator: "or"},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, true, context.Firing)
-		require.Equal(t, "[[true OR false] OR true] = true", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, true)
+			So(context.ConditionEvals, ShouldEqual, "[[true OR false] OR true] = true")
+		})
 
-	t.Run("Should return false if no condition is firing using OR operator", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{firing: false, operator: "or"},
-				&conditionStub{firing: false, operator: "or"},
-				&conditionStub{firing: false, operator: "or"},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Should return false if no condition is firing using OR operator", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{firing: false, operator: "or"},
+					&conditionStub{firing: false, operator: "or"},
+					&conditionStub{firing: false, operator: "or"},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, false, context.Firing)
-		require.Equal(t, "[[false OR false] OR false] = false", context.ConditionEvals)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, false)
+			So(context.ConditionEvals, ShouldEqual, "[[false OR false] OR false] = false")
+		})
 
-	// FIXME: What should the actual test case name be here?
-	t.Run("Should not return NoDataFound if all conditions have data and using OR", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{operator: "or", noData: false},
-				&conditionStub{operator: "or", noData: false},
-				&conditionStub{operator: "or", noData: false},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		// FIXME: What should the actual test case name be here?
+		Convey("Should not return NoDataFound if all conditions have data and using OR", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{operator: "or", noData: false},
+					&conditionStub{operator: "or", noData: false},
+					&conditionStub{operator: "or", noData: false},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.False(t, context.NoDataFound)
-	})
+			handler.Eval(context)
+			So(context.NoDataFound, ShouldBeFalse)
+		})
 
-	t.Run("Should return NoDataFound if one condition has no data", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{operator: "and", noData: true},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Should return NoDataFound if one condition has no data", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{operator: "and", noData: true},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.Equal(t, false, context.Firing)
-		require.True(t, context.NoDataFound)
-	})
+			handler.Eval(context)
+			So(context.Firing, ShouldEqual, false)
+			So(context.NoDataFound, ShouldBeTrue)
+		})
 
-	t.Run("Should return no data if at least one condition has no data and using AND", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{operator: "and", noData: true},
-				&conditionStub{operator: "and", noData: false},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Should return no data if at least one condition has no data and using AND", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{operator: "and", noData: true},
+					&conditionStub{operator: "and", noData: false},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.True(t, context.NoDataFound)
-	})
+			handler.Eval(context)
+			So(context.NoDataFound, ShouldBeTrue)
+		})
 
-	t.Run("Should return no data if at least one condition has no data and using OR", func(t *testing.T) {
-		context := NewEvalContext(context.Background(), &Rule{
-			Conditions: []Condition{
-				&conditionStub{operator: "or", noData: true},
-				&conditionStub{operator: "or", noData: false},
-			},
-		}, &validations.OSSPluginRequestValidator{}, nil, nil, nil, annotationstest.NewFakeAnnotationsRepo())
+		Convey("Should return no data if at least one condition has no data and using OR", func() {
+			context := NewEvalContext(context.TODO(), &Rule{
+				Conditions: []Condition{
+					&conditionStub{operator: "or", noData: true},
+					&conditionStub{operator: "or", noData: false},
+				},
+			}, &validations.OSSPluginRequestValidator{})
 
-		handler.Eval(context)
-		require.True(t, context.NoDataFound)
+			handler.Eval(context)
+			So(context.NoDataFound, ShouldBeTrue)
+		})
 	})
 }

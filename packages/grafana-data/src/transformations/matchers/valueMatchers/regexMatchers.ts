@@ -1,7 +1,6 @@
 import { Field } from '../../../types/dataFrame';
 import { ValueMatcherInfo } from '../../../types/transformations';
 import { ValueMatcherID } from '../ids';
-
 import { BasicValueMatcherOptions } from './types';
 
 const regexValueMatcher: ValueMatcherInfo<BasicValueMatcherOptions<string>> = {
@@ -12,7 +11,7 @@ const regexValueMatcher: ValueMatcherInfo<BasicValueMatcherOptions<string>> = {
     const regex = new RegExp(options.value);
 
     return (valueIndex: number, field: Field) => {
-      const value = field.values[valueIndex];
+      const value = field.values.get(valueIndex);
       return regex.test(value);
     };
   },

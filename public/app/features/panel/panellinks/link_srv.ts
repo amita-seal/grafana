@@ -1,9 +1,13 @@
-import { chain } from 'lodash';
-
+import _ from 'lodash';
+import { TimeSrv } from 'app/features/dashboard/services/TimeSrv';
+import { getTemplateSrv, TemplateSrv } from 'app/features/templating/template_srv';
+import coreModule from 'app/core/core_module';
+import { getConfig } from 'app/core/config';
 import {
   DataFrame,
   DataLink,
   DataLinkBuiltInVars,
+  DataLinkClickEvent,
   deprecationWarning,
   Field,
   FieldType,
@@ -12,6 +16,7 @@ import {
   KeyValue,
   LinkModel,
   locationUtil,
+  PanelPlugin,
   ScopedVars,
   textUtil,
   urlUtil,
@@ -19,12 +24,7 @@ import {
   VariableSuggestion,
   VariableSuggestionsScope,
 } from '@grafana/data';
-import { getTemplateSrv } from '@grafana/runtime';
-import { VariableFormatID } from '@grafana/schema';
-import { getConfig } from 'app/core/config';
-import { getTimeSrv } from 'app/features/dashboard/services/TimeSrv';
-
-import { getVariablesUrlParams } from '../../variables/getAllVariableValuesForUrl';
+import { getAllVariableValuesForUrl } from '../../variables/getAllVariableValuesForUrl';
 
 const timeRangeVars = [
   {
@@ -110,7 +110,7 @@ const getFieldVars = (dataFrames: DataFrame[]) => {
     }
   }
 
-  const labels = chain(all).flatten().uniq().value();
+  const labels = _.chain(all).flatten().uniq().value();
 
   return [
     {
@@ -243,6 +243,20 @@ export const getCalculationValueDataLinksVariableSuggestions = (dataFrames: Data
   return [...seriesVars, ...fieldVars, ...valueVars, valueCalcVar, ...getPanelLinksVariableSuggestions()];
 };
 
+export const getPanelOptionsVariableSuggestions = (plugin: PanelPlugin, data?: DataFrame[]): VariableSuggestion[] => {
+  const dataVariables = plugin.meta.skipDataQuery ? [] : getDataFrameVars(data || []);
+  return [
+    ...dataVariables, // field values
+    ...getTemplateSrv()
+      .getVariables()
+      .map((variable) => ({
+        value: variable.name as string,
+        label: variable.name,
+        origin: VariableOrigin.Template,
+      })),
+  ];
+};
+
 export interface LinkService {
   getDataLinkUIModel: <T>(link: DataLink, replaceVariables: InterpolateFunction | undefined, origin: T) => LinkModel<T>;
   getAnchorInfo: (link: any) => any;
@@ -250,12 +264,15 @@ export interface LinkService {
 }
 
 export class LinkSrv implements LinkService {
+  /** @ngInject */
+  constructor(private templateSrv: TemplateSrv, private timeSrv: TimeSrv) {}
+
   getLinkUrl(link: any) {
-    let url = locationUtil.assureBaseUrl(getTemplateSrv().replace(link.url || ''));
+    let url = locationUtil.assureBaseUrl(this.templateSrv.replace(link.url || ''));
     let params: { [key: string]: any } = {};
 
     if (link.keepTime) {
-      const range = getTimeSrv().timeRangeForUrl();
+      const range = this.timeSrv.timeRangeForUrl();
       params['from'] = range.from;
       params['to'] = range.to;
     }
@@ -263,7 +280,7 @@ export class LinkSrv implements LinkService {
     if (link.includeVars) {
       params = {
         ...params,
-        ...getVariablesUrlParams(),
+        ...getAllVariableValuesForUrl(),
       };
     }
 
@@ -272,11 +289,10 @@ export class LinkSrv implements LinkService {
   }
 
   getAnchorInfo(link: any) {
-    const templateSrv = getTemplateSrv();
     const info: any = {};
     info.href = this.getLinkUrl(link);
-    info.title = templateSrv.replace(link.title || '');
-    info.tooltip = templateSrv.replace(link.tooltip || '');
+    info.title = this.templateSrv.replace(link.title || '');
+    info.tooltip = this.templateSrv.replace(link.tooltip || '');
     return info;
   }
 
@@ -297,26 +313,30 @@ export class LinkSrv implements LinkService {
       });
     }
 
+    let onClick: ((event: DataLinkClickEvent) => void) | undefined = undefined;
+
+    if (link.onClick) {
+      onClick = (e: DataLinkClickEvent) => {
+        if (link.onClick) {
+          link.onClick({
+            origin,
+            replaceVariables,
+            e,
+          });
+        }
+      };
+    }
+
     const info: LinkModel<T> = {
       href: locationUtil.assureBaseUrl(href.replace(/\n/g, '')),
-      title: link.title ?? '',
-      target: link.targetBlank ? '_blank' : undefined,
+      title: replaceVariables ? replaceVariables(link.title || '') : link.title,
+      target: link.targetBlank ? '_blank' : '_self',
       origin,
+      onClick,
     };
 
     if (replaceVariables) {
-      info.href = replaceVariables(info.href, undefined, VariableFormatID.UriEncode);
-      info.title = replaceVariables(link.title);
-    }
-
-    if (link.onClick) {
-      info.onClick = (e) => {
-        link.onClick!({
-          origin,
-          replaceVariables,
-          e,
-        });
-      };
+      info.href = replaceVariables(info.href);
     }
 
     info.href = getConfig().disableSanitizeHtml ? info.href : textUtil.sanitizeUrl(info.href);
@@ -338,15 +358,14 @@ export class LinkSrv implements LinkService {
   }
 }
 
-let singleton: LinkService | undefined;
+let singleton: LinkService;
 
 export function setLinkSrv(srv: LinkService) {
   singleton = srv;
 }
 
 export function getLinkSrv(): LinkService {
-  if (!singleton) {
-    singleton = new LinkSrv();
-  }
   return singleton;
 }
+
+coreModule.service('linkSrv', LinkSrv);

@@ -10,13 +10,7 @@ export function getFrameDisplayName(frame: DataFrame, index?: number) {
   }
 
   // Single field with tags
-  const valuesWithLabels: Field[] = [];
-  for (const field of frame.fields) {
-    if (field.labels && Object.keys(field.labels).length > 0) {
-      valuesWithLabels.push(field);
-    }
-  }
-
+  const valuesWithLabels = frame.fields.filter((f) => f.labels !== undefined);
   if (valuesWithLabels.length === 1) {
     return formatLabels(valuesWithLabels[0].labels!);
   }
@@ -38,24 +32,22 @@ export function getFrameDisplayName(frame: DataFrame, index?: number) {
 
 export function getFieldDisplayName(field: Field, frame?: DataFrame, allFrames?: DataFrame[]): string {
   const existingTitle = field.state?.displayName;
-  const multipleFrames = Boolean(allFrames && allFrames.length > 1);
 
-  if (existingTitle && multipleFrames === field.state?.multipleFrames) {
+  if (existingTitle) {
     return existingTitle;
   }
 
   const displayName = calculateFieldDisplayName(field, frame, allFrames);
   field.state = field.state || {};
   field.state.displayName = displayName;
-  field.state.multipleFrames = multipleFrames;
 
   return displayName;
 }
 
 /**
- * Get an appropriate display name. If the 'displayName' field config is set, use that.
+ * Get an appropriate display name. If the 'displayName' field config is set, use that
  */
-export function calculateFieldDisplayName(field: Field, frame?: DataFrame, allFrames?: DataFrame[]): string {
+function calculateFieldDisplayName(field: Field, frame?: DataFrame, allFrames?: DataFrame[]): string {
   const hasConfigTitle = field.config?.displayName && field.config?.displayName.length;
 
   let displayName = hasConfigTitle ? field.config!.displayName! : field.name;

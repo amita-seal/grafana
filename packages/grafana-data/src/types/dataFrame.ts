@@ -1,13 +1,12 @@
-import { ScopedVars } from './ScopedVars';
-import { QueryResultBase, Labels, NullValueMode } from './data';
-import { DataLink, LinkModel } from './dataLink';
-import { DecimalCount, DisplayProcessor, DisplayValue, DisplayValueAlignmentFactors } from './displayValue';
-import { FieldColor } from './fieldColor';
 import { ThresholdsConfig } from './thresholds';
 import { ValueMapping } from './valueMapping';
+import { QueryResultBase, Labels, NullValueMode } from './data';
+import { DisplayProcessor, DisplayValue } from './displayValue';
+import { DataLink, LinkModel } from './dataLink';
 import { Vector } from './vector';
+import { FieldColor } from './fieldColor';
+import { ScopedVars } from './ScopedVars';
 
-/** @public */
 export enum FieldType {
   time = 'time', // or date
   number = 'number',
@@ -15,28 +14,22 @@ export enum FieldType {
   boolean = 'boolean',
   // Used to detect that the value is some kind of trace data to help with the visualisation and processing.
   trace = 'trace',
-  geo = 'geo',
-  enum = 'enum',
   other = 'other', // Object, Array, etc
-  frame = 'frame', // DataFrame
 }
 
 /**
- * @public
  * Every property is optional
  *
  * Plugins may extend this with additional properties. Something like series overrides
  */
-export interface FieldConfig<TOptions = any> {
+export interface FieldConfig<TOptions extends object = any> {
   /**
-   * The display value for this field.  This supports template variables blank is auto.
-   * If you are a datasource plugin, do not set this. Use `field.value` and if that
-   * is not enough, use `field.config.displayNameFromDS`.
+   * The display value for this field.  This supports template variables blank is auto
    */
   displayName?: string;
 
   /**
-   * This can be used by data sources that need to customize how values are named.
+   * This can be used by data sources that return and explicit naming structure for values and labels
    * When this property is configured, this value is used rather than the default naming strategy.
    */
   displayNameFromDS?: string;
@@ -67,15 +60,9 @@ export interface FieldConfig<TOptions = any> {
 
   // Numeric Options
   unit?: string;
-  decimals?: DecimalCount; // Significant digits (for display)
+  decimals?: number | null; // Significant digits (for display)
   min?: number | null;
   max?: number | null;
-
-  // Interval indicates the expected regular step between values in the series.
-  // When an interval exists, consumers can identify "missing" values when the expected value is not present.
-  // The grafana timeseries visualization will render disconnected values when missing values are found it the time field.
-  // The interval uses the same units as the values.  For time.Time, this is defined in milliseconds.
-  interval?: number | null;
 
   // Convert input values into a display string
   mappings?: ValueMapping[];
@@ -95,25 +82,10 @@ export interface FieldConfig<TOptions = any> {
   // Alternative to empty string
   noValue?: string;
 
-  // The field type may map to specific config
-  type?: FieldTypeConfig;
-
   // Panel Specific Values
   custom?: TOptions;
 }
 
-export interface FieldTypeConfig {
-  enum?: EnumFieldConfig;
-}
-
-export interface EnumFieldConfig {
-  text?: string[];
-  color?: string[];
-  icon?: string[];
-  description?: string[];
-}
-
-/** @public */
 export interface ValueLinkConfig {
   /**
    * Result of field reduction
@@ -138,27 +110,18 @@ export interface Field<T = any, V = Vector<T>> {
    *  Meta info about how field and how to display it
    */
   config: FieldConfig;
-
-  /**
-   * The raw field values
-   * In Grafana 10, this accepts both simple arrays and the Vector interface
-   * In Grafana 11, the Vector interface will be removed
-   */
-  values: V | T[];
-
-  /**
-   * When type === FieldType.Time, this can optionally store
-   * the nanosecond-precison fractions as integers between
-   * 0 and 999999.
-   */
-  nanos?: number[];
-
+  values: V; // The raw field values
   labels?: Labels;
 
   /**
    * Cached values with appropriate display and id values
    */
   state?: FieldState | null;
+
+  /**
+   * Convert text to the field value
+   */
+  parse?: (value: any) => T;
 
   /**
    * Convert a value for display
@@ -171,7 +134,6 @@ export interface Field<T = any, V = Vector<T>> {
   getLinks?: (config: ValueLinkConfig) => Array<LinkModel<Field>>;
 }
 
-/** @alpha */
 export interface FieldState {
   /**
    * An appropriate name for the field (does not include frame info)
@@ -207,28 +169,8 @@ export interface FieldState {
    * @internal -- we will try to make this unnecessary
    */
   origin?: DataFrameFieldIndex;
-
-  /**
-   * Boolean value is true if field is in a larger data set with multiple frames.
-   * This is only related to the cached displayName property above.
-   */
-  multipleFrames?: boolean;
-
-  /**
-   * Boolean value is true if a null filling threshold has been applied
-   * against the frame of the field. This is used to avoid cases in which
-   * this would applied more than one time.
-   */
-  nullThresholdApplied?: boolean;
-
-  /**
-   * Can be used by visualizations to cache max display value lengths to aid alignment.
-   * It's up to each visualization to calculate and set this.
-   */
-  alignmentFactors?: DisplayValueAlignmentFactors;
 }
 
-/** @public */
 export interface NumericRange {
   min?: number | null;
   max?: number | null;
@@ -244,7 +186,6 @@ export interface DataFrame extends QueryResultBase {
 }
 
 /**
- * @public
  * Like a field, but properties are optional and values may be a simple array
  */
 export interface FieldDTO<T = any> {
@@ -256,7 +197,6 @@ export interface FieldDTO<T = any> {
 }
 
 /**
- * @public
  * Like a DataFrame, but fields may be a FieldDTO
  */
 export interface DataFrameDTO extends QueryResultBase {

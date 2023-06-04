@@ -1,11 +1,10 @@
-import { isNumber } from 'lodash';
-
-import { dateTime, isDateTimeInput } from '../datetime';
 import { Field, FieldType } from '../types/dataFrame';
+import { Vector } from '../types/vector';
+import { dateTime } from '../datetime';
+import isNumber from 'lodash/isNumber';
 
 type IndexComparer = (a: number, b: number) => number;
 
-/** @public */
 export const fieldIndexComparer = (field: Field, reverse = false): IndexComparer => {
   const values = field.values;
 
@@ -17,17 +16,13 @@ export const fieldIndexComparer = (field: Field, reverse = false): IndexComparer
     case FieldType.boolean:
       return booleanIndexComparer(values, reverse);
     case FieldType.time:
-      if (typeof field.values[0] === 'number') {
-        return timestampIndexComparer(values, reverse);
-      }
       return timeIndexComparer(values, reverse);
     default:
       return naturalIndexComparer(reverse);
   }
 };
 
-/** @public */
-export const timeComparer = (a: unknown, b: unknown): number => {
+export const timeComparer = (a: any, b: any): number => {
   if (!a || !b) {
     return falsyComparer(a, b);
   }
@@ -36,25 +31,21 @@ export const timeComparer = (a: unknown, b: unknown): number => {
     return numericComparer(a, b);
   }
 
-  if (isDateTimeInput(a) && isDateTimeInput(b)) {
-    if (dateTime(a).isBefore(b)) {
-      return -1;
-    }
+  if (dateTime(a).isBefore(b)) {
+    return -1;
+  }
 
-    if (dateTime(b).isBefore(a)) {
-      return 1;
-    }
+  if (dateTime(b).isBefore(a)) {
+    return 1;
   }
 
   return 0;
 };
 
-/** @public */
 export const numericComparer = (a: number, b: number): number => {
   return a - b;
 };
 
-/** @public */
 export const stringComparer = (a: string, b: string): number => {
   if (!a || !b) {
     return falsyComparer(a, b);
@@ -66,7 +57,7 @@ export const booleanComparer = (a: boolean, b: boolean): number => {
   return falsyComparer(a, b);
 };
 
-const falsyComparer = (a: unknown, b: unknown): number => {
+const falsyComparer = (a: any, b: any): number => {
   if (!a && b) {
     return 1;
   }
@@ -78,39 +69,34 @@ const falsyComparer = (a: unknown, b: unknown): number => {
   return 0;
 };
 
-const timestampIndexComparer = (values: number[], reverse: boolean): IndexComparer => {
-  let mult = reverse ? -1 : 1;
-  return (a: number, b: number): number => mult * (values[a] - values[b]);
-};
-
-const timeIndexComparer = (values: unknown[], reverse: boolean): IndexComparer => {
+const timeIndexComparer = (values: Vector<any>, reverse: boolean): IndexComparer => {
   return (a: number, b: number): number => {
-    const vA = values[a];
-    const vB = values[b];
+    const vA = values.get(a);
+    const vB = values.get(b);
     return reverse ? timeComparer(vB, vA) : timeComparer(vA, vB);
   };
 };
 
-const booleanIndexComparer = (values: boolean[], reverse: boolean): IndexComparer => {
+const booleanIndexComparer = (values: Vector<any>, reverse: boolean): IndexComparer => {
   return (a: number, b: number): number => {
-    const vA = values[a];
-    const vB = values[b];
+    const vA: boolean = values.get(a);
+    const vB: boolean = values.get(b);
     return reverse ? booleanComparer(vB, vA) : booleanComparer(vA, vB);
   };
 };
 
-const numericIndexComparer = (values: number[], reverse: boolean): IndexComparer => {
+const numericIndexComparer = (values: Vector<any>, reverse: boolean): IndexComparer => {
   return (a: number, b: number): number => {
-    const vA = values[a];
-    const vB = values[b];
+    const vA: number = values.get(a);
+    const vB: number = values.get(b);
     return reverse ? numericComparer(vB, vA) : numericComparer(vA, vB);
   };
 };
 
-const stringIndexComparer = (values: string[], reverse: boolean): IndexComparer => {
+const stringIndexComparer = (values: Vector<any>, reverse: boolean): IndexComparer => {
   return (a: number, b: number): number => {
-    const vA = values[a];
-    const vB = values[b];
+    const vA: string = values.get(a);
+    const vB: string = values.get(b);
     return reverse ? stringComparer(vB, vA) : stringComparer(vA, vB);
   };
 };

@@ -1,29 +1,15 @@
-import { locationService } from '@grafana/runtime';
-
-import { reduxTester } from '../../../../test/core/redux/reduxTester';
 import { variableAdapters } from '../adapters';
-import { textboxBuilder } from '../shared/testing/builders';
-import { getRootReducer, RootReducerType } from '../state/helpers';
-import { toKeyedAction } from '../state/keyedVariablesReducer';
-import { addVariable, changeVariableProp, setCurrentVariableValue } from '../state/sharedReducer';
-import { VariableOption } from '../types';
-import { toKeyedVariableIdentifier, toVariablePayload } from '../utils';
-
-import { setTextBoxVariableOptionsFromUrl, updateTextBoxVariableOptions } from './actions';
 import { createTextBoxVariableAdapter } from './adapter';
+import { reduxTester } from '../../../../test/core/redux/reduxTester';
+import { setTextBoxVariableOptionsFromUrl, updateTextBoxVariableOptions } from './actions';
+import { getRootReducer, RootReducerType } from '../state/helpers';
+import { VariableOption } from '../types';
+import { toVariablePayload } from '../state/types';
 import { createTextBoxOptions } from './reducer';
+import { addVariable, changeVariableProp, setCurrentVariableValue } from '../state/sharedReducer';
+import { updateLocation } from 'app/core/actions';
+import { textboxBuilder } from '../shared/testing/builders';
 
-jest.mock('@grafana/runtime', () => {
-  const original = jest.requireActual('@grafana/runtime');
-
-  return {
-    ...original,
-    locationService: {
-      partial: jest.fn(),
-      getSearchObject: () => ({}),
-    },
-  };
-});
 describe('textbox actions', () => {
   variableAdapters.setInit(() => [createTextBoxVariableAdapter()]);
 
@@ -35,58 +21,34 @@ describe('textbox actions', () => {
         selected: false,
       };
 
-      const key = 'key';
-      const variable = textboxBuilder()
-        .withId('textbox')
-        .withRootStateKey(key)
-        .withName('textbox')
-        .withCurrent('A')
-        .withQuery('A')
-        .build();
+      const variable = textboxBuilder().withId('textbox').withName('textbox').withCurrent('A').withQuery('A').build();
 
       const tester = await reduxTester<RootReducerType>()
         .givenRootReducer(getRootReducer())
-        .whenActionIsDispatched(
-          toKeyedAction(key, addVariable(toVariablePayload(variable, { global: false, index: 0, model: variable })))
-        )
-        .whenAsyncActionIsDispatched(updateTextBoxVariableOptions(toKeyedVariableIdentifier(variable)), true);
+        .whenActionIsDispatched(addVariable(toVariablePayload(variable, { global: false, index: 0, model: variable })))
+        .whenAsyncActionIsDispatched(updateTextBoxVariableOptions(toVariablePayload(variable)), true);
 
       tester.thenDispatchedActionsShouldEqual(
-        toKeyedAction(key, createTextBoxOptions(toVariablePayload(variable))),
-        toKeyedAction(key, setCurrentVariableValue(toVariablePayload(variable, { option })))
+        createTextBoxOptions(toVariablePayload(variable)),
+        setCurrentVariableValue(toVariablePayload(variable, { option })),
+        updateLocation({ query: { 'var-textbox': 'A' } })
       );
-      expect(locationService.partial).toHaveBeenLastCalledWith({ 'var-textbox': 'A' });
     });
   });
 
   describe('when setTextBoxVariableOptionsFromUrl is dispatched', () => {
     it('then correct actions are dispatched', async () => {
       const urlValue = 'bB';
-      const key = 'key';
-      const variable = textboxBuilder()
-        .withId('textbox')
-        .withRootStateKey(key)
-        .withName('textbox')
-        .withCurrent('A')
-        .withQuery('A')
-        .build();
+      const variable = textboxBuilder().withId('textbox').withName('textbox').withCurrent('A').withQuery('A').build();
 
       const tester = await reduxTester<RootReducerType>()
         .givenRootReducer(getRootReducer())
-        .whenActionIsDispatched(
-          toKeyedAction(key, addVariable(toVariablePayload(variable, { global: false, index: 0, model: variable })))
-        )
-        .whenAsyncActionIsDispatched(
-          setTextBoxVariableOptionsFromUrl(toKeyedVariableIdentifier(variable), urlValue),
-          true
-        );
+        .whenActionIsDispatched(addVariable(toVariablePayload(variable, { global: false, index: 0, model: variable })))
+        .whenAsyncActionIsDispatched(setTextBoxVariableOptionsFromUrl(toVariablePayload(variable), urlValue), true);
 
       tester.thenDispatchedActionsShouldEqual(
-        toKeyedAction(key, changeVariableProp(toVariablePayload(variable, { propName: 'query', propValue: 'bB' }))),
-        toKeyedAction(
-          key,
-          setCurrentVariableValue(toVariablePayload(variable, { option: { text: 'bB', value: 'bB', selected: false } }))
-        )
+        changeVariableProp(toVariablePayload(variable, { propName: 'query', propValue: 'bB' })),
+        setCurrentVariableValue(toVariablePayload(variable, { option: { text: 'bB', value: 'bB', selected: false } }))
       );
     });
   });

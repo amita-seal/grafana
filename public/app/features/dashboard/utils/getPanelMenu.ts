@@ -1,35 +1,16 @@
-import { PanelMenuItem, PluginExtensionPoints, type PluginExtensionPanelContext } from '@grafana/data';
-import {
-  isPluginExtensionLink,
-  AngularComponent,
-  getDataSourceSrv,
-  getPluginExtensions,
-  locationService,
-  reportInteraction,
-} from '@grafana/runtime';
-import { PanelCtrl } from 'app/angular/panel/panel_ctrl';
-import config from 'app/core/config';
-import { t } from 'app/core/internationalization';
-import { contextSrv } from 'app/core/services/context_srv';
-import { getExploreUrl } from 'app/core/utils/explore';
-import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
-import { PanelModel } from 'app/features/dashboard/state/PanelModel';
-import {
-  addLibraryPanel,
-  copyPanel,
-  duplicatePanel,
-  removePanel,
-  sharePanel,
-  toggleLegend,
-  unlinkLibraryPanel,
-} from 'app/features/dashboard/utils/panel';
-import { InspectTab } from 'app/features/inspector/types';
-import { isPanelModelLibraryPanel } from 'app/features/library-panels/guard';
-import { SHARED_DASHBOARD_QUERY } from 'app/plugins/datasource/dashboard';
+import { updateLocation } from 'app/core/actions';
 import { store } from 'app/store/store';
-
+import { AngularComponent, getDataSourceSrv, getLocationSrv } from '@grafana/runtime';
+import { PanelMenuItem } from '@grafana/data';
+import { copyPanel, duplicatePanel, removePanel, sharePanel } from 'app/features/dashboard/utils/panel';
+import { PanelModel } from 'app/features/dashboard/state/PanelModel';
+import { DashboardModel } from 'app/features/dashboard/state/DashboardModel';
+import { contextSrv } from '../../../core/services/context_srv';
 import { navigateToExplore } from '../../explore/state/main';
+import { getExploreUrl } from '../../../core/utils/explore';
 import { getTimeSrv } from '../services/TimeSrv';
+import { PanelCtrl } from '../../panel/panel_ctrl';
+import config from 'app/core/config';
 
 export function getPanelMenu(
   dashboard: DashboardModel,
@@ -38,45 +19,41 @@ export function getPanelMenu(
 ): PanelMenuItem[] {
   const onViewPanel = (event: React.MouseEvent<any>) => {
     event.preventDefault();
-    locationService.partial({
-      viewPanel: panel.id,
-    });
-    reportInteraction('dashboards_panelheader_menu', { item: 'view' });
+    store.dispatch(
+      updateLocation({
+        query: {
+          viewPanel: panel.id,
+        },
+        partial: true,
+      })
+    );
   };
 
   const onEditPanel = (event: React.MouseEvent<any>) => {
     event.preventDefault();
-    locationService.partial({
-      editPanel: panel.id,
-    });
-
-    reportInteraction('dashboards_panelheader_menu', { item: 'edit' });
+    store.dispatch(
+      updateLocation({
+        query: {
+          editPanel: panel.id,
+        },
+        partial: true,
+      })
+    );
   };
 
   const onSharePanel = (event: React.MouseEvent<any>) => {
     event.preventDefault();
     sharePanel(dashboard, panel);
-    reportInteraction('dashboards_panelheader_menu', { item: 'share' });
   };
 
-  const onAddLibraryPanel = (event: React.MouseEvent<any>) => {
-    event.preventDefault();
-    addLibraryPanel(dashboard, panel);
-    reportInteraction('dashboards_panelheader_menu', { item: 'createLibraryPanel' });
-  };
-
-  const onUnlinkLibraryPanel = (event: React.MouseEvent<any>) => {
-    event.preventDefault();
-    unlinkLibraryPanel(panel);
-    reportInteraction('dashboards_panelheader_menu', { item: 'unlinkLibraryPanel' });
-  };
-
-  const onInspectPanel = (tab?: InspectTab) => {
-    locationService.partial({
-      inspect: panel.id,
-      inspectTab: tab,
+  const onInspectPanel = (tab?: string) => {
+    getLocationSrv().update({
+      partial: true,
+      query: {
+        inspect: panel.id,
+        inspectTab: tab,
+      },
     });
-    reportInteraction('dashboards_panelheader_menu', { item: 'inspect', tab: tab ?? InspectTab.Data });
   };
 
   const onMore = (event: React.MouseEvent<any>) => {
@@ -86,19 +63,16 @@ export function getPanelMenu(
   const onDuplicatePanel = (event: React.MouseEvent<any>) => {
     event.preventDefault();
     duplicatePanel(dashboard, panel);
-    reportInteraction('dashboards_panelheader_menu', { item: 'duplicate' });
   };
 
   const onCopyPanel = (event: React.MouseEvent<any>) => {
     event.preventDefault();
     copyPanel(panel);
-    reportInteraction('dashboards_panelheader_menu', { item: 'copy' });
   };
 
   const onRemovePanel = (event: React.MouseEvent<any>) => {
     event.preventDefault();
     removePanel(dashboard, panel, true);
-    reportInteraction('dashboards_panelheader_menu', { item: 'remove' });
   };
 
   const onNavigateToExplore = (event: React.MouseEvent<any>) => {
@@ -106,20 +80,13 @@ export function getPanelMenu(
     const openInNewWindow =
       event.ctrlKey || event.metaKey ? (url: string) => window.open(`${config.appSubUrl}${url}`) : undefined;
     store.dispatch(navigateToExplore(panel, { getDataSourceSrv, getTimeSrv, getExploreUrl, openInNewWindow }) as any);
-    reportInteraction('dashboards_panelheader_menu', { item: 'explore' });
-  };
-
-  const onToggleLegend = (event: React.MouseEvent) => {
-    event.preventDefault();
-    toggleLegend(panel);
-    reportInteraction('dashboards_panelheader_menu', { item: 'toggleLegend' });
   };
 
   const menu: PanelMenuItem[] = [];
 
   if (!panel.isEditing) {
     menu.push({
-      text: t('panel.header-menu.view', `View`),
+      text: 'View',
       iconClassName: 'eye',
       onClick: onViewPanel,
       shortcut: 'v',
@@ -128,7 +95,7 @@ export function getPanelMenu(
 
   if (dashboard.canEditPanel(panel) && !panel.isEditing) {
     menu.push({
-      text: t('panel.header-menu.edit', `Edit`),
+      text: 'Edit',
       iconClassName: 'edit',
       onClick: onEditPanel,
       shortcut: 'e',
@@ -136,22 +103,18 @@ export function getPanelMenu(
   }
 
   menu.push({
-    text: t('panel.header-menu.share', `Share`),
+    text: 'Share',
     iconClassName: 'share-alt',
     onClick: onSharePanel,
     shortcut: 'p s',
   });
 
-  if (
-    contextSrv.hasAccessToExplore() &&
-    !(panel.plugin && panel.plugin.meta.skipDataQuery) &&
-    panel.datasource?.uid !== SHARED_DASHBOARD_QUERY
-  ) {
+  if (contextSrv.hasAccessToExplore() && !(panel.plugin && panel.plugin.meta.skipDataQuery)) {
     menu.push({
-      text: t('panel.header-menu.explore', `Explore`),
+      text: 'Explore',
       iconClassName: 'compass',
-      onClick: onNavigateToExplore,
       shortcut: 'x',
+      onClick: onNavigateToExplore,
     });
   }
 
@@ -160,73 +123,45 @@ export function getPanelMenu(
   // Only show these inspect actions for data plugins
   if (panel.plugin && !panel.plugin.meta.skipDataQuery) {
     inspectMenu.push({
-      text: t('panel.header-menu.inspect-data', `Data`),
-      onClick: (e: React.MouseEvent<any>) => onInspectPanel(InspectTab.Data),
+      text: 'Data',
+      onClick: (e: React.MouseEvent<any>) => onInspectPanel('data'),
     });
 
     if (dashboard.meta.canEdit) {
       inspectMenu.push({
-        text: t('panel.header-menu.query', `Query`),
-        onClick: (e: React.MouseEvent<any>) => onInspectPanel(InspectTab.Query),
+        text: 'Query',
+        onClick: (e: React.MouseEvent<any>) => onInspectPanel('query'),
       });
     }
   }
 
   inspectMenu.push({
-    text: t('panel.header-menu.inspect-json', `Panel JSON`),
-    onClick: (e: React.MouseEvent<any>) => onInspectPanel(InspectTab.JSON),
+    text: 'Panel JSON',
+    onClick: (e: React.MouseEvent<any>) => onInspectPanel('json'),
   });
 
   menu.push({
     type: 'submenu',
-    text: t('panel.header-menu.inspect', `Inspect`),
+    text: 'Inspect',
     iconClassName: 'info-circle',
-    onClick: (e: React.MouseEvent<HTMLElement>) => {
-      const currentTarget = e.currentTarget;
-      const target = e.target as HTMLElement;
-      const closestMenuItem = target.closest('[role="menuitem"]');
-
-      if (target === currentTarget || closestMenuItem === currentTarget) {
-        onInspectPanel();
-      }
-    },
+    onClick: (e: React.MouseEvent<any>) => onInspectPanel(),
     shortcut: 'i',
     subMenu: inspectMenu,
   });
 
   const subMenu: PanelMenuItem[] = [];
-  const canEdit = dashboard.canEditPanel(panel);
-  if (!(panel.isViewing || panel.isEditing)) {
-    if (canEdit) {
-      subMenu.push({
-        text: t('panel.header-menu.duplicate', `Duplicate`),
-        onClick: onDuplicatePanel,
-        shortcut: 'p d',
-      });
 
-      subMenu.push({
-        text: t('panel.header-menu.copy', `Copy`),
-        onClick: onCopyPanel,
-      });
+  if (dashboard.canEditPanel(panel) && !(panel.isViewing || panel.isEditing)) {
+    subMenu.push({
+      text: 'Duplicate',
+      onClick: onDuplicatePanel,
+      shortcut: 'p d',
+    });
 
-      if (isPanelModelLibraryPanel(panel)) {
-        subMenu.push({
-          text: t('panel.header-menu.unlink-library-panel', `Unlink library panel`),
-          onClick: onUnlinkLibraryPanel,
-        });
-      } else {
-        subMenu.push({
-          text: t('panel.header-menu.create-library-panel', `Create library panel`),
-          onClick: onAddLibraryPanel,
-        });
-      }
-    } else if (contextSrv.isEditor) {
-      // An editor but the dashboard is not editable
-      subMenu.push({
-        text: t('panel.header-menu.copy', `Copy`),
-        onClick: onCopyPanel,
-      });
-    }
+    subMenu.push({
+      text: 'Copy',
+      onClick: onCopyPanel,
+    });
   }
 
   // add old angular panel options
@@ -252,60 +187,10 @@ export function getPanelMenu(
     }
   }
 
-  if (panel.options.legend) {
-    subMenu.push({
-      text: panel.options.legend.showLegend
-        ? t('panel.header-menu.hide-legend', 'Hide legend')
-        : t('panel.header-menu.show-legend', 'Show legend'),
-      onClick: onToggleLegend,
-      shortcut: 'p l',
-    });
-  }
-
-  // When editing hide most actions
-  if (panel.isEditing) {
-    subMenu.length = 0;
-  }
-
-  if (canEdit && panel.plugin && !panel.plugin.meta.skipDataQuery) {
-    subMenu.push({
-      text: t('panel.header-menu.get-help', 'Get help'),
-      onClick: (e: React.MouseEvent) => onInspectPanel(InspectTab.Help),
-    });
-  }
-
-  const { extensions } = getPluginExtensions({
-    extensionPointId: PluginExtensionPoints.DashboardPanelMenu,
-    context: createExtensionContext(panel, dashboard),
-    limitPerPlugin: 2,
-  });
-
-  if (extensions.length > 0 && !panel.isEditing) {
-    const extensionsMenu: PanelMenuItem[] = [];
-
-    for (const extension of extensions) {
-      if (isPluginExtensionLink(extension)) {
-        extensionsMenu.push({
-          text: truncateTitle(extension.title, 25),
-          href: extension.path,
-          onClick: extension.onClick,
-        });
-        continue;
-      }
-    }
-
-    menu.push({
-      text: 'Extensions',
-      iconClassName: 'plug',
-      type: 'submenu',
-      subMenu: extensionsMenu,
-    });
-  }
-
-  if (subMenu.length) {
+  if (!panel.isEditing && subMenu.length) {
     menu.push({
       type: 'submenu',
-      text: t('panel.header-menu.more', `More...`),
+      text: 'More...',
       iconClassName: 'cube',
       subMenu,
       onClick: onMore,
@@ -316,7 +201,7 @@ export function getPanelMenu(
     menu.push({ type: 'divider', text: '' });
 
     menu.push({
-      text: t('panel.header-menu.remove', `Remove`),
+      text: 'Remove',
       iconClassName: 'trash-alt',
       onClick: onRemovePanel,
       shortcut: 'p r',
@@ -324,30 +209,4 @@ export function getPanelMenu(
   }
 
   return menu;
-}
-
-function truncateTitle(title: string, length: number): string {
-  if (title.length < length) {
-    return title;
-  }
-  const part = title.slice(0, length - 3);
-  return `${part.trimEnd()}...`;
-}
-
-function createExtensionContext(panel: PanelModel, dashboard: DashboardModel): PluginExtensionPanelContext {
-  return {
-    id: panel.id,
-    pluginId: panel.type,
-    title: panel.title,
-    timeRange: dashboard.time,
-    timeZone: dashboard.timezone,
-    dashboard: {
-      uid: dashboard.uid,
-      title: dashboard.title,
-      tags: Array.from<string>(dashboard.tags),
-    },
-    targets: panel.targets,
-    scopedVars: panel.scopedVars,
-    data: panel.getQueryRunner().getLastResult(),
-  };
 }

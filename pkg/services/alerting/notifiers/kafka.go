@@ -1,14 +1,15 @@
 package notifiers
 
 import (
-	"fmt"
 	"strconv"
 
+	"fmt"
+
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/notifications"
 )
 
 func init() {
@@ -40,7 +41,7 @@ func init() {
 }
 
 // NewKafkaNotifier is the constructor function for the Kafka notifier.
-func NewKafkaNotifier(model *models.AlertNotification, _ alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+func NewKafkaNotifier(model *models.AlertNotification) (alerting.Notifier, error) {
 	endpoint := model.Settings.Get("kafkaRestProxy").MustString()
 	if endpoint == "" {
 		return nil, alerting.ValidationError{Reason: "Could not find kafka rest proxy endpoint property in settings"}
@@ -51,7 +52,7 @@ func NewKafkaNotifier(model *models.AlertNotification, _ alerting.GetDecryptedVa
 	}
 
 	return &KafkaNotifier{
-		NotifierBase: NewNotifierBase(model, ns),
+		NotifierBase: NewNotifierBase(model),
 		Endpoint:     endpoint,
 		Topic:        topic,
 		log:          log.New("alerting.notifier.kafka"),
@@ -113,7 +114,7 @@ func (kn *KafkaNotifier) Notify(evalContext *alerting.EvalContext) error {
 
 	topicURL := kn.Endpoint + "/topics/" + kn.Topic
 
-	cmd := &notifications.SendWebhookSync{
+	cmd := &models.SendWebhookSync{
 		Url:        topicURL,
 		Body:       string(body),
 		HttpMethod: "POST",
@@ -123,7 +124,7 @@ func (kn *KafkaNotifier) Notify(evalContext *alerting.EvalContext) error {
 		},
 	}
 
-	if err := kn.NotificationService.SendWebhookSync(evalContext.Ctx, cmd); err != nil {
+	if err := bus.DispatchCtx(evalContext.Ctx, cmd); err != nil {
 		kn.log.Error("Failed to send notification to Kafka", "error", err, "body", string(body))
 		return err
 	}

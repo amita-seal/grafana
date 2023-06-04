@@ -2,24 +2,23 @@ package commands
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 
 	"github.com/fatih/color"
-
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/cmd/grafana-cli/logger"
 	"github.com/grafana/grafana/pkg/cmd/grafana-cli/utils"
-	"github.com/grafana/grafana/pkg/server"
-	"github.com/grafana/grafana/pkg/services/user"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/sqlstore"
 	"github.com/grafana/grafana/pkg/util"
+	"github.com/grafana/grafana/pkg/util/errutil"
 )
 
-const DefaultAdminUserId = 1
+const AdminUserId = 1
 
-func resetPasswordCommand(c utils.CommandLine, runner server.Runner) error {
+func resetPasswordCommand(c utils.CommandLine, sqlStore *sqlstore.SQLStore) error {
 	newPassword := ""
-	adminId := int64(c.Int("user-id"))
 
 	if c.Bool("password-from-stdin") {
 		logger.Infof("New Password: ")
@@ -36,44 +35,33 @@ func resetPasswordCommand(c utils.CommandLine, runner server.Runner) error {
 		newPassword = c.Args().First()
 	}
 
-	err := resetPassword(adminId, newPassword, runner.UserService)
-	if err == nil {
-		logger.Infof("\n")
-		logger.Infof("Admin password changed successfully %s", color.GreenString("✔"))
-	}
-	return err
-}
-
-func resetPassword(adminId int64, newPassword string, userSvc user.Service) error {
-	password := user.Password(newPassword)
+	password := models.Password(newPassword)
 	if password.IsWeak() {
 		return fmt.Errorf("new password is too short")
 	}
 
-	userQuery := user.GetUserByIDQuery{ID: adminId}
-	usr, err := userSvc.GetByID(context.Background(), &userQuery)
-	if err != nil {
+	userQuery := models.GetUserByIdQuery{Id: AdminUserId}
+
+	if err := bus.Dispatch(&userQuery); err != nil {
 		return fmt.Errorf("could not read user from database. Error: %v", err)
 	}
-	if !usr.IsAdmin {
-		return ErrMustBeAdmin
-	}
 
-	passwordHashed, err := util.EncodePassword(newPassword, usr.Salt)
+	passwordHashed, err := util.EncodePassword(newPassword, userQuery.Result.Salt)
 	if err != nil {
 		return err
 	}
 
-	cmd := user.ChangeUserPasswordCommand{
-		UserID:      adminId,
+	cmd := models.ChangeUserPasswordCommand{
+		UserId:      AdminUserId,
 		NewPassword: passwordHashed,
 	}
 
-	if err := userSvc.ChangePassword(context.Background(), &cmd); err != nil {
-		return fmt.Errorf("failed to update user password: %w", err)
+	if err := bus.Dispatch(&cmd); err != nil {
+		return errutil.Wrapf(err, "failed to update user password")
 	}
+
+	logger.Infof("\n")
+	logger.Infof("Admin password changed successfully %s", color.GreenString("✔"))
 
 	return nil
 }
-
-var ErrMustBeAdmin = fmt.Errorf("reset-admin-password can only be used to reset an admin user account")

@@ -96,7 +96,7 @@ function build_frontend() {
   if [ ! -d "dist" ]; then
     mkdir dist
   fi
-  YARN_ENABLE_PROGRESS_BARS=false yarn install --immutable
+  yarn install --pure-lockfile --no-progress
   echo "Building frontend"
 
   start=$(date +%s%N)

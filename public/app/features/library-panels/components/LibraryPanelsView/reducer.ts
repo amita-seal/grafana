@@ -1,13 +1,13 @@
 import { createAction } from '@reduxjs/toolkit';
-import { AnyAction } from 'redux';
-
 import { LoadingState } from '@grafana/data';
 
-import { LibraryElementDTO } from '../../types';
+import { LibraryPanelDTO } from '../../types';
+import { AnyAction } from 'redux';
 
 export interface LibraryPanelsViewState {
   loadingState: LoadingState;
-  libraryPanels: LibraryElementDTO[];
+  libraryPanels: LibraryPanelDTO[];
+  searchString: string;
   totalCount: number;
   perPage: number;
   page: number;
@@ -16,10 +16,11 @@ export interface LibraryPanelsViewState {
 }
 
 export const initialLibraryPanelsViewState: LibraryPanelsViewState = {
-  loadingState: LoadingState.Loading,
+  loadingState: LoadingState.NotStarted,
   libraryPanels: [],
+  searchString: '',
   totalCount: 0,
-  perPage: 40,
+  perPage: 10,
   page: 1,
   numberOfPages: 0,
   currentPanelId: undefined,
@@ -29,7 +30,9 @@ export const initSearch = createAction('libraryPanels/view/initSearch');
 export const searchCompleted = createAction<
   Omit<LibraryPanelsViewState, 'currentPanelId' | 'searchString' | 'loadingState' | 'numberOfPages'>
 >('libraryPanels/view/searchCompleted');
-
+export const changeSearchString = createAction<Pick<LibraryPanelsViewState, 'searchString'>>(
+  'libraryPanels/view/changeSearchString'
+);
 export const changePage = createAction<Pick<LibraryPanelsViewState, 'page'>>('libraryPanels/view/changePage');
 
 export const libraryPanelsViewReducer = (state: LibraryPanelsViewState, action: AnyAction) => {
@@ -49,6 +52,10 @@ export const libraryPanelsViewReducer = (state: LibraryPanelsViewState, action: 
       numberOfPages,
       page: page > numberOfPages ? page - 1 : page,
     };
+  }
+
+  if (changeSearchString.match(action)) {
+    return { ...state, searchString: action.payload.searchString };
   }
 
   if (changePage.match(action)) {

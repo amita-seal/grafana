@@ -1,39 +1,29 @@
 import React, { PureComponent } from 'react';
-
-import { DataQuery, getDataSourceRef } from '@grafana/data';
-import { locationService } from '@grafana/runtime';
-import { getDatasourceSrv } from 'app/features/plugins/datasource_srv';
 import { QueryGroup } from 'app/features/query/components/QueryGroup';
-import { QueryGroupDataSource, QueryGroupOptions } from 'app/types';
-
 import { PanelModel } from '../../state';
+import { getLocationSrv } from '@grafana/runtime';
+import { QueryGroupOptions } from 'app/types';
 
 interface Props {
-  /** Current panel */
   panel: PanelModel;
-  /** Added here to make component re-render when queries change from outside */
-  queries: DataQuery[];
 }
 
-export class PanelEditorQueries extends PureComponent<Props> {
+interface State {
+  options: QueryGroupOptions;
+}
+
+export class PanelEditorQueries extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props);
+
+    this.state = { options: this.buildQueryOptions(props) };
   }
 
-  buildQueryOptions(panel: PanelModel): QueryGroupOptions {
-    const dataSource: QueryGroupDataSource = panel.datasource ?? {
-      default: true,
-    };
-    const datasourceSettings = getDatasourceSrv().getInstanceSettings(dataSource);
-
+  buildQueryOptions({ panel }: Props): QueryGroupOptions {
     return {
-      cacheTimeout: datasourceSettings?.meta.queryOptions?.cacheTimeout ? panel.cacheTimeout : undefined,
       dataSource: {
-        default: datasourceSettings?.isDefault,
-        type: datasourceSettings?.type,
-        uid: datasourceSettings?.uid,
+        name: panel.datasource,
       },
-      queryCachingTTL: datasourceSettings?.cachingConfig?.enabled ? panel.queryCachingTTL : undefined,
       queries: panel.targets,
       maxDataPoints: panel.maxDataPoints,
       minInterval: panel.interval,
@@ -45,51 +35,36 @@ export class PanelEditorQueries extends PureComponent<Props> {
     };
   }
 
-  async componentDidMount() {
-    const { panel } = this.props;
-
-    // If the panel model has no datasource property load the default data source property and update the persisted model
-    // Because this part of the panel model is not in redux yet we do a forceUpdate.
-    if (!panel.datasource) {
-      const ds = getDatasourceSrv().getInstanceSettings(null);
-      panel.datasource = getDataSourceRef(ds!);
-      this.forceUpdate();
-    }
-  }
-
   onRunQueries = () => {
     this.props.panel.refresh();
   };
 
   onOpenQueryInspector = () => {
-    locationService.partial({
-      inspect: this.props.panel.id,
-      inspectTab: 'query',
+    getLocationSrv().update({
+      query: { inspect: this.props.panel.id, inspectTab: 'query' },
+      partial: true,
     });
   };
 
   onOptionsChange = (options: QueryGroupOptions) => {
     const { panel } = this.props;
 
+    const newDataSourceName = options.dataSource.default ? null : options.dataSource.name!;
+    const dataSourceChanged = newDataSourceName !== panel.datasource;
+
     panel.updateQueries(options);
 
-    if (options.dataSource.uid !== panel.datasource?.uid) {
+    if (dataSourceChanged) {
       // trigger queries when changing data source
       setTimeout(this.onRunQueries, 10);
     }
 
-    this.forceUpdate();
+    this.setState({ options: options });
   };
 
   render() {
     const { panel } = this.props;
-
-    // If no panel data soruce set, wait with render. Will be set to default in componentDidMount
-    if (!panel.datasource) {
-      return null;
-    }
-
-    const options = this.buildQueryOptions(panel);
+    const { options } = this.state;
 
     return (
       <QueryGroup

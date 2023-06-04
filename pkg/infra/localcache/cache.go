@@ -11,10 +11,6 @@ type CacheService struct {
 	*gocache.Cache
 }
 
-func ProvideService() *CacheService {
-	return New(5*time.Minute, 10*time.Minute)
-}
-
 // New returns a new CacheService
 func New(defaultExpiration, cleanupInterval time.Duration) *CacheService {
 	return &CacheService{

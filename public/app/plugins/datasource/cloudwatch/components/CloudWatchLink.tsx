@@ -1,12 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { usePrevious } from 'react-use';
+import _ from 'lodash';
+import React, { Component } from 'react';
 
+import { CloudWatchLogsQuery } from '../types';
 import { PanelData } from '@grafana/data';
 import { Icon } from '@grafana/ui';
-
-import { AwsUrl, encodeUrl } from '../aws_url';
+import { encodeUrl, AwsUrl } from '../aws_url';
 import { CloudWatchDatasource } from '../datasource';
-import { CloudWatchLogsQuery } from '../types';
 
 interface Props {
   query: CloudWatchLogsQuery;
@@ -14,39 +13,54 @@ interface Props {
   datasource: CloudWatchDatasource;
 }
 
-export function CloudWatchLink({ panelData, query, datasource }: Props) {
-  const [href, setHref] = useState('');
-  const prevPanelData = usePrevious<PanelData | undefined>(panelData);
+interface State {
+  href: string;
+}
 
-  useEffect(() => {
-    if (prevPanelData !== panelData && panelData?.request?.range) {
-      const arns = (query.logGroups ?? [])
-        .filter((group) => group?.arn)
-        .map((group) => (group.arn ?? '').replace(/:\*$/, '')); // remove `:*` from end of arn
-      const logGroupNames = query.logGroupNames;
-      let sources = arns?.length ? arns : logGroupNames;
+export default class CloudWatchLink extends Component<Props, State> {
+  state: State = { href: '' };
 
-      const range = panelData?.request?.range;
-      const start = range.from.toISOString();
-      const end = range.to.toISOString();
+  async componentDidUpdate(prevProps: Props) {
+    const { panelData: panelDataNew } = this.props;
+    const { panelData: panelDataOld } = prevProps;
 
-      const urlProps: AwsUrl = {
-        end,
-        start,
-        timeType: 'ABSOLUTE',
-        tz: 'UTC',
-        editorString: query.expression ?? '',
-        isLiveTail: false,
-        source: sources ?? [],
-      };
-
-      setHref(encodeUrl(urlProps, datasource.resources.getActualRegion(query.region)));
+    if (panelDataOld !== panelDataNew && panelDataNew?.request) {
+      const href = this.getExternalLink();
+      this.setState({ href });
     }
-  }, [panelData, prevPanelData, datasource, query]);
+  }
 
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      <Icon name="share-alt" /> CloudWatch Logs Insights
-    </a>
-  );
+  getExternalLink(): string {
+    const { query, panelData, datasource } = this.props;
+
+    const range = panelData?.request?.range;
+
+    if (!range) {
+      return '';
+    }
+
+    const start = range.from.toISOString();
+    const end = range.to.toISOString();
+
+    const urlProps: AwsUrl = {
+      end,
+      start,
+      timeType: 'ABSOLUTE',
+      tz: 'UTC',
+      editorString: query.expression ?? '',
+      isLiveTail: false,
+      source: query.logGroupNames ?? [],
+    };
+
+    return encodeUrl(urlProps, datasource.getActualRegion(query.region));
+  }
+
+  render() {
+    const { href } = this.state;
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        <Icon name="share-alt" /> CloudWatch Logs Insights
+      </a>
+    );
+  }
 }

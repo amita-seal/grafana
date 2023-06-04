@@ -1,18 +1,14 @@
-import { css } from '@emotion/css';
 import React, { PureComponent } from 'react';
 import { connect, MapStateToProps } from 'react-redux';
-
-import { AnnotationQuery, DataQuery } from '@grafana/data';
-
 import { StoreState } from '../../../../types';
-import { getSubMenuVariables, getVariablesState } from '../../../variables/state/selectors';
-import { VariableModel } from '../../../variables/types';
+import { getSubMenuVariables } from '../../../variables/state/selectors';
+import { VariableHide, VariableModel } from '../../../variables/types';
 import { DashboardModel } from '../../state';
-import { DashboardLink } from '../../state/DashboardModel';
-
-import { Annotations } from './Annotations';
 import { DashboardLinks } from './DashboardLinks';
+import { Annotations } from './Annotations';
 import { SubMenuItems } from './SubMenuItems';
+import { DashboardLink } from '../../state/DashboardModel';
+import { AnnotationQuery } from '@grafana/data';
 
 interface OwnProps {
   dashboard: DashboardModel;
@@ -29,7 +25,7 @@ interface DispatchProps {}
 type Props = OwnProps & ConnectedProps & DispatchProps;
 
 class SubMenuUnConnected extends PureComponent<Props> {
-  onAnnotationStateChanged = (updatedAnnotation: AnnotationQuery<DataQuery>) => {
+  onAnnotationStateChanged = (updatedAnnotation: any) => {
     // we're mutating dashboard state directly here until annotations are in Redux.
     for (let index = 0; index < this.props.dashboard.annotations.list.length; index++) {
       const annotation = this.props.dashboard.annotations.list[index];
@@ -42,46 +38,44 @@ class SubMenuUnConnected extends PureComponent<Props> {
     this.forceUpdate();
   };
 
+  isSubMenuVisible = () => {
+    if (this.props.dashboard.links.length > 0) {
+      return true;
+    }
+
+    const visibleVariables = this.props.variables.filter((variable) => variable.hide !== VariableHide.hideVariable);
+    if (visibleVariables.length > 0) {
+      return true;
+    }
+
+    const visibleAnnotations = this.props.dashboard.annotations.list.filter((annotation) => annotation.hide !== true);
+    return visibleAnnotations.length > 0;
+  };
+
   render() {
     const { dashboard, variables, links, annotations } = this.props;
 
-    if (!dashboard.isSubMenuVisible()) {
+    if (!this.isSubMenuVisible()) {
       return null;
     }
 
-    const readOnlyVariables = dashboard.meta.isSnapshot ?? false;
-
     return (
       <div className="submenu-controls">
-        <form aria-label="Template variables" className={styles}>
-          <SubMenuItems variables={variables} readOnly={readOnlyVariables} />
-        </form>
-        <Annotations
-          annotations={annotations}
-          onAnnotationChanged={this.onAnnotationStateChanged}
-          events={dashboard.events}
-        />
+        <SubMenuItems variables={variables} />
+        <Annotations annotations={annotations} onAnnotationChanged={this.onAnnotationStateChanged} />
         <div className="gf-form gf-form--grow" />
         {dashboard && <DashboardLinks dashboard={dashboard} links={links} />}
+        <div className="clearfix" />
       </div>
     );
   }
 }
 
-const mapStateToProps: MapStateToProps<ConnectedProps, OwnProps, StoreState> = (state, ownProps) => {
-  const { uid } = ownProps.dashboard;
-  const templatingState = getVariablesState(uid, state);
+const mapStateToProps: MapStateToProps<ConnectedProps, OwnProps, StoreState> = (state) => {
   return {
-    variables: getSubMenuVariables(uid, templatingState.variables),
+    variables: getSubMenuVariables(state.templating.variables),
   };
 };
 
-const styles = css`
-  display: flex;
-  flex-wrap: wrap;
-  display: contents;
-`;
-
 export const SubMenu = connect(mapStateToProps)(SubMenuUnConnected);
-
 SubMenu.displayName = 'SubMenu';

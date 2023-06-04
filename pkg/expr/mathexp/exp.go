@@ -7,9 +7,7 @@ import (
 	"runtime"
 
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-
 	"github.com/grafana/grafana/pkg/expr/mathexp/parse"
-	"github.com/grafana/grafana/pkg/infra/tracing"
 )
 
 // Expr holds a parsed math command expression.
@@ -26,8 +24,6 @@ type State struct {
 	//  - Unions (How many result A and many Result B in case A + B are joined)
 	//  - NaN/Null behavior
 	RefID string
-
-	tracer tracing.Tracer
 }
 
 // Vars holds the results of datasource queries or other expression commands.
@@ -47,13 +43,11 @@ func New(expr string, funcs ...map[string]parse.Func) (*Expr, error) {
 }
 
 // Execute applies a parse expression to the context and executes it
-func (e *Expr) Execute(refID string, vars Vars, tracer tracing.Tracer) (r Results, err error) {
+func (e *Expr) Execute(refID string, vars Vars) (r Results, err error) {
 	s := &State{
 		Expr:  e,
 		Vars:  vars,
 		RefID: refID,
-
-		tracer: tracer,
 	}
 	return e.executeState(s)
 }
@@ -123,8 +117,6 @@ func (e *State) walkUnary(node *parse.UnaryNode) (Results, error) {
 			newVal, err = e.unaryNumber(rt, node.OpStr)
 		case Series:
 			newVal, err = e.unarySeries(rt, node.OpStr)
-		case NoData:
-			newVal = NoData{}.New()
 		default:
 			return newResults, fmt.Errorf("can not perform a unary operation on type %v", rt.Type())
 		}
@@ -137,18 +129,22 @@ func (e *State) walkUnary(node *parse.UnaryNode) (Results, error) {
 }
 
 func (e *State) unarySeries(s Series, op string) (Series, error) {
-	newSeries := NewSeries(e.RefID, s.GetLabels(), s.Len())
+	newSeries := NewSeries(e.RefID, s.GetLabels(), s.TimeIdx, s.TimeIsNullable, s.ValueIdx, s.ValueIsNullable, s.Len())
 	for i := 0; i < s.Len(); i++ {
 		t, f := s.GetPoint(i)
 		if f == nil {
-			newSeries.SetPoint(i, t, nil)
+			if err := newSeries.SetPoint(i, t, nil); err != nil {
+				return newSeries, err
+			}
 			continue
 		}
 		newF, err := unaryOp(op, *f)
 		if err != nil {
 			return newSeries, err
 		}
-		newSeries.SetPoint(i, t, &newF)
+		if err := newSeries.SetPoint(i, t, &newF); err != nil {
+			return newSeries, err
+		}
 	}
 	return newSeries, nil
 }
@@ -200,20 +196,8 @@ type Union struct {
 // number of tags.
 func union(aResults, bResults Results) []*Union {
 	unions := []*Union{}
-	aValueLen := len(aResults.Values)
-	bValueLen := len(bResults.Values)
-	if aValueLen == 0 || bValueLen == 0 {
+	if len(aResults.Values) == 0 || len(bResults.Values) == 0 {
 		return unions
-	}
-	if aValueLen == 1 || bValueLen == 1 {
-		if aResults.Values[0].Type() == parse.TypeNoData || bResults.Values[0].Type() == parse.TypeNoData {
-			unions = append(unions, &Union{
-				Labels: nil,
-				A:      aResults.Values[0],
-				B:      bResults.Values[0],
-			})
-			return unions
-		}
 	}
 	for _, a := range aResults.Values {
 		for _, b := range bResults.Values {
@@ -296,8 +280,6 @@ func (e *State) walkBinary(node *parse.BinaryNode) (Results, error) {
 			// Scalar op Series
 			case Series:
 				value, err = e.biSeriesNumber(uni.Labels, node.OpStr, bt, aFloat, false)
-			case NoData:
-				value = uni.B
 			default:
 				return res, fmt.Errorf("not implemented: binary %v on %T and %T", node.OpStr, uni.A, uni.B)
 			}
@@ -314,8 +296,6 @@ func (e *State) walkBinary(node *parse.BinaryNode) (Results, error) {
 			// case Series op Series
 			case Series:
 				value, err = e.biSeriesSeries(uni.Labels, node.OpStr, at, bt)
-			case NoData:
-				value = uni.B
 			default:
 				return res, fmt.Errorf("not implemented: binary %v on %T and %T", node.OpStr, uni.A, uni.B)
 			}
@@ -330,13 +310,9 @@ func (e *State) walkBinary(node *parse.BinaryNode) (Results, error) {
 				value, err = e.biScalarNumber(uni.Labels, node.OpStr, at, bFloat, true)
 			case Series:
 				value, err = e.biSeriesNumber(uni.Labels, node.OpStr, bt, aFloat, false)
-			case NoData:
-				value = uni.B
 			default:
 				return res, fmt.Errorf("not implemented: binary %v on %T and %T", node.OpStr, uni.A, uni.B)
 			}
-		case NoData:
-			value = uni.A
 		default:
 			return res, fmt.Errorf("not implemented: binary %v on %T and %T", node.OpStr, uni.A, uni.B)
 		}
@@ -455,13 +431,15 @@ func (e *State) biScalarNumber(labels data.Labels, op string, number Number, sca
 }
 
 func (e *State) biSeriesNumber(labels data.Labels, op string, s Series, scalarVal *float64, seriesFirst bool) (Series, error) {
-	newSeries := NewSeries(e.RefID, labels, s.Len())
+	newSeries := NewSeries(e.RefID, labels, s.TimeIdx, s.TimeIsNullable, s.ValueIdx, s.ValueIsNullable, s.Len())
 	var err error
 	for i := 0; i < s.Len(); i++ {
 		nF := math.NaN()
 		t, f := s.GetPoint(i)
 		if f == nil || scalarVal == nil {
-			newSeries.SetPoint(i, t, nil)
+			if err := newSeries.SetPoint(i, t, nil); err != nil {
+				return newSeries, err
+			}
 			continue
 		}
 		if seriesFirst {
@@ -472,7 +450,9 @@ func (e *State) biSeriesNumber(labels data.Labels, op string, s Series, scalarVa
 		if err != nil {
 			return newSeries, err
 		}
-		newSeries.SetPoint(i, t, &nF)
+		if err := newSeries.SetPoint(i, t, &nF); err != nil {
+			return newSeries, err
+		}
 	}
 	return newSeries, nil
 }
@@ -484,10 +464,15 @@ func (e *State) biSeriesSeries(labels data.Labels, op string, aSeries, bSeries S
 	bPoints := make(map[string]*float64)
 	for i := 0; i < bSeries.Len(); i++ {
 		t, f := bSeries.GetPoint(i)
-		bPoints[t.UTC().String()] = f
+		if t != nil {
+			bPoints[t.UTC().String()] = f
+		}
 	}
 
-	newSeries := NewSeries(e.RefID, labels, 0)
+	newSeries := NewSeries(
+		e.RefID, labels, aSeries.TimeIdx, aSeries.TimeIsNullable || bSeries.TimeIsNullable, aSeries.ValueIdx,
+		aSeries.ValueIsNullable || bSeries.ValueIsNullable, 0,
+	)
 	for aIdx := 0; aIdx < aSeries.Len(); aIdx++ {
 		aTime, aF := aSeries.GetPoint(aIdx)
 		bF, ok := bPoints[aTime.UTC().String()]
@@ -495,14 +480,18 @@ func (e *State) biSeriesSeries(labels data.Labels, op string, aSeries, bSeries S
 			continue
 		}
 		if aF == nil || bF == nil {
-			newSeries.AppendPoint(aTime, nil)
+			if err := newSeries.AppendPoint(aIdx, aTime, nil); err != nil {
+				return newSeries, err
+			}
 			continue
 		}
 		nF, err := binaryOp(op, *aF, *bF)
 		if err != nil {
 			return newSeries, err
 		}
-		newSeries.AppendPoint(aTime, &nF)
+		if err := newSeries.AppendPoint(aIdx, aTime, &nF); err != nil {
+			return newSeries, err
+		}
 	}
 	return newSeries, nil
 }

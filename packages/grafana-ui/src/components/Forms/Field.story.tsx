@@ -1,18 +1,15 @@
-import { Meta, StoryFn } from '@storybook/react';
 import React, { useState, useCallback } from 'react';
-
+import { Story } from '@storybook/react';
+import { Field, FieldProps } from './Field';
 import { Input, Switch } from '..';
-
-import { Field } from './Field';
 import mdx from './Field.mdx';
 
-const meta: Meta<typeof Field> = {
+export default {
   title: 'Forms/Field',
   component: Field,
   argTypes: {
-    label: { control: { type: 'text' } },
-    description: { control: { type: 'text' } },
-    error: { control: { type: 'text' } },
+    children: { control: { disable: true } },
+    className: { control: { disable: true } },
   },
   parameters: {
     docs: {
@@ -21,13 +18,10 @@ const meta: Meta<typeof Field> = {
     knobs: {
       disabled: true,
     },
-    controls: {
-      exclude: ['children', 'className'],
-    },
   },
 };
 
-export const Simple: StoryFn<typeof Field> = (args) => (
+export const Simple: Story<FieldProps> = (args) => (
   <div>
     <Field {...args}>
       <Input id="thisField" />
@@ -45,12 +39,9 @@ Simple.args = {
   horizontal: false,
 };
 
-export const HorizontalLayout: StoryFn<typeof Field> = (args) => {
+export const HorizontalLayout: Story<FieldProps> = (args) => {
   const [checked, setChecked] = useState(false);
-  const onChange = useCallback(
-    (e: React.FormEvent<HTMLInputElement>) => setChecked(e.currentTarget.checked),
-    [setChecked]
-  );
+  const onChange = useCallback((e) => setChecked(e.currentTarget.checked), [setChecked]);
   return (
     <div>
       <Field {...args}>
@@ -69,5 +60,3 @@ HorizontalLayout.args = {
   error: 'Not valid input',
   horizontal: true,
 };
-
-export default meta;

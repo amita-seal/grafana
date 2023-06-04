@@ -1,77 +1,61 @@
 import React, { FormEvent, PureComponent } from 'react';
-import { connect, ConnectedProps } from 'react-redux';
-import { bindActionCreators } from 'redux';
-
-import { LoadingState, SelectableValue, VariableType } from '@grafana/data';
+import isEqual from 'lodash/isEqual';
+import { AppEvents, LoadingState, SelectableValue, VariableType } from '@grafana/data';
+import { Button, Icon, InlineFieldRow, VerticalGroup } from '@grafana/ui';
 import { selectors } from '@grafana/e2e-selectors';
-import { locationService } from '@grafana/runtime';
-import { Button, HorizontalGroup, Icon } from '@grafana/ui';
 
-import { StoreState, ThunkDispatch } from '../../../types';
 import { variableAdapters } from '../adapters';
-import { hasOptions } from '../guard';
-import { updateOptions } from '../state/actions';
-import { toKeyedAction } from '../state/keyedVariablesReducer';
-import { getVariable, getVariablesState } from '../state/selectors';
-import { changeVariableProp, changeVariableType, removeVariable } from '../state/sharedReducer';
-import { KeyedVariableIdentifier } from '../state/types';
-import { VariableHide } from '../types';
-import { toKeyedVariableIdentifier, toVariablePayload } from '../utils';
-
-import { ConfirmDeleteModal } from './ConfirmDeleteModal';
-import { VariableHideSelect } from './VariableHideSelect';
-import { VariableLegend } from './VariableLegend';
-import { VariableTextAreaField } from './VariableTextAreaField';
-import { VariableTextField } from './VariableTextField';
-import { VariableTypeSelect } from './VariableTypeSelect';
+import { toVariableIdentifier, toVariablePayload, VariableIdentifier } from '../state/types';
+import { VariableHide, VariableModel } from '../types';
+import { appEvents } from '../../../core/core';
 import { VariableValuesPreview } from './VariableValuesPreview';
-import { changeVariableName, variableEditorMount, variableEditorUnMount } from './actions';
-import { OnPropChangeArguments, VariableNameConstraints } from './types';
-
-const mapStateToProps = (state: StoreState, ownProps: OwnProps) => ({
-  editor: getVariablesState(ownProps.identifier.rootStateKey, state).editor,
-  variable: getVariable(ownProps.identifier, state),
-});
-
-const mapDispatchToProps = (dispatch: ThunkDispatch) => {
-  return {
-    ...bindActionCreators({ variableEditorMount, variableEditorUnMount, changeVariableName, updateOptions }, dispatch),
-    changeVariableProp: (identifier: KeyedVariableIdentifier, propName: string, propValue: any) =>
-      dispatch(
-        toKeyedAction(
-          identifier.rootStateKey,
-          changeVariableProp(toVariablePayload(identifier, { propName, propValue }))
-        )
-      ),
-    changeVariableType: (identifier: KeyedVariableIdentifier, newType: VariableType) =>
-      dispatch(toKeyedAction(identifier.rootStateKey, changeVariableType(toVariablePayload(identifier, { newType })))),
-    removeVariable: (identifier: KeyedVariableIdentifier) => {
-      dispatch(
-        toKeyedAction(identifier.rootStateKey, removeVariable(toVariablePayload(identifier, { reIndex: true })))
-      );
-    },
-  };
-};
-
-const connector = connect(mapStateToProps, mapDispatchToProps);
+import { changeVariableName, onEditorUpdate, variableEditorMount, variableEditorUnMount } from './actions';
+import { MapDispatchToProps, MapStateToProps } from 'react-redux';
+import { StoreState } from '../../../types';
+import { VariableEditorState } from './reducer';
+import { getVariable } from '../state/selectors';
+import { connectWithStore } from '../../../core/utils/connectWithReduxStore';
+import { OnPropChangeArguments } from './types';
+import { changeVariableProp, changeVariableType } from '../state/sharedReducer';
+import { updateOptions } from '../state/actions';
+import { VariableTextField } from './VariableTextField';
+import { VariableSectionHeader } from './VariableSectionHeader';
+import { hasOptions } from '../guard';
+import { VariableTypeSelect } from './VariableTypeSelect';
+import { VariableHideSelect } from './VariableHideSelect';
 
 export interface OwnProps {
-  identifier: KeyedVariableIdentifier;
+  identifier: VariableIdentifier;
 }
 
-type Props = OwnProps & ConnectedProps<typeof connector>;
-
-interface State {
-  showDeleteModal: boolean;
+interface ConnectedProps {
+  editor: VariableEditorState;
+  variable: VariableModel;
 }
 
-export class VariableEditorEditorUnConnected extends PureComponent<Props, State> {
-  state: State = {
-    showDeleteModal: false,
-  };
+interface DispatchProps {
+  variableEditorMount: typeof variableEditorMount;
+  variableEditorUnMount: typeof variableEditorUnMount;
+  changeVariableName: typeof changeVariableName;
+  changeVariableProp: typeof changeVariableProp;
+  onEditorUpdate: typeof onEditorUpdate;
+  changeVariableType: typeof changeVariableType;
+  updateOptions: typeof updateOptions;
+}
 
+type Props = OwnProps & ConnectedProps & DispatchProps;
+
+export class VariableEditorEditorUnConnected extends PureComponent<Props> {
   componentDidMount(): void {
     this.props.variableEditorMount(this.props.identifier);
+  }
+
+  componentDidUpdate(prevProps: Readonly<Props>, prevState: Readonly<{}>, snapshot?: any): void {
+    if (!isEqual(prevProps.editor.errors, this.props.editor.errors)) {
+      Object.values(this.props.editor.errors).forEach((error) => {
+        appEvents.emit(AppEvents.alertWarning, ['Validation', error]);
+      });
+    }
   }
 
   componentWillUnmount(): void {
@@ -87,27 +71,35 @@ export class VariableEditorEditorUnConnected extends PureComponent<Props, State>
     if (!option.value) {
       return;
     }
-    this.props.changeVariableType(this.props.identifier, option.value);
+    this.props.changeVariableType(toVariablePayload(this.props.identifier, { newType: option.value }));
   };
 
   onLabelChange = (event: FormEvent<HTMLInputElement>) => {
     event.preventDefault();
-    this.props.changeVariableProp(this.props.identifier, 'label', event.currentTarget.value);
+    this.props.changeVariableProp(
+      toVariablePayload(this.props.identifier, { propName: 'label', propValue: event.currentTarget.value })
+    );
   };
 
-  onDescriptionChange = (event: FormEvent<HTMLTextAreaElement>) => {
-    this.props.changeVariableProp(this.props.identifier, 'description', event.currentTarget.value);
+  onDescriptionChange = (event: FormEvent<HTMLInputElement>) => {
+    this.props.changeVariableProp(
+      toVariablePayload(this.props.identifier, { propName: 'description', propValue: event.currentTarget.value })
+    );
   };
 
-  onHideChange = (option: VariableHide) => {
-    this.props.changeVariableProp(this.props.identifier, 'hide', option);
+  onHideChange = (option: SelectableValue<VariableHide>) => {
+    this.props.changeVariableProp(
+      toVariablePayload(this.props.identifier, {
+        propName: 'hide',
+        propValue: option.value,
+      })
+    );
   };
 
-  onPropChanged = ({ propName, propValue, updateOptions = false }: OnPropChangeArguments) => {
-    this.props.changeVariableProp(this.props.identifier, propName, propValue);
-
+  onPropChanged = async ({ propName, propValue, updateOptions = false }: OnPropChangeArguments) => {
+    this.props.changeVariableProp(toVariablePayload(this.props.identifier, { propName, propValue }));
     if (updateOptions) {
-      this.props.updateOptions(toKeyedVariableIdentifier(this.props.variable));
+      await this.props.updateOptions(toVariableIdentifier(this.props.variable));
     }
   };
 
@@ -117,25 +109,7 @@ export class VariableEditorEditorUnConnected extends PureComponent<Props, State>
       return;
     }
 
-    this.props.updateOptions(toKeyedVariableIdentifier(this.props.variable));
-  };
-
-  onModalOpen = () => {
-    this.setState({ showDeleteModal: true });
-  };
-
-  onModalClose = () => {
-    this.setState({ showDeleteModal: false });
-  };
-
-  onDelete = () => {
-    this.props.removeVariable(this.props.identifier);
-    this.onModalClose();
-    locationService.partial({ editIndex: null });
-  };
-
-  onApply = () => {
-    locationService.partial({ editIndex: null });
+    await this.props.onEditorUpdate(this.props.identifier);
   };
 
   render() {
@@ -147,82 +121,93 @@ export class VariableEditorEditorUnConnected extends PureComponent<Props, State>
     const loading = variable.state === LoadingState.Loading;
 
     return (
-      <>
+      <div>
         <form aria-label="Variable editor Form" onSubmit={this.onHandleSubmit}>
-          <VariableTypeSelect onChange={this.onTypeChange} type={this.props.variable.type} />
+          <VerticalGroup spacing="lg">
+            <VerticalGroup spacing="none">
+              <VariableSectionHeader name="General" />
+              <InlineFieldRow>
+                <VariableTextField
+                  value={this.props.editor.name}
+                  onChange={this.onNameChange}
+                  name="Name"
+                  placeholder="name"
+                  required
+                  ariaLabel={selectors.pages.Dashboard.Settings.Variables.Edit.General.generalNameInput}
+                />
+                <VariableTypeSelect onChange={this.onTypeChange} type={this.props.variable.type} />
+              </InlineFieldRow>
 
-          <VariableLegend>General</VariableLegend>
-          <VariableTextField
-            value={this.props.editor.name}
-            onChange={this.onNameChange}
-            name="Name"
-            placeholder="Variable name"
-            description="The name of the template variable. (Max. 50 characters)"
-            invalid={!!this.props.editor.errors.name}
-            error={this.props.editor.errors.name}
-            testId={selectors.pages.Dashboard.Settings.Variables.Edit.General.generalNameInputV2}
-            maxLength={VariableNameConstraints.MaxSize}
-            required
-          />
+              {this.props.editor.errors.name && (
+                <div className="gf-form">
+                  <span className="gf-form-label gf-form-label--error">{this.props.editor.errors.name}</span>
+                </div>
+              )}
 
-          <VariableTextField
-            name="Label"
-            description="Optional display name"
-            value={this.props.variable.label ?? ''}
-            placeholder="Label name"
-            onChange={this.onLabelChange}
-            testId={selectors.pages.Dashboard.Settings.Variables.Edit.General.generalLabelInputV2}
-          />
-          <VariableTextAreaField
-            name="Description"
-            value={variable.description ?? ''}
-            placeholder="Descriptive text"
-            onChange={this.onDescriptionChange}
-            width={52}
-          />
-          <VariableHideSelect
-            onChange={this.onHideChange}
-            hide={this.props.variable.hide}
-            type={this.props.variable.type}
-          />
+              <InlineFieldRow>
+                <VariableTextField
+                  value={this.props.variable.label ?? ''}
+                  onChange={this.onLabelChange}
+                  name="Label"
+                  placeholder="optional display name"
+                  ariaLabel={selectors.pages.Dashboard.Settings.Variables.Edit.General.generalLabelInput}
+                />
+                <VariableHideSelect
+                  onChange={this.onHideChange}
+                  hide={this.props.variable.hide}
+                  type={this.props.variable.type}
+                />
+              </InlineFieldRow>
 
-          {EditorToRender && <EditorToRender variable={this.props.variable} onPropChange={this.onPropChanged} />}
+              <VariableTextField
+                name="Description"
+                value={variable.description ?? ''}
+                placeholder="descriptive text"
+                onChange={this.onDescriptionChange}
+                grow
+              />
+            </VerticalGroup>
 
-          {hasOptions(this.props.variable) ? <VariableValuesPreview variable={this.props.variable} /> : null}
+            {EditorToRender && <EditorToRender variable={this.props.variable} onPropChange={this.onPropChanged} />}
 
-          <div style={{ marginTop: '16px' }}>
-            <HorizontalGroup spacing="md" height="inherit">
-              <Button variant="destructive" fill="outline" onClick={this.onModalOpen}>
-                Delete
-              </Button>
+            {hasOptions(this.props.variable) ? <VariableValuesPreview variable={this.props.variable} /> : null}
+
+            <VerticalGroup spacing="none">
               <Button
                 type="submit"
                 aria-label={selectors.pages.Dashboard.Settings.Variables.Edit.General.submitButton}
                 disabled={loading}
-                variant="secondary"
               >
-                Run query
-                {loading && <Icon className="spin-clockwise" name="sync" size="sm" style={{ marginLeft: '2px' }} />}
+                Update
+                {loading ? (
+                  <Icon className="spin-clockwise" name="sync" size="sm" style={{ marginLeft: '2px' }} />
+                ) : null}
               </Button>
-              <Button
-                variant="primary"
-                onClick={this.onApply}
-                data-testid={selectors.pages.Dashboard.Settings.Variables.Edit.General.applyButton}
-              >
-                Apply
-              </Button>
-            </HorizontalGroup>
-          </div>
+            </VerticalGroup>
+          </VerticalGroup>
         </form>
-        <ConfirmDeleteModal
-          isOpen={this.state.showDeleteModal}
-          varName={this.props.editor.name}
-          onConfirm={this.onDelete}
-          onDismiss={this.onModalClose}
-        />
-      </>
+      </div>
     );
   }
 }
 
-export const VariableEditorEditor = connector(VariableEditorEditorUnConnected);
+const mapStateToProps: MapStateToProps<ConnectedProps, OwnProps, StoreState> = (state, ownProps) => ({
+  editor: state.templating.editor,
+  variable: getVariable(ownProps.identifier.id, state, false), // we could be renaming a variable and we don't want this to throw
+});
+
+const mapDispatchToProps: MapDispatchToProps<DispatchProps, OwnProps> = {
+  variableEditorMount,
+  variableEditorUnMount,
+  changeVariableName,
+  changeVariableProp,
+  onEditorUpdate,
+  changeVariableType,
+  updateOptions,
+};
+
+export const VariableEditorEditor = connectWithStore(
+  VariableEditorEditorUnConnected,
+  mapStateToProps,
+  mapDispatchToProps
+);

@@ -3,8 +3,9 @@
   "name": "Bar chart",
   "id": "barchart",
 
+  "state": "alpha",
+
   "info": {
-    "description": "Categorical charts with group support",
     "author": {
       "name": "Grafana Labs",
       "url": "https://grafana.com"

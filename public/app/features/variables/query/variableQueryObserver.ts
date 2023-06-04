@@ -1,5 +1,4 @@
 import { Observer, Subscription } from 'rxjs';
-
 import { LoadingState } from '@grafana/data';
 
 import { UpdateOptionsResults } from './VariableQueryRunner';

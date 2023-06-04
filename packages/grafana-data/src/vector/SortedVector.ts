@@ -1,18 +1,11 @@
-import { makeArrayIndexableVector, Vector } from '../types/vector';
-
-import { FunctionalVector } from './FunctionalVector';
+import { Vector } from '../types/vector';
 import { vectorToArray } from './vectorToArray';
 
 /**
  * Values are returned in the order defined by the input parameter
- *
- * @deprecated use a simple Arrays
  */
-export class SortedVector<T = any> extends FunctionalVector<T> {
-  constructor(private source: Vector<T>, private order: number[]) {
-    super();
-    return makeArrayIndexableVector(this);
-  }
+export class SortedVector<T = any> implements Vector<T> {
+  constructor(private source: Vector<T>, private order: number[]) {}
 
   get length(): number {
     return this.source.length;
@@ -28,9 +21,5 @@ export class SortedVector<T = any> extends FunctionalVector<T> {
 
   toJSON(): T[] {
     return vectorToArray(this);
-  }
-
-  getOrderArray(): number[] {
-    return this.order;
   }
 }

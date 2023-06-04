@@ -1,17 +1,16 @@
 import { LoadingState } from '@grafana/data';
-import { Panel } from '@grafana/schema';
 
 import { reducerTester } from '../../../../../test/core/redux/reducerTester';
-import { LibraryElementDTO } from '../../types';
-
 import {
   changePage,
+  changeSearchString,
   initialLibraryPanelsViewState,
   initSearch,
   libraryPanelsViewReducer,
   LibraryPanelsViewState,
   searchCompleted,
 } from './reducer';
+import { LibraryPanelDTO } from '../../types';
 
 describe('libraryPanelsViewReducer', () => {
   describe('when initSearch is dispatched', () => {
@@ -74,6 +73,18 @@ describe('libraryPanelsViewReducer', () => {
     });
   });
 
+  describe('when changeSearchString is dispatched', () => {
+    it('then the state should be correct', () => {
+      reducerTester<LibraryPanelsViewState>()
+        .givenReducer(libraryPanelsViewReducer, { ...initialLibraryPanelsViewState })
+        .whenActionIsDispatched(changeSearchString({ searchString: 'a search string' }))
+        .thenStateShouldEqual({
+          ...initialLibraryPanelsViewState,
+          searchString: 'a search string',
+        });
+    });
+  });
+
   describe('when changePage is dispatched', () => {
     it('then the state should be correct', () => {
       reducerTester<LibraryPanelsViewState>()
@@ -87,13 +98,14 @@ describe('libraryPanelsViewReducer', () => {
   });
 });
 
-function getLibraryPanelMocks(count: number): LibraryElementDTO[] {
-  const mocks: LibraryElementDTO[] = [];
+function getLibraryPanelMocks(count: number): LibraryPanelDTO[] {
+  const mocks: LibraryPanelDTO[] = [];
 
   for (let i = 0; i < count; i++) {
     mocks.push(
       mockLibraryPanel({
         uid: i.toString(10),
+        id: i,
         name: `Test Panel ${i}`,
       })
     );
@@ -104,12 +116,13 @@ function getLibraryPanelMocks(count: number): LibraryElementDTO[] {
 
 function mockLibraryPanel({
   uid = '1',
-  folderUid = '',
+  id = 1,
+  orgId = 1,
+  folderId = 0,
   name = 'Test Panel',
-  model = { type: 'text', title: 'Test Panel' } as Panel,
+  model = { type: 'text', title: 'Test Panel' },
   meta = {
-    folderName: 'General',
-    folderUid: '',
+    canEdit: true,
     connectedDashboards: 0,
     created: '2021-01-01T00:00:00',
     createdBy: { id: 1, name: 'User X', avatarUrl: '/avatar/abc' },
@@ -119,10 +132,12 @@ function mockLibraryPanel({
   version = 1,
   description = 'a description',
   type = 'text',
-}: Partial<LibraryElementDTO> = {}): LibraryElementDTO {
+}: Partial<LibraryPanelDTO> = {}): LibraryPanelDTO {
   return {
     uid,
-    folderUid,
+    id,
+    orgId,
+    folderId,
     name,
     model,
     version,

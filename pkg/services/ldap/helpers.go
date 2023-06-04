@@ -3,10 +3,10 @@ package ldap
 import (
 	"strings"
 
-	"github.com/go-ldap/ldap/v3"
+	"gopkg.in/ldap.v3"
 )
 
-func IsMemberOf(memberOf []string, group string) bool {
+func isMemberOf(memberOf []string, group string) bool {
 	if group == "*" {
 		return true
 	}
@@ -34,7 +34,7 @@ func getAttribute(name string, entry *ldap.Entry) string {
 	}
 
 	for _, attr := range entry.Attributes {
-		if strings.EqualFold(attr.Name, name) {
+		if attr.Name == name {
 			if len(attr.Values) > 0 {
 				return attr.Values[0]
 			}
@@ -49,7 +49,7 @@ func getArrayAttribute(name string, entry *ldap.Entry) []string {
 	}
 
 	for _, attr := range entry.Attributes {
-		if strings.EqualFold(attr.Name, name) && len(attr.Values) > 0 {
+		if attr.Name == name && len(attr.Values) > 0 {
 			return attr.Values
 		}
 	}

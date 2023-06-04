@@ -1,8 +1,8 @@
 package dashboards
 
 import (
-	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/services/org"
-	"github.com/grafana/grafana/pkg/services/org/orgtest"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/services/sqlstore"
 )
 
 var (
@@ -24,21 +24,24 @@ var (
 func TestDashboardsAsConfig(t *testing.T) {
 	t.Run("Dashboards as configuration", func(t *testing.T) {
 		logger := log.New("test-logger")
-		// store := db.InitTestDB(t)
-		orgFake := orgtest.NewOrgServiceFake()
+		sqlstore.InitTestDB(t)
 
 		t.Run("Should fail if orgs don't exist in the database", func(t *testing.T) {
-			orgFake.ExpectedError = org.ErrOrgNotFound
-			cfgProvider := configReader{path: appliedDefaults, log: logger, orgService: orgFake}
-			_, err := cfgProvider.readConfig(context.Background())
+			cfgProvider := configReader{path: appliedDefaults, log: logger}
+			_, err := cfgProvider.readConfig()
 			require.Error(t, err)
-			assert.True(t, errors.Is(err, org.ErrOrgNotFound))
-			orgFake.ExpectedError = nil
+			assert.True(t, errors.Is(err, models.ErrOrgNotFound))
 		})
 
+		for i := 1; i <= 2; i++ {
+			orgCommand := models.CreateOrgCommand{Name: fmt.Sprintf("Main Org. %v", i)}
+			err := sqlstore.CreateOrg(&orgCommand)
+			require.NoError(t, err)
+		}
+
 		t.Run("default values should be applied", func(t *testing.T) {
-			cfgProvider := configReader{path: appliedDefaults, log: logger, orgService: orgFake}
-			cfg, err := cfgProvider.readConfig(context.Background())
+			cfgProvider := configReader{path: appliedDefaults, log: logger}
+			cfg, err := cfgProvider.readConfig()
 			require.NoError(t, err)
 
 			require.Equal(t, "file", cfg[0].Type)
@@ -48,8 +51,8 @@ func TestDashboardsAsConfig(t *testing.T) {
 
 		t.Run("Can read config file version 1 format", func(t *testing.T) {
 			_ = os.Setenv("TEST_VAR", "general")
-			cfgProvider := configReader{path: simpleDashboardConfig, log: logger, orgService: orgFake}
-			cfg, err := cfgProvider.readConfig(context.Background())
+			cfgProvider := configReader{path: simpleDashboardConfig, log: logger}
+			cfg, err := cfgProvider.readConfig()
 			_ = os.Unsetenv("TEST_VAR")
 			require.NoError(t, err)
 
@@ -57,16 +60,16 @@ func TestDashboardsAsConfig(t *testing.T) {
 		})
 
 		t.Run("Can read config file in version 0 format", func(t *testing.T) {
-			cfgProvider := configReader{path: oldVersion, log: logger, orgService: orgFake}
-			cfg, err := cfgProvider.readConfig(context.Background())
+			cfgProvider := configReader{path: oldVersion, log: logger}
+			cfg, err := cfgProvider.readConfig()
 			require.NoError(t, err)
 
 			validateDashboardAsConfig(t, cfg)
 		})
 
 		t.Run("Should skip invalid path", func(t *testing.T) {
-			cfgProvider := configReader{path: "/invalid-directory", log: logger, orgService: orgFake}
-			cfg, err := cfgProvider.readConfig(context.Background())
+			cfgProvider := configReader{path: "/invalid-directory", log: logger}
+			cfg, err := cfgProvider.readConfig()
 			if err != nil {
 				t.Fatalf("readConfig return an error %v", err)
 			}
@@ -75,8 +78,8 @@ func TestDashboardsAsConfig(t *testing.T) {
 		})
 
 		t.Run("Should skip broken config files", func(t *testing.T) {
-			cfgProvider := configReader{path: brokenConfigs, log: logger, orgService: orgFake}
-			cfg, err := cfgProvider.readConfig(context.Background())
+			cfgProvider := configReader{path: brokenConfigs, log: logger}
+			cfg, err := cfgProvider.readConfig()
 			if err != nil {
 				t.Fatalf("readConfig return an error %v", err)
 			}

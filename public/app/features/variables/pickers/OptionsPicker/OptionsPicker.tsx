@@ -1,61 +1,43 @@
 import React, { ComponentType, PureComponent } from 'react';
 import { connect, ConnectedProps } from 'react-redux';
-import { bindActionCreators } from 'redux';
-
-import { LoadingState } from '@grafana/data';
 import { ClickOutsideWrapper } from '@grafana/ui';
-import { StoreState, ThunkDispatch } from 'app/types';
+import { LoadingState } from '@grafana/data';
 
-import { VARIABLE_PREFIX } from '../../constants';
-import { isMulti } from '../../guard';
-import { getVariableQueryRunner } from '../../query/VariableQueryRunner';
-import { formatVariableLabel } from '../../shared/formatVariable';
-import { toKeyedAction } from '../../state/keyedVariablesReducer';
-import { getVariablesState } from '../../state/selectors';
-import { KeyedVariableIdentifier } from '../../state/types';
-import { VariableOption, VariableWithMultiSupport, VariableWithOptions } from '../../types';
-import { toKeyedVariableIdentifier } from '../../utils';
+import { StoreState } from 'app/types';
 import { VariableInput } from '../shared/VariableInput';
+import {
+  commitChangesToVariable,
+  filterOrSearchOptions,
+  navigateOptions,
+  openOptions,
+  toggleAndFetchTag,
+} from './actions';
+import { OptionsPickerState, toggleAllOptions, toggleOption } from './reducer';
+import { VariableOption, VariableTag, VariableWithMultiSupport, VariableWithOptions } from '../../types';
+import { VariableOptions } from '../shared/VariableOptions';
+import { isMulti, isQuery } from '../../guard';
+import { VariablePickerProps } from '../types';
+import { formatVariableLabel } from '../../shared/formatVariable';
+import { toVariableIdentifier } from '../../state/types';
+import { getVariableQueryRunner } from '../../query/VariableQueryRunner';
 import { VariableLink } from '../shared/VariableLink';
-import VariableOptions from '../shared/VariableOptions';
-import { NavigationKey, VariablePickerProps } from '../types';
-
-import { commitChangesToVariable, filterOrSearchOptions, navigateOptions, openOptions } from './actions';
-import { initialOptionPickerState, OptionsPickerState, toggleAllOptions, toggleOption } from './reducer';
 
 export const optionPickerFactory = <Model extends VariableWithOptions | VariableWithMultiSupport>(): ComponentType<
   VariablePickerProps<Model>
 > => {
-  const mapDispatchToProps = (dispatch: ThunkDispatch) => {
-    return {
-      ...bindActionCreators({ openOptions, commitChangesToVariable, navigateOptions }, dispatch),
-      filterOrSearchOptions: (identifier: KeyedVariableIdentifier, filter = '') => {
-        dispatch(filterOrSearchOptions(identifier, filter));
-      },
-      toggleAllOptions: (identifier: KeyedVariableIdentifier) =>
-        dispatch(toKeyedAction(identifier.rootStateKey, toggleAllOptions())),
-      toggleOption: (
-        identifier: KeyedVariableIdentifier,
-        option: VariableOption,
-        clearOthers: boolean,
-        forceSelect: boolean
-      ) => dispatch(toKeyedAction(identifier.rootStateKey, toggleOption({ option, clearOthers, forceSelect }))),
-    };
+  const mapDispatchToProps = {
+    openOptions,
+    commitChangesToVariable,
+    filterOrSearchOptions,
+    toggleAllOptions,
+    toggleOption,
+    toggleAndFetchTag,
+    navigateOptions,
   };
 
-  const mapStateToProps = (state: StoreState, ownProps: OwnProps) => {
-    const { rootStateKey } = ownProps.variable;
-    if (!rootStateKey) {
-      console.error('OptionPickerFactory: variable has no rootStateKey');
-      return {
-        picker: initialOptionPickerState,
-      };
-    }
-
-    return {
-      picker: getVariablesState(rootStateKey, state).optionsPicker,
-    };
-  };
+  const mapStateToProps = (state: StoreState) => ({
+    picker: state.templating.optionsPicker,
+  });
 
   const connector = connect(mapStateToProps, mapDispatchToProps);
 
@@ -65,15 +47,8 @@ export const optionPickerFactory = <Model extends VariableWithOptions | Variable
 
   class OptionsPickerUnconnected extends PureComponent<Props> {
     onShowOptions = () =>
-      this.props.openOptions(toKeyedVariableIdentifier(this.props.variable), this.props.onVariableChange);
-    onHideOptions = () => {
-      if (!this.props.variable.rootStateKey) {
-        console.error('Variable has no rootStateKey');
-        return;
-      }
-
-      this.props.commitChangesToVariable(this.props.variable.rootStateKey, this.props.onVariableChange);
-    };
+      this.props.openOptions(toVariableIdentifier(this.props.variable), this.props.onVariableChange);
+    onHideOptions = () => this.props.commitChangesToVariable(this.props.onVariableChange);
 
     onToggleOption = (option: VariableOption, clearOthers: boolean) => {
       const toggleFunc =
@@ -84,29 +59,12 @@ export const optionPickerFactory = <Model extends VariableWithOptions | Variable
     };
 
     onToggleSingleValueVariable = (option: VariableOption, clearOthers: boolean) => {
-      this.props.toggleOption(toKeyedVariableIdentifier(this.props.variable), option, clearOthers, false);
+      this.props.toggleOption({ option, clearOthers, forceSelect: false });
       this.onHideOptions();
     };
 
     onToggleMultiValueVariable = (option: VariableOption, clearOthers: boolean) => {
-      this.props.toggleOption(toKeyedVariableIdentifier(this.props.variable), option, clearOthers, false);
-    };
-
-    onToggleAllOptions = () => {
-      this.props.toggleAllOptions(toKeyedVariableIdentifier(this.props.variable));
-    };
-
-    onFilterOrSearchOptions = (filter: string) => {
-      this.props.filterOrSearchOptions(toKeyedVariableIdentifier(this.props.variable), filter);
-    };
-
-    onNavigate = (key: NavigationKey, clearOthers: boolean) => {
-      if (!this.props.variable.rootStateKey) {
-        console.error('Variable has no rootStateKey');
-        return;
-      }
-
-      this.props.navigateOptions(this.props.variable.rootStateKey, key, clearOthers);
+      this.props.toggleOption({ option, clearOthers, forceSelect: false });
     };
 
     render() {
@@ -122,44 +80,41 @@ export const optionPickerFactory = <Model extends VariableWithOptions | Variable
 
     renderLink(variable: VariableWithOptions) {
       const linkText = formatVariableLabel(variable);
+      const tags = getSelectedTags(variable);
       const loading = variable.state === LoadingState.Loading;
 
       return (
         <VariableLink
-          id={VARIABLE_PREFIX + variable.id}
           text={linkText}
+          tags={tags}
           onClick={this.onShowOptions}
           loading={loading}
           onCancel={this.onCancel}
-          disabled={this.props.readOnly}
         />
       );
     }
 
     onCancel = () => {
-      getVariableQueryRunner().cancelRequest(toKeyedVariableIdentifier(this.props.variable));
+      getVariableQueryRunner().cancelRequest(toVariableIdentifier(this.props.variable));
     };
 
     renderOptions(picker: OptionsPickerState) {
-      const { id } = this.props.variable;
       return (
         <ClickOutsideWrapper onClick={this.onHideOptions}>
           <VariableInput
-            id={VARIABLE_PREFIX + id}
             value={picker.queryValue}
-            onChange={this.onFilterOrSearchOptions}
-            onNavigate={this.onNavigate}
-            aria-expanded={true}
-            aria-controls={`options-${id}`}
+            onChange={this.props.filterOrSearchOptions}
+            onNavigate={this.props.navigateOptions}
           />
           <VariableOptions
             values={picker.options}
             onToggle={this.onToggleOption}
-            onToggleAll={this.onToggleAllOptions}
+            onToggleAll={this.props.toggleAllOptions}
+            onToggleTag={this.props.toggleAndFetchTag}
             highlightIndex={picker.highlightIndex}
             multi={picker.multi}
+            tags={picker.tags}
             selectedValues={picker.selectedValues}
-            id={`options-${id}`}
           />
         </ClickOutsideWrapper>
       );
@@ -170,4 +125,11 @@ export const optionPickerFactory = <Model extends VariableWithOptions | Variable
   OptionsPicker.displayName = 'OptionsPicker';
 
   return OptionsPicker;
+};
+
+const getSelectedTags = (variable: VariableWithOptions): VariableTag[] => {
+  if (!isQuery(variable) || !Array.isArray(variable.tags)) {
+    return [];
+  }
+  return variable.tags.filter((t) => t.selected);
 };

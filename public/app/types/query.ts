@@ -1,12 +1,12 @@
-import { DataQuery, DataSourceRef } from '@grafana/data';
+import { DataQuery } from '@grafana/data';
+import { ExpressionQuery } from '../features/expressions/types';
 
 export interface QueryGroupOptions {
-  queries: DataQuery[];
+  queries: Array<DataQuery | ExpressionQuery>;
   dataSource: QueryGroupDataSource;
   maxDataPoints?: number | null;
   minInterval?: string | null;
   cacheTimeout?: string | null;
-  queryCachingTTL?: number | null;
   timeRange?: {
     from?: string | null;
     shift?: string | null;
@@ -14,7 +14,8 @@ export interface QueryGroupOptions {
   };
 }
 
-export interface QueryGroupDataSource extends DataSourceRef {
+export interface QueryGroupDataSource {
   name?: string | null;
+  uid?: string;
   default?: boolean;
 }

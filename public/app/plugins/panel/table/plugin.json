@@ -4,7 +4,7 @@
   "id": "table",
 
   "info": {
-    "description": "Supports many column styles",
+    "description": "Table Panel for Grafana",
     "author": {
       "name": "Grafana Labs",
       "url": "https://grafana.com"

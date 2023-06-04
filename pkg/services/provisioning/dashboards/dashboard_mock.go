@@ -13,7 +13,7 @@ type calls struct {
 // ProvisionerMock is a mock implementation of `Provisioner`
 type ProvisionerMock struct {
 	Calls                           *calls
-	ProvisionFunc                   func(ctx context.Context) error
+	ProvisionFunc                   func() error
 	PollChangesFunc                 func(ctx context.Context)
 	GetProvisionerResolvedPathFunc  func(name string) string
 	GetAllowUIUpdatesFromConfigFunc func(name string) bool
@@ -26,15 +26,11 @@ func NewDashboardProvisionerMock() *ProvisionerMock {
 	}
 }
 
-func (dpm *ProvisionerMock) HasDashboardSources() bool {
-	return dpm.ProvisionFunc != nil
-}
-
 // Provision is a mock implementation of `Provisioner.Provision`
-func (dpm *ProvisionerMock) Provision(ctx context.Context) error {
+func (dpm *ProvisionerMock) Provision() error {
 	dpm.Calls.Provision = append(dpm.Calls.Provision, nil)
 	if dpm.ProvisionFunc != nil {
-		return dpm.ProvisionFunc(ctx)
+		return dpm.ProvisionFunc()
 	}
 	return nil
 }
@@ -66,4 +62,4 @@ func (dpm *ProvisionerMock) GetAllowUIUpdatesFromConfig(name string) bool {
 }
 
 // CleanUpOrphanedDashboards not implemented for mocks
-func (dpm *ProvisionerMock) CleanUpOrphanedDashboards(ctx context.Context) {}
+func (dpm *ProvisionerMock) CleanUpOrphanedDashboards() {}

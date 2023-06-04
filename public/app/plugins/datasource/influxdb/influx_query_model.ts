@@ -1,25 +1,26 @@
-import { filter, find, indexOf, map } from 'lodash';
-
-import { escapeRegex, ScopedVars } from '@grafana/data';
-import { TemplateSrv } from '@grafana/runtime';
-
+import _ from 'lodash';
 import queryPart from './query_part';
+import kbn from 'app/core/utils/kbn';
 import { InfluxQuery, InfluxQueryTag } from './types';
+import { ScopedVars } from '@grafana/data';
+import { TemplateSrv } from '@grafana/runtime';
 
 export default class InfluxQueryModel {
   target: InfluxQuery;
-  selectModels: any[] = [];
+  selectModels: any[];
   queryBuilder: any;
   groupByParts: any;
   templateSrv: any;
   scopedVars: any;
   refId?: string;
 
+  /** @ngInject */
   constructor(target: InfluxQuery, templateSrv?: TemplateSrv, scopedVars?: ScopedVars) {
     this.target = target;
     this.templateSrv = templateSrv;
     this.scopedVars = scopedVars;
 
+    target.policy = target.policy || 'default';
     target.resultFormat = target.resultFormat || 'time_series';
     target.orderByTime = target.orderByTime || 'ASC';
     target.tags = target.tags || [];
@@ -38,26 +39,26 @@ export default class InfluxQueryModel {
   }
 
   updateProjection() {
-    this.selectModels = map(this.target.select, (parts: any) => {
-      return map(parts, queryPart.create);
+    this.selectModels = _.map(this.target.select, (parts: any) => {
+      return _.map(parts, queryPart.create);
     });
-    this.groupByParts = map(this.target.groupBy, queryPart.create);
+    this.groupByParts = _.map(this.target.groupBy, queryPart.create);
   }
 
   updatePersistedParts() {
-    this.target.select = map(this.selectModels, (selectParts) => {
-      return map(selectParts, (part: any) => {
+    this.target.select = _.map(this.selectModels, (selectParts) => {
+      return _.map(selectParts, (part: any) => {
         return { type: part.def.type, params: part.params };
       });
     });
   }
 
   hasGroupByTime() {
-    return find(this.target.groupBy, (g: any) => g.type === 'time');
+    return _.find(this.target.groupBy, (g: any) => g.type === 'time');
   }
 
   hasFill() {
-    return find(this.target.groupBy, (g: any) => g.type === 'fill');
+    return _.find(this.target.groupBy, (g: any) => g.type === 'fill');
   }
 
   addGroupBy(value: string) {
@@ -94,10 +95,10 @@ export default class InfluxQueryModel {
 
     if (part.def.type === 'time') {
       // remove fill
-      this.target.groupBy = filter(this.target.groupBy, (g: any) => g.type !== 'fill');
+      this.target.groupBy = _.filter(this.target.groupBy, (g: any) => g.type !== 'fill');
       // remove aggregations
-      this.target.select = map(this.target.select, (s: any) => {
-        return filter(s, (part: any) => {
+      this.target.select = _.map(this.target.select, (s: any) => {
+        return _.filter(s, (part: any) => {
           const partModel = queryPart.create(part);
           if (partModel.def.category === categories.Aggregations) {
             return false;
@@ -123,11 +124,11 @@ export default class InfluxQueryModel {
     // if we remove the field remove the whole statement
     if (part.def.type === 'field') {
       if (this.selectModels.length > 1) {
-        const modelsIndex = indexOf(this.selectModels, selectParts);
+        const modelsIndex = _.indexOf(this.selectModels, selectParts);
         this.selectModels.splice(modelsIndex, 1);
       }
     } else {
-      const partIndex = indexOf(selectParts, part);
+      const partIndex = _.indexOf(selectParts, part);
       selectParts.splice(partIndex, 1);
     }
 
@@ -141,7 +142,6 @@ export default class InfluxQueryModel {
   }
 
   private renderTagCondition(tag: InfluxQueryTag, index: number, interpolate?: boolean) {
-    // FIXME: merge this function with query_builder/renderTagCondition
     let str = '';
     let operator = tag.operator;
     let value = tag.value;
@@ -169,20 +169,10 @@ export default class InfluxQueryModel {
       value = this.templateSrv.replace(value, this.scopedVars, 'regex');
     }
 
-    let escapedKey = `"${tag.key}"`;
-
-    if (tag.key.endsWith('::tag')) {
-      escapedKey = `"${tag.key.slice(0, -5)}"::tag`;
-    }
-
-    if (tag.key.endsWith('::field')) {
-      escapedKey = `"${tag.key.slice(0, -7)}"::field`;
-    }
-
-    return str + escapedKey + ' ' + operator + ' ' + value;
+    return str + '"' + tag.key + '" ' + operator + ' ' + value;
   }
 
-  getMeasurementAndPolicy(interpolate?: boolean) {
+  getMeasurementAndPolicy(interpolate: any) {
     let policy = this.target.policy;
     let measurement = this.target.measurement || 'measurement';
 
@@ -192,7 +182,13 @@ export default class InfluxQueryModel {
       measurement = this.templateSrv.replace(measurement, this.scopedVars, 'regex');
     }
 
-    return `"${policy}".${measurement}`;
+    if (policy !== 'default') {
+      policy = '"' + this.target.policy + '".';
+    } else {
+      policy = '';
+    }
+
+    return policy + measurement;
   }
 
   interpolateQueryStr(value: any[], variable: { multi: any; includeAll: any }, defaultFormatFn: any) {
@@ -202,10 +198,10 @@ export default class InfluxQueryModel {
     }
 
     if (typeof value === 'string') {
-      return escapeRegex(value);
+      return kbn.regexEscape(value);
     }
 
-    const escapedValues = map(value, escapeRegex);
+    const escapedValues = _.map(value, kbn.regexEscape);
     return '(' + escapedValues.join('|') + ')';
   }
 
@@ -237,7 +233,7 @@ export default class InfluxQueryModel {
     }
 
     query += ' FROM ' + this.getMeasurementAndPolicy(interpolate) + ' WHERE ';
-    const conditions = map(target.tags, (tag, index) => {
+    const conditions = _.map(target.tags, (tag, index) => {
       return this.renderTagCondition(tag, index, interpolate);
     });
 
@@ -285,7 +281,7 @@ export default class InfluxQueryModel {
   }
 
   renderAdhocFilters(filters: any[]) {
-    const conditions = map(filters, (tag, index) => {
+    const conditions = _.map(filters, (tag, index) => {
       return this.renderTagCondition(tag, index, true);
     });
     return conditions.join(' ');

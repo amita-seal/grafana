@@ -6,10 +6,10 @@ import (
 
 type OSSPluginRequestValidator struct{}
 
-func (*OSSPluginRequestValidator) Validate(string, *http.Request) error {
+func (*OSSPluginRequestValidator) Init() error {
 	return nil
 }
 
-func ProvideValidator() *OSSPluginRequestValidator {
-	return &OSSPluginRequestValidator{}
+func (*OSSPluginRequestValidator) Validate(string, *http.Request) error {
+	return nil
 }

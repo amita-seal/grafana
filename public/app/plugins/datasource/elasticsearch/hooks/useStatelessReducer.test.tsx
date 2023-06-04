@@ -1,6 +1,5 @@
+import React, { FunctionComponent } from 'react';
 import { renderHook } from '@testing-library/react-hooks';
-import React, { PropsWithChildren } from 'react';
-
 import { useStatelessReducer, useDispatch, DispatchContext, combineReducers } from './useStatelessReducer';
 
 describe('useStatelessReducer Hook', () => {
@@ -40,7 +39,7 @@ describe('useDispatch Hook', () => {
 
   it('Should return a dispatch function', () => {
     const dispatch = jest.fn();
-    const wrapper = ({ children }: PropsWithChildren<{}>) => (
+    const wrapper: FunctionComponent = ({ children }) => (
       <DispatchContext.Provider value={dispatch}>{children}</DispatchContext.Provider>
     );
 

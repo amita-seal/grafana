@@ -1,47 +1,51 @@
-import React from 'react';
-import { connect, ConnectedProps } from 'react-redux';
-import { useMount } from 'react-use';
-
-import { Page } from 'app/core/components/Page/Page';
-import { StoreState } from 'app/types';
-
+import React, { FC } from 'react';
+import { hot } from 'react-hot-loader';
+import { connect } from 'react-redux';
+import { config } from '@grafana/runtime';
+import { LoadingPlaceholder } from '@grafana/ui';
+import { UserDTO, Team, UserOrg, UserSession, StoreState } from 'app/types';
+import { NavModel } from '@grafana/data';
+import { getNavModel } from 'app/core/selectors/navModel';
+import { UserProvider, UserAPI, LoadingStates } from 'app/core/utils/UserProvider';
+import Page from 'app/core/components/Page/Page';
 import { ChangePasswordForm } from './ChangePasswordForm';
-import { changePassword, loadUser } from './state/actions';
 
-export interface OwnProps {}
+export interface Props {
+  navModel: NavModel;
+}
+
+export const ChangePasswordPage: FC<Props> = ({ navModel }) => (
+  <Page navModel={navModel}>
+    <UserProvider userId={config.bootData.user.id}>
+      {(
+        api: UserAPI,
+        states: LoadingStates,
+        teams: Team[],
+        orgs: UserOrg[],
+        sessions: UserSession[],
+        user?: UserDTO
+      ) => {
+        return (
+          <Page.Contents>
+            <h3 className="page-sub-heading">Change Your Password</h3>
+            {states.loadUser ? (
+              <LoadingPlaceholder text="Loading user profile..." />
+            ) : (
+              <ChangePasswordForm user={user!} onChangePassword={api.changePassword} isSaving={states.changePassword} />
+            )}
+          </Page.Contents>
+        );
+      }}
+    </UserProvider>
+  </Page>
+);
 
 function mapStateToProps(state: StoreState) {
-  const userState = state.user;
-  const { isUpdating, user } = userState;
   return {
-    isUpdating,
-    user,
+    navModel: getNavModel(state.navIndex, `change-password`),
   };
 }
 
-const mapDispatchToProps = {
-  loadUser,
-  changePassword,
-};
+const mapDispatchToProps = {};
 
-const connector = connect(mapStateToProps, mapDispatchToProps);
-
-export type Props = OwnProps & ConnectedProps<typeof connector>;
-
-export function ChangePasswordPage({ loadUser, isUpdating, user, changePassword }: Props) {
-  useMount(() => loadUser());
-
-  return (
-    <Page navId="profile/password">
-      <Page.Contents isLoading={!Boolean(user)}>
-        {user ? (
-          <>
-            <ChangePasswordForm user={user} onChangePassword={changePassword} isSaving={isUpdating} />
-          </>
-        ) : null}
-      </Page.Contents>
-    </Page>
-  );
-}
-
-export default connector(ChangePasswordPage);
+export default hot(module)(connect(mapStateToProps, mapDispatchToProps)(ChangePasswordPage));

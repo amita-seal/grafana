@@ -1,9 +1,7 @@
-import { render, screen } from '@testing-library/react';
 import React from 'react';
-
-import { createTheme } from '@grafana/data';
-
-import { BigValue, BigValueColorMode, BigValueGraphMode, Props } from './BigValue';
+import { shallow } from 'enzyme';
+import { BigValue, Props, BigValueColorMode, BigValueGraphMode } from './BigValue';
+import { getTheme } from '../../themes';
 
 function getProps(propOverrides?: Partial<Props>): Props {
   const props: Props = {
@@ -14,21 +12,30 @@ function getProps(propOverrides?: Partial<Props>): Props {
     value: {
       text: '25',
       numeric: 25,
-      color: 'red',
     },
-    theme: createTheme(),
+    theme: getTheme(),
   };
 
   Object.assign(props, propOverrides);
   return props;
 }
 
+const setup = (propOverrides?: object) => {
+  const props = getProps(propOverrides);
+  const wrapper = shallow(<BigValue {...props} />);
+  const instance = wrapper.instance() as BigValue;
+
+  return {
+    instance,
+    wrapper,
+  };
+};
+
 describe('BigValue', () => {
   describe('Render with basic options', () => {
     it('should render', () => {
-      render(<BigValue {...getProps()} />);
-
-      expect(screen.getByText('25')).toBeInTheDocument();
+      const { wrapper } = setup();
+      expect(wrapper).toMatchSnapshot();
     });
   });
 });

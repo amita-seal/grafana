@@ -1,71 +1,54 @@
+// Libraries
 import { cloneDeep } from 'lodash';
-import { Observable, of, ReplaySubject, Unsubscribable } from 'rxjs';
+import { MonoTypeOperatorFunction, Observable, of, ReplaySubject, Unsubscribable } from 'rxjs';
 import { map, mergeMap } from 'rxjs/operators';
 
+// Services & Utils
+import { getTemplateSrv } from '@grafana/runtime';
+import { getDatasourceSrv } from 'app/features/plugins/datasource_srv';
+import { preProcessPanelData, runRequest } from './runRequest';
+import { isSharedDashboardQuery, runSharedRequest } from '../../../plugins/datasource/dashboard';
+
+// Types
 import {
   applyFieldOverrides,
-  compareArrayValues,
-  compareDataFrameStructures,
   CoreApp,
   DataConfigSource,
-  DataFrame,
   DataQuery,
   DataQueryRequest,
   DataSourceApi,
   DataSourceJsonData,
-  DataSourceRef,
-  DataTransformContext,
   DataTransformerConfig,
-  getDefaultTimeRange,
   LoadingState,
   PanelData,
   rangeUtil,
   ScopedVars,
   TimeRange,
   TimeZone,
-  toDataFrame,
   transformDataFrame,
-  preProcessPanelData,
-  ApplyFieldOverrideOptions,
 } from '@grafana/data';
-import { getTemplateSrv, toDataQueryError } from '@grafana/runtime';
-import { ExpressionDatasourceRef } from '@grafana/runtime/src/utils/DataSourceWithBackend';
-import { StreamingDataFrame } from 'app/features/live/data/StreamingDataFrame';
-import { isStreamingDataFrame } from 'app/features/live/data/utils';
-import { getDatasourceSrv } from 'app/features/plugins/datasource_srv';
-
-import { isSharedDashboardQuery, runSharedRequest } from '../../../plugins/datasource/dashboard';
-import { PublicDashboardDataSource } from '../../dashboard/services/PublicDashboardDataSource';
-import { PanelModel } from '../../dashboard/state';
-
-import { getDashboardQueryRunner } from './DashboardQueryRunner/DashboardQueryRunner';
-import { mergePanelAndDashData } from './mergePanelAndDashData';
-import { runRequest } from './runRequest';
 
 export interface QueryRunnerOptions<
   TQuery extends DataQuery = DataQuery,
   TOptions extends DataSourceJsonData = DataSourceJsonData
 > {
-  datasource: DataSourceRef | DataSourceApi<TQuery, TOptions> | null;
+  datasource: string | DataSourceApi<TQuery, TOptions> | null;
   queries: TQuery[];
   panelId?: number;
-  dashboardUID?: string;
-  publicDashboardAccessToken?: string;
+  dashboardId?: number;
   timezone: TimeZone;
   timeRange: TimeRange;
   timeInfo?: string; // String description of time range for display
   maxDataPoints: number;
   minInterval: string | undefined | null;
   scopedVars?: ScopedVars;
-  cacheTimeout?: string | null;
-  queryCachingTTL?: number | null;
+  cacheTimeout?: string;
+  delayStateNotification?: number; // default 100ms.
   transformations?: DataTransformerConfig[];
-  app?: CoreApp;
 }
 
 let counter = 100;
-
-export function getNextRequestId() {
+function getNextRequestId() {
   return 'Q' + counter++;
 }
 
@@ -79,7 +62,6 @@ export class PanelQueryRunner {
   private subscription?: Unsubscribable;
   private lastResult?: PanelData;
   private dataConfigSource: DataConfigSource;
-  private lastRequest?: DataQueryRequest;
 
   constructor(dataConfigSource: DataConfigSource) {
     this.subject = new ReplaySubject(1);
@@ -91,127 +73,52 @@ export class PanelQueryRunner {
    */
   getData(options: GetDataOptions): Observable<PanelData> {
     const { withFieldConfig, withTransforms } = options;
-    let structureRev = 1;
-    let lastFieldConfig: ApplyFieldOverrideOptions | undefined = undefined;
-    let lastProcessedFrames: DataFrame[] = [];
-    let lastRawFrames: DataFrame[] = [];
-    let lastTransformations: DataTransformerConfig[] | undefined;
-    let isFirstPacket = true;
-    let lastConfigRev = -1;
-
-    if (this.dataConfigSource.snapshotData) {
-      const snapshotPanelData: PanelData = {
-        state: LoadingState.Done,
-        series: this.dataConfigSource.snapshotData.map((v) => toDataFrame(v)),
-        timeRange: getDefaultTimeRange(), // Don't need real time range for snapshots
-      };
-      return of(snapshotPanelData);
-    }
 
     return this.subject.pipe(
-      mergeMap((data: PanelData) => {
-        let fieldConfig = this.dataConfigSource.getFieldOverrideOptions();
-        let transformations = this.dataConfigSource.getTransformations();
+      this.getTransformationsStream(withTransforms),
+      map((data: PanelData) => {
+        let processedData = data;
 
-        if (
-          data.series === lastRawFrames &&
-          lastFieldConfig?.fieldConfig === fieldConfig?.fieldConfig &&
-          lastTransformations === transformations
-        ) {
-          return of({ ...data, structureRev, series: lastProcessedFrames });
+        if (withFieldConfig) {
+          // Apply field defaults & overrides
+          const fieldConfig = this.dataConfigSource.getFieldOverrideOptions();
+          const timeZone = data.request?.timezone ?? 'browser';
+
+          if (fieldConfig) {
+            processedData = {
+              ...processedData,
+              series: applyFieldOverrides({
+                timeZone: timeZone,
+                data: processedData.series,
+                ...fieldConfig,
+              }),
+            };
+          }
         }
 
-        lastFieldConfig = fieldConfig;
-        lastTransformations = transformations;
-        lastRawFrames = data.series;
-        let dataWithTransforms = of(data);
-
-        if (withTransforms) {
-          dataWithTransforms = this.applyTransformations(data);
-        }
-
-        return dataWithTransforms.pipe(
-          map((data: PanelData) => {
-            let processedData = data;
-            let streamingPacketWithSameSchema = false;
-
-            if (withFieldConfig && data.series?.length) {
-              if (lastConfigRev === this.dataConfigSource.configRev) {
-                const streamingDataFrame = data.series.find((data) => isStreamingDataFrame(data)) as
-                  | StreamingDataFrame
-                  | undefined;
-
-                if (
-                  streamingDataFrame &&
-                  !streamingDataFrame.packetInfo.schemaChanged &&
-                  // TODO: remove the condition below after fixing
-                  // https://github.com/grafana/grafana/pull/41492#issuecomment-970281430
-                  lastProcessedFrames[0].fields.length === streamingDataFrame.fields.length
-                ) {
-                  processedData = {
-                    ...processedData,
-                    series: lastProcessedFrames.map((frame, frameIndex) => ({
-                      ...frame,
-                      length: data.series[frameIndex].length,
-                      fields: frame.fields.map((field, fieldIndex) => ({
-                        ...field,
-                        values: data.series[frameIndex].fields[fieldIndex].values,
-                        state: {
-                          ...field.state,
-                          calcs: undefined,
-                          range: undefined,
-                        },
-                      })),
-                    })),
-                  };
-
-                  streamingPacketWithSameSchema = true;
-                }
-              }
-
-              if (fieldConfig != null && (isFirstPacket || !streamingPacketWithSameSchema)) {
-                lastConfigRev = this.dataConfigSource.configRev!;
-                processedData = {
-                  ...processedData,
-                  series: applyFieldOverrides({
-                    timeZone: data.request?.timezone ?? 'browser',
-                    data: processedData.series,
-                    ...fieldConfig!,
-                  }),
-                };
-                isFirstPacket = false;
-              }
-            }
-
-            if (
-              !streamingPacketWithSameSchema &&
-              !compareArrayValues(lastProcessedFrames, processedData.series, compareDataFrameStructures)
-            ) {
-              structureRev++;
-            }
-
-            lastProcessedFrames = processedData.series;
-
-            return { ...processedData, structureRev };
-          })
-        );
+        return processedData;
       })
     );
   }
 
-  private applyTransformations(data: PanelData): Observable<PanelData> {
-    const transformations = this.dataConfigSource.getTransformations();
+  private getTransformationsStream = (withTransforms: boolean): MonoTypeOperatorFunction<PanelData> => {
+    return (inputStream) =>
+      inputStream.pipe(
+        mergeMap((data) => {
+          if (!withTransforms) {
+            return of(data);
+          }
 
-    if (!transformations || transformations.length === 0) {
-      return of(data);
-    }
+          const transformations = this.dataConfigSource.getTransformations();
 
-    const ctx: DataTransformContext = {
-      interpolate: (v: string) => getTemplateSrv().replace(v, data?.request?.scopedVars),
-    };
+          if (!transformations || transformations.length === 0) {
+            return of(data);
+          }
 
-    return transformDataFrame(transformations, data.series, ctx).pipe(map((series) => ({ ...data, series })));
-  }
+          return transformDataFrame(transformations, data.series).pipe(map((series) => ({ ...data, series })));
+        })
+      );
+  };
 
   async run(options: QueryRunnerOptions) {
     const {
@@ -219,30 +126,26 @@ export class PanelQueryRunner {
       timezone,
       datasource,
       panelId,
-      dashboardUID,
-      publicDashboardAccessToken,
+      dashboardId,
       timeRange,
       timeInfo,
       cacheTimeout,
-      queryCachingTTL,
       maxDataPoints,
       scopedVars,
       minInterval,
-      app,
     } = options;
 
     if (isSharedDashboardQuery(datasource)) {
-      this.pipeToSubject(runSharedRequest(options, queries[0]), panelId, true);
+      this.pipeToSubject(runSharedRequest(options));
       return;
     }
 
     const request: DataQueryRequest = {
-      app: app ?? CoreApp.Dashboard,
+      app: CoreApp.Dashboard,
       requestId: getNextRequestId(),
       timezone,
       panelId,
-      dashboardUID,
-      publicDashboardAccessToken,
+      dashboardId,
       range: timeRange,
       timeInfo,
       interval: '',
@@ -251,22 +154,19 @@ export class PanelQueryRunner {
       maxDataPoints: maxDataPoints,
       scopedVars: scopedVars || {},
       cacheTimeout,
-      queryCachingTTL,
       startTime: Date.now(),
-      rangeRaw: timeRange.raw,
     };
 
-    try {
-      const ds = await getDataSource(datasource, request.scopedVars, publicDashboardAccessToken);
-      const isMixedDS = ds.meta?.mixed;
+    // Add deprecated property
+    (request as any).rangeRaw = timeRange.raw;
 
-      // Attach the data source to each query
+    try {
+      const ds = await getDataSource(datasource, request.scopedVars);
+
+      // Attach the datasource name to each query
       request.targets = request.targets.map((query) => {
-        const isExpressionQuery = query.datasource?.type === ExpressionDatasourceRef.type;
-        // When using a data source variable, the panel might have the incorrect datasource
-        // stored, so when running the query make sure it is done with the correct one
-        if (!query.datasource || (query.datasource.uid !== ds.uid && !isMixedDS && !isExpressionQuery)) {
-          query.datasource = ds.getRef();
+        if (!query.datasource) {
+          query.datasource = ds.name;
         }
         return query;
       });
@@ -284,38 +184,20 @@ export class PanelQueryRunner {
       request.interval = norm.interval;
       request.intervalMs = norm.intervalMs;
 
-      this.lastRequest = request;
-
-      this.pipeToSubject(runRequest(ds, request), panelId);
+      this.pipeToSubject(runRequest(ds, request));
     } catch (err) {
-      this.pipeToSubject(
-        of({
-          state: LoadingState.Error,
-          error: toDataQueryError(err),
-          series: [],
-          timeRange: request.range,
-        }),
-        panelId
-      );
+      console.error('PanelQueryRunner Error', err);
     }
   }
 
-  private pipeToSubject(observable: Observable<PanelData>, panelId?: number, skipPreProcess = false) {
+  private pipeToSubject(observable: Observable<PanelData>) {
     if (this.subscription) {
       this.subscription.unsubscribe();
     }
 
-    let panelData = observable;
-    const dataSupport = this.dataConfigSource.getDataSupport();
-
-    if (dataSupport.alertStates || dataSupport.annotations) {
-      const panel = this.dataConfigSource as unknown as PanelModel;
-      panelData = mergePanelAndDashData(observable, getDashboardQueryRunner().getResult(panel.id));
-    }
-
-    this.subscription = panelData.subscribe({
+    this.subscription = observable.subscribe({
       next: (data) => {
-        this.lastResult = skipPreProcess ? data : preProcessPanelData(data, this.lastResult);
+        this.lastResult = preProcessPanelData(data, this.lastResult);
         // Store preprocessed query results for applying overrides later on in the pipeline
         this.subject.next(this.lastResult);
       },
@@ -329,11 +211,8 @@ export class PanelQueryRunner {
 
     this.subscription.unsubscribe();
 
-    // If we have an old result with loading or streaming state, send it with done state
-    if (
-      this.lastResult &&
-      (this.lastResult.state === LoadingState.Loading || this.lastResult.state === LoadingState.Streaming)
-    ) {
+    // If we have an old result with loading state, send it with done state
+    if (this.lastResult && this.lastResult.state === LoadingState.Loading) {
       this.subject.next({
         ...this.lastResult,
         state: LoadingState.Done,
@@ -346,12 +225,6 @@ export class PanelQueryRunner {
       this.subject.next(this.lastResult);
     }
   };
-
-  clearLastResult() {
-    this.lastResult = undefined;
-    // A new subject is also needed since it's a replay subject that remembers/sends last value
-    this.subject = new ReplaySubject(1);
-  }
 
   /**
    * Called when the panel is closed
@@ -376,33 +249,17 @@ export class PanelQueryRunner {
     }
   }
 
-  /** Useful from tests */
-  setLastResult(data: PanelData) {
-    this.lastResult = data;
-  }
-
   getLastResult(): PanelData | undefined {
     return this.lastResult;
-  }
-
-  getLastRequest(): DataQueryRequest | undefined {
-    return this.lastRequest;
   }
 }
 
 async function getDataSource(
-  datasource: DataSourceRef | string | DataSourceApi | null,
-  scopedVars: ScopedVars,
-  publicDashboardAccessToken?: string
+  datasource: string | DataSourceApi | null,
+  scopedVars: ScopedVars
 ): Promise<DataSourceApi> {
-  if (!publicDashboardAccessToken && datasource && typeof datasource === 'object' && 'query' in datasource) {
-    return datasource;
+  if (datasource && (datasource as any).query) {
+    return datasource as DataSourceApi;
   }
-
-  const ds = await getDatasourceSrv().get(datasource, scopedVars);
-  if (publicDashboardAccessToken) {
-    return new PublicDashboardDataSource(ds);
-  }
-
-  return ds;
+  return await getDatasourceSrv().get(datasource as string, scopedVars);
 }

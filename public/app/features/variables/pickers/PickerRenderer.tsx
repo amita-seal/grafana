@@ -1,18 +1,14 @@
-import React, { PropsWithChildren, ReactElement, useMemo } from 'react';
-
-import { selectors } from '@grafana/e2e-selectors';
-import { Tooltip } from '@grafana/ui';
-
-import { variableAdapters } from '../adapters';
-import { VARIABLE_PREFIX } from '../constants';
+import React, { FunctionComponent, PropsWithChildren, ReactElement, useMemo } from 'react';
 import { VariableHide, VariableModel } from '../types';
+import { selectors } from '@grafana/e2e-selectors';
+import { variableAdapters } from '../adapters';
+import { Tooltip } from '@grafana/ui';
 
 interface Props {
   variable: VariableModel;
-  readOnly?: boolean;
 }
 
-export const PickerRenderer = (props: Props) => {
+export const PickerRenderer: FunctionComponent<Props> = (props) => {
   const PickerToRender = useMemo(() => variableAdapters.get(props.variable.type).picker, [props.variable]);
 
   if (!props.variable) {
@@ -23,7 +19,7 @@ export const PickerRenderer = (props: Props) => {
     <div className="gf-form">
       <PickerLabel variable={props.variable} />
       {props.variable.hide !== VariableHide.hideVariable && PickerToRender && (
-        <PickerToRender variable={props.variable} readOnly={props.readOnly ?? false} />
+        <PickerToRender variable={props.variable} />
       )}
     </div>
   );
@@ -36,14 +32,12 @@ function PickerLabel({ variable }: PropsWithChildren<Props>): ReactElement | nul
     return null;
   }
 
-  const elementId = VARIABLE_PREFIX + variable.id;
   if (variable.description) {
     return (
       <Tooltip content={variable.description} placement={'bottom'}>
         <label
           className="gf-form-label gf-form-label--variable"
-          data-testid={selectors.pages.Dashboard.SubMenu.submenuItemLabels(labelOrName)}
-          htmlFor={elementId}
+          aria-label={selectors.pages.Dashboard.SubMenu.submenuItemLabels(labelOrName)}
         >
           {labelOrName}
         </label>
@@ -54,8 +48,7 @@ function PickerLabel({ variable }: PropsWithChildren<Props>): ReactElement | nul
   return (
     <label
       className="gf-form-label gf-form-label--variable"
-      data-testid={selectors.pages.Dashboard.SubMenu.submenuItemLabels(labelOrName)}
-      htmlFor={elementId}
+      aria-label={selectors.pages.Dashboard.SubMenu.submenuItemLabels(labelOrName)}
     >
       {labelOrName}
     </label>

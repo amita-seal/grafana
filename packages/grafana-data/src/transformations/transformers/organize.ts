@@ -1,8 +1,7 @@
-import { DataTransformerInfo } from '../../types/transformations';
-
-import { filterFieldsByNameTransformer } from './filterByName';
 import { DataTransformerID } from './ids';
+import { DataTransformerInfo } from '../../types/transformations';
 import { orderFieldsTransformer, OrderFieldsTransformerOptions } from './order';
+import { filterFieldsByNameTransformer } from './filterByName';
 import { renameFieldsTransformer, RenameFieldsTransformerOptions } from './rename';
 
 export interface OrganizeFieldsTransformerOptions
@@ -22,19 +21,16 @@ export const organizeFieldsTransformer: DataTransformerInfo<OrganizeFieldsTransf
   },
 
   /**
-   * Return a modified copy of the series. If the transform is not or should not
+   * Return a modified copy of the series.  If the transform is not or should not
    * be applied, just return the input series
    */
-  operator: (options, ctx) => (source) =>
+  operator: (options) => (source) =>
     source.pipe(
-      filterFieldsByNameTransformer.operator(
-        {
-          exclude: { names: mapToExcludeArray(options.excludeByName) },
-        },
-        ctx
-      ),
-      orderFieldsTransformer.operator(options, ctx),
-      renameFieldsTransformer.operator(options, ctx)
+      filterFieldsByNameTransformer.operator({
+        exclude: { names: mapToExcludeArray(options.excludeByName) },
+      }),
+      orderFieldsTransformer.operator(options),
+      renameFieldsTransformer.operator(options)
     ),
 };
 

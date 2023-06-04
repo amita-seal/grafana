@@ -1,6 +1,6 @@
-import { Record } from 'immutable';
 import React from 'react';
 import { Mark, Node, Decoration } from 'slate';
+import { Record } from 'immutable';
 import { Editor } from 'slate-react';
 
 import TOKEN_MARK from './TOKEN_MARK';
@@ -54,11 +54,10 @@ class Options
     getSyntax: defaultGetSyntax,
     renderDecoration: defaultRenderDecoration,
   })
-  implements OptionsFormat
-{
-  declare readonly onlyIn: (node: Node) => boolean;
-  declare readonly getSyntax: (node: Node) => string;
-  declare readonly renderDecoration: (
+  implements OptionsFormat {
+  readonly onlyIn!: (node: Node) => boolean;
+  readonly getSyntax!: (node: Node) => string;
+  readonly renderDecoration!: (
     {
       decoration,
       children,

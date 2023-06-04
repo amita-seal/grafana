@@ -1,69 +1,74 @@
-import { css } from '@emotion/css';
-import React, { useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { css } from 'emotion';
+import { uniqBy, debounce } from 'lodash';
 
-import { GrafanaTheme2, SelectableValue } from '@grafana/data';
-import { config } from '@grafana/runtime';
-import { Button, FilterInput, MultiSelect, RangeSlider, Select, useStyles2 } from '@grafana/ui';
+// Types
+import { RichHistoryQuery, ExploreId } from 'app/types/explore';
+
+// Utils
+import { stylesFactory, useTheme, RangeSlider, Select } from '@grafana/ui';
+import { GrafanaTheme, SelectableValue } from '@grafana/data';
+
 import {
-  createDatasourcesList,
+  SortOrder,
   mapNumbertoTimeInSlider,
   mapQueriesToHeadings,
-  SortOrder,
-  RichHistorySearchFilters,
-  RichHistorySettings,
+  createDatasourcesList,
+  filterAndSortQueries,
 } from 'app/core/utils/richHistory';
-import { ExploreId, RichHistoryQuery } from 'app/types/explore';
 
-import { getSortOrderOptions } from './RichHistory';
+// Components
 import RichHistoryCard from './RichHistoryCard';
+import { sortOrderOptions } from './RichHistory';
+import { FilterInput } from 'app/core/components/FilterInput/FilterInput';
 
-export interface RichHistoryQueriesTabProps {
+export interface Props {
   queries: RichHistoryQuery[];
-  totalQueries: number;
-  loading: boolean;
-  activeDatasourceInstance: string;
-  updateFilters: (filtersToUpdate?: Partial<RichHistorySearchFilters>) => void;
-  clearRichHistoryResults: () => void;
-  loadMoreRichHistory: () => void;
-  richHistorySettings: RichHistorySettings;
-  richHistorySearchFilters?: RichHistorySearchFilters;
+  sortOrder: SortOrder;
+  activeDatasourceOnly: boolean;
+  datasourceFilters: SelectableValue[] | null;
+  retentionPeriod: number;
   exploreId: ExploreId;
   height: number;
+  onChangeSortOrder: (sortOrder: SortOrder) => void;
+  onSelectDatasourceFilters: (value: SelectableValue[]) => void;
 }
 
-const getStyles = (theme: GrafanaTheme2, height: number) => {
-  const bgColor = theme.isLight ? theme.v1.palette.gray5 : theme.v1.palette.dark4;
+const getStyles = stylesFactory((theme: GrafanaTheme, height: number) => {
+  const bgColor = theme.isLight ? theme.palette.gray5 : theme.palette.dark4;
 
+  /* 134px is based on the width of the Query history tabs bar, so the content is aligned to right side of the tab */
+  const cardWidth = '100% - 134px';
+  const sliderHeight = `${height - 180}px`;
   return {
     container: css`
       display: flex;
-    `,
-    labelSlider: css`
-      font-size: ${theme.typography.bodySmall.fontSize};
-      &:last-of-type {
-        margin-top: ${theme.spacing(3)};
-      }
-      &:first-of-type {
-        font-weight: ${theme.typography.fontWeightMedium};
-        margin-bottom: ${theme.spacing(2)};
+      .label-slider {
+        font-size: ${theme.typography.size.sm};
+        &:last-of-type {
+          margin-top: ${theme.spacing.lg};
+        }
+        &:first-of-type {
+          font-weight: ${theme.typography.weight.semibold};
+          margin-bottom: ${theme.spacing.md};
+        }
       }
     `,
     containerContent: css`
-      /* 134px is based on the width of the Query history tabs bar, so the content is aligned to right side of the tab */
-      width: calc(100% - 134px);
+      width: calc(${cardWidth});
     `,
     containerSlider: css`
       width: 129px;
-      margin-right: ${theme.spacing(1)};
-    `,
-    fixedSlider: css`
-      position: fixed;
+      margin-right: ${theme.spacing.sm};
+      .slider {
+        bottom: 10px;
+        height: ${sliderHeight};
+        width: 129px;
+        padding: ${theme.spacing.sm} 0;
+      }
     `,
     slider: css`
-      bottom: 10px;
-      height: ${height - 180}px;
-      width: 129px;
-      padding: ${theme.spacing(1)} 0;
+      position: fixed;
     `,
     selectors: css`
       display: flex;
@@ -71,15 +76,15 @@ const getStyles = (theme: GrafanaTheme2, height: number) => {
       flex-wrap: wrap;
     `,
     filterInput: css`
-      margin-bottom: ${theme.spacing(1)};
+      margin-bottom: ${theme.spacing.sm};
     `,
     multiselect: css`
       width: 100%;
-      margin-bottom: ${theme.spacing(1)};
+      margin-bottom: ${theme.spacing.sm};
       .gf-form-select-box__multi-value {
         background-color: ${bgColor};
-        padding: ${theme.spacing(0.25, 0.5, 0.25, 1)};
-        border-radius: ${theme.shape.borderRadius(1)};
+        padding: ${theme.spacing.xxs} ${theme.spacing.xs} ${theme.spacing.xxs} ${theme.spacing.sm};
+        border-radius: ${theme.border.radius.sm};
       }
     `,
     sort: css`
@@ -89,171 +94,168 @@ const getStyles = (theme: GrafanaTheme2, height: number) => {
       display: flex;
       align-items: flex-start;
       justify-content: flex-start;
-      margin-top: ${theme.spacing(3)};
+      margin-top: ${theme.spacing.lg};
       h4 {
         margin: 0 10px 0 0;
       }
     `,
     heading: css`
-      font-size: ${theme.typography.h4.fontSize};
-      margin: ${theme.spacing(2, 0.25, 1, 0.25)};
+      font-size: ${theme.typography.heading.h4};
+      margin: ${theme.spacing.md} ${theme.spacing.xxs} ${theme.spacing.sm} ${theme.spacing.xxs};
     `,
     footer: css`
       height: 60px;
-      margin: ${theme.spacing(3)} auto;
+      margin-top: ${theme.spacing.lg};
       display: flex;
       justify-content: center;
-      font-weight: ${theme.typography.fontWeightLight};
-      font-size: ${theme.typography.bodySmall.fontSize};
+      font-weight: ${theme.typography.weight.light};
+      font-size: ${theme.typography.size.sm};
       a {
-        font-weight: ${theme.typography.fontWeightMedium};
-        margin-left: ${theme.spacing(0.25)};
+        font-weight: ${theme.typography.weight.semibold};
+        margin-left: ${theme.spacing.xxs};
       }
     `,
     queries: css`
-      font-size: ${theme.typography.bodySmall.fontSize};
-      font-weight: ${theme.typography.fontWeightRegular};
-      margin-left: ${theme.spacing(0.5)};
+      font-size: ${theme.typography.size.sm};
+      font-weight: ${theme.typography.weight.regular};
+      margin-left: ${theme.spacing.xs};
     `,
   };
-};
+});
 
-export function RichHistoryQueriesTab(props: RichHistoryQueriesTabProps) {
+export function RichHistoryQueriesTab(props: Props) {
   const {
+    datasourceFilters,
+    onSelectDatasourceFilters,
     queries,
-    totalQueries,
-    loading,
-    richHistorySearchFilters,
-    updateFilters,
-    clearRichHistoryResults,
-    loadMoreRichHistory,
-    richHistorySettings,
+    onChangeSortOrder,
+    sortOrder,
+    activeDatasourceOnly,
+    retentionPeriod,
     exploreId,
     height,
-    activeDatasourceInstance,
   } = props;
 
-  const styles = useStyles2(useCallback((theme: GrafanaTheme2) => getStyles(theme, height), [height]));
+  const [timeFilter, setTimeFilter] = useState<[number, number]>([0, retentionPeriod]);
+  const [filteredQueries, setFilteredQueries] = useState<RichHistoryQuery[]>([]);
+  const [searchInput, setSearchInput] = useState('');
 
-  const listOfDatasources = createDatasourcesList();
+  const theme = useTheme();
+  const styles = getStyles(theme, height);
+
+  const datasourcesRetrievedFromQueryHistory = uniqBy(queries, 'datasourceName').map((d) => d.datasourceName);
+  const listOfDatasources = createDatasourcesList(datasourcesRetrievedFromQueryHistory);
+
+  const filterAndSortQueriesDebounced = useCallback(
+    debounce((searchValue: string) => {
+      setFilteredQueries(
+        filterAndSortQueries(
+          queries,
+          sortOrder,
+          datasourceFilters?.map((d) => d.value) as string[] | null,
+          searchValue,
+          timeFilter
+        )
+      );
+    }, 300),
+    [timeFilter, queries, sortOrder, datasourceFilters]
+  );
 
   useEffect(() => {
-    const datasourceFilters =
-      !richHistorySettings.activeDatasourceOnly && richHistorySettings.lastUsedDatasourceFilters
-        ? richHistorySettings.lastUsedDatasourceFilters
-        : [activeDatasourceInstance];
-    const filters: RichHistorySearchFilters = {
-      search: '',
-      sortOrder: SortOrder.Descending,
-      datasourceFilters,
-      from: 0,
-      to: richHistorySettings.retentionPeriod,
-      starred: false,
-    };
-    updateFilters(filters);
-
-    return () => {
-      clearRichHistoryResults();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  if (!richHistorySearchFilters) {
-    return <span>Loading...</span>;
-  }
+    setFilteredQueries(
+      filterAndSortQueries(
+        queries,
+        sortOrder,
+        datasourceFilters?.map((d) => d.value) as string[] | null,
+        searchInput,
+        timeFilter
+      )
+    );
+  }, [timeFilter, queries, sortOrder, datasourceFilters]);
 
   /* mappedQueriesToHeadings is an object where query headings (stringified dates/data sources)
    * are keys and arrays with queries that belong to that headings are values.
    */
-  const mappedQueriesToHeadings = mapQueriesToHeadings(queries, richHistorySearchFilters.sortOrder);
-  const sortOrderOptions = getSortOrderOptions();
-  const partialResults = queries.length && queries.length !== totalQueries;
+  const mappedQueriesToHeadings = mapQueriesToHeadings(filteredQueries, sortOrder);
 
   return (
     <div className={styles.container}>
       <div className={styles.containerSlider}>
-        <div className={styles.fixedSlider}>
-          <div className={styles.labelSlider}>Filter history</div>
-          <div className={styles.labelSlider}>{mapNumbertoTimeInSlider(richHistorySearchFilters.from)}</div>
-          <div className={styles.slider}>
+        <div className={styles.slider}>
+          <div className="label-slider">Filter history</div>
+          <div className="label-slider">{mapNumbertoTimeInSlider(timeFilter[0])}</div>
+          <div className="slider">
             <RangeSlider
               tooltipAlwaysVisible={false}
               min={0}
-              max={richHistorySettings.retentionPeriod}
-              value={[richHistorySearchFilters.from, richHistorySearchFilters.to]}
+              max={retentionPeriod}
+              value={timeFilter}
               orientation="vertical"
               formatTooltipResult={mapNumbertoTimeInSlider}
               reverse={true}
-              onAfterChange={(value) => {
-                updateFilters({ from: value![0], to: value![1] });
-              }}
+              onAfterChange={setTimeFilter as () => number[]}
             />
           </div>
-          <div className={styles.labelSlider}>{mapNumbertoTimeInSlider(richHistorySearchFilters.to)}</div>
+          <div className="label-slider">{mapNumbertoTimeInSlider(timeFilter[1])}</div>
         </div>
       </div>
 
       <div className={styles.containerContent}>
         <div className={styles.selectors}>
-          {!richHistorySettings.activeDatasourceOnly && (
-            <MultiSelect
-              className={styles.multiselect}
-              options={listOfDatasources.map((ds) => {
-                return { value: ds.name, label: ds.name };
-              })}
-              value={richHistorySearchFilters.datasourceFilters}
-              placeholder="Filter queries for data sources(s)"
-              aria-label="Filter queries for data sources(s)"
-              onChange={(options: SelectableValue[]) => {
-                updateFilters({ datasourceFilters: options.map((option) => option.value) });
-              }}
-            />
+          {!activeDatasourceOnly && (
+            <div aria-label="Filter datasources" className={styles.multiselect}>
+              <Select
+                isMulti={true}
+                options={listOfDatasources}
+                value={datasourceFilters}
+                placeholder="Filter queries for data sources(s)"
+                onChange={onSelectDatasourceFilters}
+              />
+            </div>
           )}
           <div className={styles.filterInput}>
             <FilterInput
-              escapeRegex={false}
+              labelClassName="gf-form--has-input-icon gf-form--grow"
+              inputClassName="gf-form-input"
               placeholder="Search queries"
-              value={richHistorySearchFilters.search}
-              onChange={(search: string) => updateFilters({ search })}
+              value={searchInput}
+              onChange={(value: string) => {
+                setSearchInput(value);
+                filterAndSortQueriesDebounced(value);
+              }}
             />
           </div>
           <div aria-label="Sort queries" className={styles.sort}>
             <Select
-              value={sortOrderOptions.filter((order) => order.value === richHistorySearchFilters.sortOrder)}
+              value={sortOrderOptions.filter((order) => order.value === sortOrder)}
               options={sortOrderOptions}
               placeholder="Sort queries by"
-              onChange={(e: SelectableValue<SortOrder>) => updateFilters({ sortOrder: e.value })}
+              onChange={(e) => onChangeSortOrder(e.value as SortOrder)}
             />
           </div>
         </div>
-
-        {loading && <span>Loading results...</span>}
-
-        {!loading &&
-          Object.keys(mappedQueriesToHeadings).map((heading) => {
-            return (
-              <div key={heading}>
-                <div className={styles.heading}>
-                  {heading}{' '}
-                  <span className={styles.queries}>
-                    {partialResults ? 'Displaying ' : ''}
-                    {mappedQueriesToHeadings[heading].length} queries
-                  </span>
-                </div>
-                {mappedQueriesToHeadings[heading].map((q) => {
-                  return <RichHistoryCard query={q} key={q.id} exploreId={exploreId} />;
-                })}
+        {Object.keys(mappedQueriesToHeadings).map((heading) => {
+          return (
+            <div key={heading}>
+              <div className={styles.heading}>
+                {heading} <span className={styles.queries}>{mappedQueriesToHeadings[heading].length} queries</span>
               </div>
-            );
-          })}
-        {partialResults ? (
-          <div>
-            Showing {queries.length} of {totalQueries} <Button onClick={loadMoreRichHistory}>Load more</Button>
-          </div>
-        ) : null}
-        <div className={styles.footer}>
-          {!config.queryHistoryEnabled ? 'The history is local to your browser and is not shared with others.' : ''}
-        </div>
+              {mappedQueriesToHeadings[heading].map((q: RichHistoryQuery) => {
+                const idx = listOfDatasources.findIndex((d) => d.label === q.datasourceName);
+                return (
+                  <RichHistoryCard
+                    query={q}
+                    key={q.ts}
+                    exploreId={exploreId}
+                    dsImg={listOfDatasources[idx].imgUrl}
+                    isRemoved={listOfDatasources[idx].isRemoved}
+                  />
+                );
+              })}
+            </div>
+          );
+        })}
+        <div className={styles.footer}>The history is local to your browser and is not shared with others.</div>
       </div>
     </div>
   );

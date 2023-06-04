@@ -1,14 +1,12 @@
-import { reduxTester } from '../../../../test/core/redux/reduxTester';
 import { variableAdapters } from '../adapters';
-import { getRootReducer, RootReducerType } from '../state/helpers';
-import { toKeyedAction } from '../state/keyedVariablesReducer';
-import { addVariable, setCurrentVariableValue } from '../state/sharedReducer';
-import { ConstantVariableModel, initialVariableModelState, VariableOption } from '../types';
-import { toKeyedVariableIdentifier, toVariablePayload } from '../utils';
-
-import { updateConstantVariableOptions } from './actions';
 import { createConstantVariableAdapter } from './adapter';
+import { reduxTester } from '../../../../test/core/redux/reduxTester';
+import { updateConstantVariableOptions } from './actions';
+import { getRootReducer, RootReducerType } from '../state/helpers';
+import { ConstantVariableModel, initialVariableModelState, VariableOption } from '../types';
+import { toVariablePayload } from '../state/types';
 import { createConstantOptionsFromQuery } from './reducer';
+import { addVariable, setCurrentVariableValue } from '../state/sharedReducer';
 
 describe('constant actions', () => {
   variableAdapters.setInit(() => [createConstantVariableAdapter()]);
@@ -24,7 +22,6 @@ describe('constant actions', () => {
       const variable: ConstantVariableModel = {
         ...initialVariableModelState,
         id: '0',
-        rootStateKey: 'key',
         index: 0,
         type: 'constant',
         name: 'Constant',
@@ -39,14 +36,12 @@ describe('constant actions', () => {
 
       const tester = await reduxTester<RootReducerType>()
         .givenRootReducer(getRootReducer())
-        .whenActionIsDispatched(
-          toKeyedAction('key', addVariable(toVariablePayload(variable, { global: false, index: 0, model: variable })))
-        )
-        .whenAsyncActionIsDispatched(updateConstantVariableOptions(toKeyedVariableIdentifier(variable)), true);
+        .whenActionIsDispatched(addVariable(toVariablePayload(variable, { global: false, index: 0, model: variable })))
+        .whenAsyncActionIsDispatched(updateConstantVariableOptions(toVariablePayload(variable)), true);
 
       tester.thenDispatchedActionsShouldEqual(
-        toKeyedAction('key', createConstantOptionsFromQuery(toVariablePayload(variable))),
-        toKeyedAction('key', setCurrentVariableValue(toVariablePayload(variable, { option })))
+        createConstantOptionsFromQuery(toVariablePayload(variable)),
+        setCurrentVariableValue(toVariablePayload(variable, { option }))
       );
     });
   });

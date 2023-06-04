@@ -1,27 +1,26 @@
-import { css, cx } from '@emotion/css';
-import React from 'react';
+import React, { useContext } from 'react';
+import { css, cx } from 'emotion';
 
-import { GrafanaTheme2, renderMarkdown } from '@grafana/data';
+import { CompletionItem, ThemeContext } from '../..';
+import { GrafanaTheme, renderMarkdown } from '@grafana/data';
 
-import { useTheme2 } from '../../themes/ThemeContext';
-import { CompletionItem } from '../../types';
-
-const getStyles = (theme: GrafanaTheme2, height: number, visible: boolean) => {
+const getStyles = (theme: GrafanaTheme, height: number, visible: boolean) => {
   return {
     typeaheadItem: css`
       label: type-ahead-item;
       z-index: 11;
-      padding: ${theme.spacing(1, 1, 1, 2)};
-      border: ${theme.colors.border.medium};
+      padding: ${theme.spacing.sm} ${theme.spacing.sm} ${theme.spacing.sm} ${theme.spacing.md};
+      border-radius: ${theme.border.radius.md};
+      border: ${theme.colors.border2};
       overflow-y: scroll;
       overflow-x: hidden;
       outline: none;
-      background: ${theme.colors.background.secondary};
+      background: ${theme.colors.bg2};
       color: ${theme.colors.text};
-      box-shadow: 0 0 20px ${theme.v1.colors.dropdownShadow};
+      box-shadow: 0 0 20px ${theme.colors.dropdownShadow};
       visibility: ${visible === true ? 'visible' : 'hidden'};
       width: 250px;
-      min-height: ${height + parseInt(theme.spacing(0.25), 10)}px;
+      height: ${height + parseInt(theme.spacing.xxs, 10)}px;
       position: relative;
       word-break: break-word;
     `,
@@ -33,11 +32,11 @@ interface Props {
   height: number;
 }
 
-export const TypeaheadInfo = ({ item, height }: Props) => {
+export const TypeaheadInfo: React.FC<Props> = ({ item, height }) => {
   const visible = item && !!item.documentation;
   const label = item ? item.label : '';
   const documentation = renderMarkdown(item?.documentation);
-  const theme = useTheme2();
+  const theme = useContext(ThemeContext);
   const styles = getStyles(theme, height, visible);
 
   return (

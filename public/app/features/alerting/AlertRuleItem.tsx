@@ -1,8 +1,7 @@
 import React, { useCallback } from 'react';
+// @ts-ignore
 import Highlighter from 'react-highlight-words';
-
-import { Icon, Button, LinkButton, Card } from '@grafana/ui';
-
+import { Icon, IconName, Button, LinkButton, Card } from '@grafana/ui';
 import { AlertRule } from '../../types';
 
 export interface Props {
@@ -14,7 +13,7 @@ export interface Props {
 const AlertRuleItem = ({ rule, search, onTogglePause }: Props) => {
   const ruleUrl = `${rule.url}?editPanel=${rule.panelId}&tab=alert`;
   const renderText = useCallback(
-    (text: string) => (
+    (text) => (
       <Highlighter
         key={text}
         highlightClassName="highlight-search-match"
@@ -26,10 +25,9 @@ const AlertRuleItem = ({ rule, search, onTogglePause }: Props) => {
   );
 
   return (
-    <Card>
-      <Card.Heading>{renderText(rule.name)}</Card.Heading>
+    <Card heading={<a href={ruleUrl}>{renderText(rule.name)}</a>}>
       <Card.Figure>
-        <Icon size="xl" name={rule.stateIcon} className={`alert-rule-item__icon ${rule.stateClass}`} />
+        <Icon size="xl" name={rule.stateIcon as IconName} className={`alert-rule-item__icon ${rule.stateClass}`} />
       </Card.Figure>
       <Card.Meta>
         <span key="state">

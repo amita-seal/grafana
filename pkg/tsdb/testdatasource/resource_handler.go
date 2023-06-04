@@ -4,52 +4,51 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"sort"
 	"strconv"
 	"time"
 
 	"github.com/grafana/grafana/pkg/infra/log"
+
+	"github.com/grafana/grafana-plugin-sdk-go/backend/resource/httpadapter"
 )
 
-func (s *Service) registerRoutes() *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.testGetHandler)
-	mux.HandleFunc("/scenarios", s.getScenariosHandler)
-	mux.HandleFunc("/stream", s.testStreamHandler)
-	mux.Handle("/test", createJSONHandler(s.logger))
-	mux.Handle("/test/json", createJSONHandler(s.logger))
-	mux.HandleFunc("/boom", s.testPanicHandler)
-	mux.HandleFunc("/sims", s.sims.GetSimulationHandler)
-	mux.HandleFunc("/sim/", s.sims.GetSimulationHandler)
-	return mux
+func (p *testDataPlugin) registerRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/", p.testGetHandler)
+	mux.HandleFunc("/scenarios", p.getScenariosHandler)
+	mux.HandleFunc("/stream", p.testStreamHandler)
+	mux.Handle("/test", createJSONHandler(p.logger))
+	mux.Handle("/test/json", createJSONHandler(p.logger))
+	mux.HandleFunc("/boom", p.testPanicHandler)
 }
 
-func (s *Service) testGetHandler(rw http.ResponseWriter, req *http.Request) {
-	s.logger.Debug("Received resource call", "url", req.URL.String(), "method", req.Method)
+func (p *testDataPlugin) testGetHandler(rw http.ResponseWriter, req *http.Request) {
+	p.logger.Debug("Received resource call", "url", req.URL.String(), "method", req.Method)
 
 	if req.Method != http.MethodGet {
 		return
 	}
 
 	if _, err := rw.Write([]byte("Hello world from test datasource!")); err != nil {
-		s.logger.Error("Failed to write response", "error", err)
+		p.logger.Error("Failed to write response", "error", err)
 		return
 	}
 	rw.WriteHeader(http.StatusOK)
 }
 
-func (s *Service) getScenariosHandler(rw http.ResponseWriter, req *http.Request) {
+func (p *testDataPlugin) getScenariosHandler(rw http.ResponseWriter, req *http.Request) {
 	result := make([]interface{}, 0)
 
 	scenarioIds := make([]string, 0)
-	for id := range s.scenarios {
+	for id := range p.scenarios {
 		scenarioIds = append(scenarioIds, id)
 	}
 	sort.Strings(scenarioIds)
 
 	for _, scenarioID := range scenarioIds {
-		scenario := s.scenarios[scenarioID]
+		scenario := p.scenarios[scenarioID]
 		result = append(result, map[string]interface{}{
 			"id":          scenario.ID,
 			"name":        scenario.Name,
@@ -60,18 +59,18 @@ func (s *Service) getScenariosHandler(rw http.ResponseWriter, req *http.Request)
 
 	bytes, err := json.Marshal(&result)
 	if err != nil {
-		s.logger.Error("Failed to marshal response body to JSON", "error", err)
+		p.logger.Error("Failed to marshal response body to JSON", "error", err)
 	}
 
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 	if _, err := rw.Write(bytes); err != nil {
-		s.logger.Error("Failed to write response", "error", err)
+		p.logger.Error("Failed to write response", "error", err)
 	}
 }
 
-func (s *Service) testStreamHandler(rw http.ResponseWriter, req *http.Request) {
-	s.logger.Debug("Received resource call", "url", req.URL.String(), "method", req.Method)
+func (p *testDataPlugin) testStreamHandler(rw http.ResponseWriter, req *http.Request) {
+	p.logger.Debug("Received resource call", "url", req.URL.String(), "method", req.Method)
 
 	if req.Method != http.MethodGet {
 		return
@@ -96,7 +95,7 @@ func (s *Service) testStreamHandler(rw http.ResponseWriter, req *http.Request) {
 
 	for i := 1; i <= count; i++ {
 		if _, err := io.WriteString(rw, fmt.Sprintf("Message #%d", i)); err != nil {
-			s.logger.Error("Failed to write response", "error", err)
+			p.logger.Error("Failed to write response", "error", err)
 			return
 		}
 		rw.(http.Flusher).Flush()
@@ -115,7 +114,7 @@ func createJSONHandler(logger log.Logger) http.Handler {
 					logger.Warn("Failed to close response body", "err", err)
 				}
 			}()
-			b, err := io.ReadAll(req.Body)
+			b, err := ioutil.ReadAll(req.Body)
 			if err != nil {
 				logger.Error("Failed to read request body to bytes", "error", err)
 			} else {
@@ -128,6 +127,8 @@ func createJSONHandler(logger log.Logger) http.Handler {
 			}
 		}
 
+		config := httpadapter.PluginConfigFromContext(req.Context())
+
 		data := map[string]interface{}{
 			"message": "Hello world from test datasource!",
 			"request": map[string]interface{}{
@@ -135,6 +136,7 @@ func createJSONHandler(logger log.Logger) http.Handler {
 				"url":     req.URL,
 				"headers": req.Header,
 				"body":    reqData,
+				"config":  config,
 			},
 		}
 		bytes, err := json.Marshal(&data)
@@ -150,6 +152,6 @@ func createJSONHandler(logger log.Logger) http.Handler {
 	})
 }
 
-func (s *Service) testPanicHandler(rw http.ResponseWriter, req *http.Request) {
+func (p *testDataPlugin) testPanicHandler(rw http.ResponseWriter, req *http.Request) {
 	panic("BOOM")
 }

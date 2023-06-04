@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
+	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/util/errutil"
 	"github.com/jmespath/go-jmespath"
 )
 
 var (
-	errMissingGroupMembership = &Error{"user not a member of one of the required groups"}
+	errMissingGroupMembership = Error{"user not a member of one of the required groups"}
 )
 
 type httpGetResponse struct {
@@ -36,7 +38,7 @@ func isEmailAllowed(email string, allowedDomains []string) bool {
 	valid := false
 	for _, domain := range allowedDomains {
 		emailSuffix := fmt.Sprintf("@%s", domain)
-		valid = valid || strings.HasSuffix(strings.ToLower(email), strings.ToLower(emailSuffix))
+		valid = valid || strings.HasSuffix(email, emailSuffix)
 	}
 
 	return valid
@@ -54,7 +56,7 @@ func (s *SocialBase) httpGet(client *http.Client, url string) (response httpGetR
 		}
 	}()
 
-	body, err := io.ReadAll(r.Body)
+	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return
 	}
@@ -65,13 +67,14 @@ func (s *SocialBase) httpGet(client *http.Client, url string) (response httpGetR
 		err = fmt.Errorf(string(response.Body))
 		return
 	}
-	s.log.Debug("HTTP GET", "url", url, "status", r.Status, "response_body", string(response.Body))
+
+	log.Tracef("HTTP GET %s: %s %s", url, r.Status, string(response.Body))
 
 	err = nil
 	return
 }
 
-func (s *SocialBase) searchJSONForAttr(attributePath string, data []byte) (interface{}, error) {
+func (s *SocialBase) searchJSONForAttr(attributePath string, data []byte) (string, error) {
 	if attributePath == "" {
 		return "", errors.New("no attribute path specified")
 	}
@@ -82,21 +85,12 @@ func (s *SocialBase) searchJSONForAttr(attributePath string, data []byte) (inter
 
 	var buf interface{}
 	if err := json.Unmarshal(data, &buf); err != nil {
-		return "", fmt.Errorf("%v: %w", "failed to unmarshal user info JSON response", err)
+		return "", errutil.Wrap("failed to unmarshal user info JSON response", err)
 	}
 
 	val, err := jmespath.Search(attributePath, buf)
 	if err != nil {
-		return "", fmt.Errorf("failed to search user info JSON response with provided path: %q: %w", attributePath, err)
-	}
-
-	return val, nil
-}
-
-func (s *SocialBase) searchJSONForStringAttr(attributePath string, data []byte) (string, error) {
-	val, err := s.searchJSONForAttr(attributePath, data)
-	if err != nil {
-		return "", err
+		return "", errutil.Wrapf(err, "failed to search user info JSON response with provided path: %q", attributePath)
 	}
 
 	strVal, ok := val.(string)
@@ -105,25 +99,4 @@ func (s *SocialBase) searchJSONForStringAttr(attributePath string, data []byte) 
 	}
 
 	return "", nil
-}
-
-func (s *SocialBase) searchJSONForStringArrayAttr(attributePath string, data []byte) ([]string, error) {
-	val, err := s.searchJSONForAttr(attributePath, data)
-	if err != nil {
-		return []string{}, err
-	}
-
-	ifArr, ok := val.([]interface{})
-	if !ok {
-		return []string{}, nil
-	}
-
-	result := []string{}
-	for _, v := range ifArr {
-		if strVal, ok := v.(string); ok {
-			result = append(result, strVal)
-		}
-	}
-
-	return result, nil
 }

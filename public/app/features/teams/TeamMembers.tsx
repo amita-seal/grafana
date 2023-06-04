@@ -1,47 +1,32 @@
 import React, { PureComponent } from 'react';
-import { connect, ConnectedProps } from 'react-redux';
-
-import { SelectableValue } from '@grafana/data';
-import { Button, FilterInput, Label, InlineField } from '@grafana/ui';
+import { connect } from 'react-redux';
+import { Icon } from '@grafana/ui';
 import { SlideDown } from 'app/core/components/Animations/SlideDown';
-import { CloseButton } from 'app/core/components/CloseButton/CloseButton';
 import { UserPicker } from 'app/core/components/Select/UserPicker';
 import { TagBadge } from 'app/core/components/TagFilter/TagBadge';
+import { TeamMember, User } from 'app/types';
+import { addTeamMember } from './state/actions';
+import { getSearchMemberQuery, isSignedInUserTeamAdmin } from './state/selectors';
+import { FilterInput } from 'app/core/components/FilterInput/FilterInput';
 import { WithFeatureToggle } from 'app/core/components/WithFeatureToggle';
 import { config } from 'app/core/config';
-import { contextSrv } from 'app/core/services/context_srv';
-import { TeamMember, OrgUser } from 'app/types';
-
+import { contextSrv, User as SignedInUser } from 'app/core/services/context_srv';
 import TeamMemberRow from './TeamMemberRow';
-import { addTeamMember } from './state/actions';
 import { setSearchMemberQuery } from './state/reducers';
-import { getSearchMemberQuery, isSignedInUserTeamAdmin } from './state/selectors';
 
-function mapStateToProps(state: any) {
-  return {
-    searchMemberQuery: getSearchMemberQuery(state.team),
-    editorsCanAdmin: config.editorsCanAdmin, // this makes the feature toggle mockable/controllable from tests,
-    signedInUser: contextSrv.user, // this makes the feature toggle mockable/controllable from tests,
-  };
-}
-
-const mapDispatchToProps = {
-  addTeamMember,
-  setSearchMemberQuery,
-};
-
-const connector = connect(mapStateToProps, mapDispatchToProps);
-
-interface OwnProps {
+export interface Props {
   members: TeamMember[];
+  searchMemberQuery: string;
+  addTeamMember: typeof addTeamMember;
+  setSearchMemberQuery: typeof setSearchMemberQuery;
   syncEnabled: boolean;
+  editorsCanAdmin: boolean;
+  signedInUser: SignedInUser;
 }
-
-export type Props = ConnectedProps<typeof connector> & OwnProps;
 
 export interface State {
   isAdding: boolean;
-  newTeamMember?: SelectableValue<OrgUser['userId']> | null;
+  newTeamMember?: User | null;
 }
 
 export class TeamMembers extends PureComponent<Props, State> {
@@ -58,7 +43,7 @@ export class TeamMembers extends PureComponent<Props, State> {
     this.setState({ isAdding: !this.state.isAdding });
   };
 
-  onUserSelected = (user: SelectableValue<OrgUser['userId']>) => {
+  onUserSelected = (user: User) => {
     this.setState({ newTeamMember: user });
   };
 
@@ -75,7 +60,7 @@ export class TeamMembers extends PureComponent<Props, State> {
     return (
       <td>
         {labels.map((label) => (
-          <TagBadge key={label} label={label} removeIcon={false} count={0} />
+          <TagBadge key={label} label={label} removeIcon={false} count={0} onClick={() => {}} />
         ))}
       </td>
     );
@@ -89,24 +74,39 @@ export class TeamMembers extends PureComponent<Props, State> {
     return (
       <div>
         <div className="page-action-bar">
-          <InlineField grow>
-            <FilterInput placeholder="Search members" value={searchMemberQuery} onChange={this.onSearchQueryChange} />
-          </InlineField>
-          <Button className="pull-right" onClick={this.onToggleAdding} disabled={isAdding || !isTeamAdmin}>
+          <div className="gf-form gf-form--grow">
+            <FilterInput
+              labelClassName="gf-form--has-input-icon gf-form--grow"
+              inputClassName="gf-form-input"
+              placeholder="Search members"
+              value={searchMemberQuery}
+              onChange={this.onSearchQueryChange}
+            />
+          </div>
+
+          <div className="page-action-bar__spacer" />
+
+          <button
+            className="btn btn-primary pull-right"
+            onClick={this.onToggleAdding}
+            disabled={isAdding || !isTeamAdmin}
+          >
             Add member
-          </Button>
+          </button>
         </div>
 
         <SlideDown in={isAdding}>
           <div className="cta-form">
-            <CloseButton aria-label="Close 'Add team member' dialogue" onClick={this.onToggleAdding} />
-            <Label htmlFor="user-picker">Add team member</Label>
+            <button className="cta-form__close btn btn-transparent" onClick={this.onToggleAdding}>
+              <Icon name="times" />
+            </button>
+            <h5>Add team member</h5>
             <div className="gf-form-inline">
-              <UserPicker inputId="user-picker" onSelected={this.onUserSelected} className="min-width-30" />
+              <UserPicker onSelected={this.onUserSelected} className="min-width-30" />
               {this.state.newTeamMember && (
-                <Button type="submit" onClick={this.onAddUserToTeam}>
+                <button className="btn btn-primary gf-form-btn" type="submit" onClick={this.onAddUserToTeam}>
                   Add to team
-                </Button>
+                </button>
               )}
             </div>
           </div>
@@ -146,4 +146,17 @@ export class TeamMembers extends PureComponent<Props, State> {
   }
 }
 
-export default connector(TeamMembers);
+function mapStateToProps(state: any) {
+  return {
+    searchMemberQuery: getSearchMemberQuery(state.team),
+    editorsCanAdmin: config.editorsCanAdmin, // this makes the feature toggle mockable/controllable from tests,
+    signedInUser: contextSrv.user, // this makes the feature toggle mockable/controllable from tests,
+  };
+}
+
+const mapDispatchToProps = {
+  addTeamMember,
+  setSearchMemberQuery,
+};
+
+export default connect(mapStateToProps, mapDispatchToProps)(TeamMembers);

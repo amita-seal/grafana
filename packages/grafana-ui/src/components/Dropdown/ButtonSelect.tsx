@@ -1,19 +1,11 @@
-import { css } from '@emotion/css';
-import { useButton } from '@react-aria/button';
-import { FocusScope } from '@react-aria/focus';
-import { useMenuTrigger } from '@react-aria/menu';
-import { useMenuTriggerState } from '@react-stately/menu';
-import React, { HTMLAttributes } from 'react';
-
-import { GrafanaTheme2, SelectableValue } from '@grafana/data';
-
-import { useStyles2 } from '../../themes/ThemeContext';
-import { ButtonGroup } from '../Button';
+import React, { useState, HTMLAttributes } from 'react';
+import { PopoverContent } from '../Tooltip/Tooltip';
+import { GrafanaTheme, SelectableValue } from '@grafana/data';
+import { ToolbarButtonVariant, ToolbarButton } from '../Button';
 import { ClickOutsideWrapper } from '../ClickOutsideWrapper/ClickOutsideWrapper';
-import { Menu } from '../Menu/Menu';
-import { MenuItem } from '../Menu/MenuItem';
-import { ToolbarButton, ToolbarButtonVariant } from '../ToolbarButton';
-import { PopoverContent } from '../Tooltip';
+import { css } from 'emotion';
+import { useStyles } from '../../themes/ThemeContext';
+import { Menu, MenuItemsGroup } from '../Menu/Menu';
 
 export interface Props<T> extends HTMLAttributes<HTMLButtonElement> {
   className?: string;
@@ -29,67 +21,60 @@ export interface Props<T> extends HTMLAttributes<HTMLButtonElement> {
  * @internal
  * A temporary component until we have a proper dropdown component
  */
-const ButtonSelectComponent = <T,>(props: Props<T>) => {
+export const ButtonSelect = React.memo(<T,>(props: Props<T>) => {
   const { className, options, value, onChange, narrow, variant, ...restProps } = props;
-  const styles = useStyles2(getStyles);
-  const state = useMenuTriggerState({});
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const styles = useStyles(getStyles);
 
-  const ref = React.useRef(null);
-  const { menuTriggerProps, menuProps } = useMenuTrigger({}, state, ref);
-  const { buttonProps } = useButton(menuTriggerProps, ref);
+  const onCloseMenu = () => {
+    setIsOpen(false);
+  };
+
+  const onToggle = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    event.preventDefault();
+    setIsOpen(!isOpen);
+  };
 
   const onChangeInternal = (item: SelectableValue<T>) => {
     onChange(item);
-    state.close();
+    setIsOpen(false);
+  };
+
+  const menuGroup: MenuItemsGroup = {
+    items: options.map((item) => ({
+      label: (item.label || item.value) as string,
+      onClick: () => onChangeInternal(item),
+      active: item.value === value?.value,
+    })),
   };
 
   return (
-    <ButtonGroup className={styles.wrapper}>
+    <>
       <ToolbarButton
         className={className}
-        isOpen={state.isOpen}
+        isOpen={isOpen}
+        onClick={onToggle}
         narrow={narrow}
         variant={variant}
-        ref={ref}
-        {...buttonProps}
         {...restProps}
       >
-        {value?.label || (value?.value != null ? String(value?.value) : null)}
+        {value?.label || value?.value}
       </ToolbarButton>
-      {state.isOpen && (
+      {isOpen && (
         <div className={styles.menuWrapper}>
-          <ClickOutsideWrapper onClick={state.close} parent={document} includeButtonPress={false}>
-            <FocusScope contain autoFocus restoreFocus>
-              {/*
-                tabIndex=-1 is needed here to support highlighting text within the menu when using FocusScope
-                see https://github.com/adobe/react-spectrum/issues/1604#issuecomment-781574668
-              */}
-              <Menu tabIndex={-1} onClose={state.close} {...menuProps}>
-                {options.map((item) => (
-                  <MenuItem
-                    key={`${item.value}`}
-                    label={item.label ?? String(item.value)}
-                    onClick={() => onChangeInternal(item)}
-                    active={item.value === value?.value}
-                    ariaChecked={item.value === value?.value}
-                    ariaLabel={item.ariaLabel || item.label}
-                    role="menuitemradio"
-                  />
-                ))}
-              </Menu>
-            </FocusScope>
+          <ClickOutsideWrapper onClick={onCloseMenu} parent={document}>
+            <Menu items={[menuGroup]} />
           </ClickOutsideWrapper>
         </div>
       )}
-    </ButtonGroup>
+    </>
   );
-};
+});
 
-ButtonSelectComponent.displayName = 'ButtonSelect';
+ButtonSelect.displayName = 'ButtonSelect';
 
-export const ButtonSelect = React.memo(ButtonSelectComponent) as typeof ButtonSelectComponent;
-
-const getStyles = (theme: GrafanaTheme2) => {
+const getStyles = (theme: GrafanaTheme) => {
   return {
     wrapper: css`
       position: relative;
@@ -98,7 +83,7 @@ const getStyles = (theme: GrafanaTheme2) => {
     menuWrapper: css`
       position: absolute;
       z-index: ${theme.zIndex.dropdown};
-      top: ${theme.spacing(4)};
+      top: ${theme.spacing.formButtonHeight + 1}px;
       right: 0;
     `,
   };

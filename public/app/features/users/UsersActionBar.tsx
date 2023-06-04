@@ -1,25 +1,70 @@
-import React from 'react';
-import { connect, ConnectedProps } from 'react-redux';
+import React, { PureComponent } from 'react';
+import { connect } from 'react-redux';
+import { setUsersSearchQuery } from './state/reducers';
+import { getInviteesCount, getUsersSearchQuery } from './state/selectors';
+import { FilterInput } from 'app/core/components/FilterInput/FilterInput';
+import { RadioButtonGroup, LinkButton } from '@grafana/ui';
 
-import { RadioButtonGroup, LinkButton, FilterInput, InlineField } from '@grafana/ui';
-import config from 'app/core/config';
-import { contextSrv } from 'app/core/core';
-import { AccessControlAction, StoreState } from 'app/types';
-
-import { selectTotal } from '../invites/state/selectors';
-
-import { changeSearchQuery } from './state/actions';
-import { getUsersSearchQuery } from './state/selectors';
-
-export interface OwnProps {
-  showInvites: boolean;
+export interface Props {
+  searchQuery: string;
+  setUsersSearchQuery: typeof setUsersSearchQuery;
   onShowInvites: () => void;
+  pendingInvitesCount: number;
+  canInvite: boolean;
+  showInvites: boolean;
+  externalUserMngLinkUrl: string;
+  externalUserMngLinkName: string;
 }
 
-function mapStateToProps(state: StoreState) {
+export class UsersActionBar extends PureComponent<Props> {
+  render() {
+    const {
+      canInvite,
+      externalUserMngLinkName,
+      externalUserMngLinkUrl,
+      searchQuery,
+      pendingInvitesCount,
+      setUsersSearchQuery,
+      onShowInvites,
+      showInvites,
+    } = this.props;
+    const options = [
+      { label: 'Users', value: 'users' },
+      { label: `Pending Invites (${pendingInvitesCount})`, value: 'invites' },
+    ];
+
+    return (
+      <div className="page-action-bar">
+        <div className="gf-form gf-form--grow">
+          <FilterInput
+            labelClassName="gf-form--has-input-icon"
+            inputClassName="gf-form-input width-20"
+            value={searchQuery}
+            onChange={setUsersSearchQuery}
+            placeholder="Search user by login, email or name"
+          />
+          {pendingInvitesCount > 0 && (
+            <div style={{ marginLeft: '1rem' }}>
+              <RadioButtonGroup value={showInvites ? 'invites' : 'users'} options={options} onChange={onShowInvites} />
+            </div>
+          )}
+          <div className="page-action-bar__spacer" />
+          {canInvite && <LinkButton href="org/users/invite">Invite</LinkButton>}
+          {externalUserMngLinkUrl && (
+            <LinkButton href={externalUserMngLinkUrl} target="_blank" rel="noopener">
+              {externalUserMngLinkName}
+            </LinkButton>
+          )}
+        </div>
+      </div>
+    );
+  }
+}
+
+function mapStateToProps(state: any) {
   return {
     searchQuery: getUsersSearchQuery(state.users),
-    pendingInvitesCount: selectTotal(state.invites),
+    pendingInvitesCount: getInviteesCount(state.users),
     externalUserMngLinkName: state.users.externalUserMngLinkName,
     externalUserMngLinkUrl: state.users.externalUserMngLinkUrl,
     canInvite: state.users.canInvite,
@@ -27,53 +72,7 @@ function mapStateToProps(state: StoreState) {
 }
 
 const mapDispatchToProps = {
-  changeSearchQuery,
+  setUsersSearchQuery,
 };
 
-const connector = connect(mapStateToProps, mapDispatchToProps);
-
-export type Props = ConnectedProps<typeof connector> & OwnProps;
-
-export const UsersActionBarUnconnected = ({
-  canInvite,
-  externalUserMngLinkName,
-  externalUserMngLinkUrl,
-  searchQuery,
-  pendingInvitesCount,
-  changeSearchQuery,
-  onShowInvites,
-  showInvites,
-}: Props): JSX.Element => {
-  const options = [
-    { label: 'Users', value: 'users' },
-    { label: `Pending Invites (${pendingInvitesCount})`, value: 'invites' },
-  ];
-  const canAddToOrg: boolean = contextSrv.hasAccess(AccessControlAction.OrgUsersAdd, canInvite);
-  // Hide Invite button in case users are managed externally
-  const showInviteButton: boolean = canAddToOrg && !config.externalUserMngInfo;
-
-  return (
-    <div className="page-action-bar" data-testid="users-action-bar">
-      <InlineField grow>
-        <FilterInput
-          value={searchQuery}
-          onChange={changeSearchQuery}
-          placeholder="Search user by login, email or name"
-        />
-      </InlineField>
-      {pendingInvitesCount > 0 && (
-        <div style={{ marginLeft: '1rem' }}>
-          <RadioButtonGroup value={showInvites ? 'invites' : 'users'} options={options} onChange={onShowInvites} />
-        </div>
-      )}
-      {showInviteButton && <LinkButton href="org/users/invite">Invite</LinkButton>}
-      {externalUserMngLinkUrl && (
-        <LinkButton href={externalUserMngLinkUrl} target="_blank" rel="noopener">
-          {externalUserMngLinkName}
-        </LinkButton>
-      )}
-    </div>
-  );
-};
-
-export const UsersActionBar = connector(UsersActionBarUnconnected);
+export default connect(mapStateToProps, mapDispatchToProps)(UsersActionBar);

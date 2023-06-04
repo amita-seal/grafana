@@ -1,11 +1,11 @@
-import { omit } from 'lodash';
 import { map } from 'rxjs/operators';
 
-import { MutableDataFrame } from '../../dataframe';
-import { DataFrame, Field } from '../../types/dataFrame';
-import { DataTransformerInfo } from '../../types/transformations';
-
 import { DataTransformerID } from './ids';
+import { DataTransformerInfo } from '../../types/transformations';
+import { DataFrame, Field } from '../../types/dataFrame';
+import { omit } from 'lodash';
+import { ArrayVector } from '../../vector/ArrayVector';
+import { MutableDataFrame } from '../../dataframe';
 
 interface ValuePointer {
   key: string;
@@ -22,7 +22,7 @@ export const mergeTransformer: DataTransformerInfo<MergeTransformerOptions> = {
   operator: (options) => (source) =>
     source.pipe(
       map((dataFrames) => {
-        if (!Array.isArray(dataFrames) || dataFrames.length <= 1) {
+        if (!Array.isArray(dataFrames) || dataFrames.length === 0) {
           return dataFrames;
         }
 
@@ -116,7 +116,7 @@ export const mergeTransformer: DataTransformerInfo<MergeTransformerOptions> = {
 const copyFieldStructure = (field: Field): Field => {
   return {
     ...omit(field, ['values', 'state', 'labels', 'config']),
-    values: [],
+    values: new ArrayVector(),
     config: {
       ...omit(field.config, 'displayName'),
     },
@@ -138,7 +138,7 @@ const createKeyFactory = (
 
   return (frameIndex: number, valueIndex: number): string => {
     return factoryIndex[frameIndex].reduce((key: string, fieldIndex: number) => {
-      return key + data[frameIndex].fields[fieldIndex].values[valueIndex];
+      return key + data[frameIndex].fields[fieldIndex].values.get(valueIndex);
     }, '');
   };
 };
@@ -173,7 +173,7 @@ const createValueMapper = (
         continue;
       }
 
-      value[fieldName] = field.values[valueIndex];
+      value[fieldName] = field.values.get(valueIndex);
     }
 
     return value;

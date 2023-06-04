@@ -1,12 +1,11 @@
 package util
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"time"
-	"unicode"
 )
 
 // StringsFallback2 returns the first of two not empty strings.
@@ -34,17 +33,7 @@ func SplitString(str string) []string {
 		return []string{}
 	}
 
-	// JSON list syntax support
-	if strings.Index(strings.TrimSpace(str), "[") == 0 {
-		var res []string
-		err := json.Unmarshal([]byte(str), &res)
-		if err != nil {
-			return []string{}
-		}
-		return res
-	}
-
-	return strings.Fields(strings.ReplaceAll(str, ",", " "))
+	return regexp.MustCompile("[, ]+").Split(str, -1)
 }
 
 // GetAgeString returns a string representing certain time from years to minutes.
@@ -59,49 +48,24 @@ func GetAgeString(t time.Time) string {
 	months := int(math.Floor(minutes / 43800))
 	days := int(math.Floor(minutes / 1440))
 	hours := int(math.Floor(minutes / 60))
-	var amount string
+
 	if years > 0 {
-		if years == 1 {
-			amount = "year"
-		} else {
-			amount = "years"
-		}
-		return fmt.Sprintf("%d %s", years, amount)
+		return fmt.Sprintf("%dy", years)
 	}
 	if months > 0 {
-		if months == 1 {
-			amount = "month"
-		} else {
-			amount = "months"
-		}
-		return fmt.Sprintf("%d %s", months, amount)
+		return fmt.Sprintf("%dM", months)
 	}
 	if days > 0 {
-		if days == 1 {
-			amount = "day"
-		} else {
-			amount = "days"
-		}
-		return fmt.Sprintf("%d %s", days, amount)
+		return fmt.Sprintf("%dd", days)
 	}
 	if hours > 0 {
-		if hours == 1 {
-			amount = "hour"
-		} else {
-			amount = "hours"
-		}
-		return fmt.Sprintf("%d %s", hours, amount)
+		return fmt.Sprintf("%dh", hours)
 	}
 	if int(minutes) > 0 {
-		if int(minutes) == 1 {
-			amount = "minute"
-		} else {
-			amount = "minutes"
-		}
-		return fmt.Sprintf("%d %s", int(minutes), amount)
+		return fmt.Sprintf("%dm", int(minutes))
 	}
 
-	return "< 1 minute"
+	return "< 1m"
 }
 
 // ToCamelCase changes kebab case, snake case or mixed strings to camel case. See unit test for examples.
@@ -118,27 +82,4 @@ func ToCamelCase(str string) string {
 	}
 
 	return strings.Join(finalParts, "")
-}
-
-func Capitalize(s string) string {
-	if len(s) == 0 {
-		return s
-	}
-	r := []rune(s)
-	r[0] = unicode.ToUpper(r[0])
-	return string(r)
-}
-
-func ByteCountSI(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
 }

@@ -1,25 +1,27 @@
-import { css } from '@emotion/css';
-import React, { ReactElement, useState } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-import { config } from '@grafana/runtime';
-import { Icon, Link, useStyles2 } from '@grafana/ui';
-import { getPanelPluginNotFound } from 'app/features/panel/components/PanelPluginError';
-import { PanelTypeCard } from 'app/features/panel/components/VizTypePicker/PanelTypeCard';
-
-import { LibraryElementDTO } from '../../types';
+import React, { useState } from 'react';
+import { Card, Icon, IconButton, Tooltip, useStyles } from '@grafana/ui';
+import { css } from 'emotion';
+import { GrafanaTheme } from '@grafana/data';
+import { LibraryPanelDTO } from '../../types';
 import { DeleteLibraryPanelModal } from '../DeleteLibraryPanelModal/DeleteLibraryPanelModal';
 
 export interface LibraryPanelCardProps {
-  libraryPanel: LibraryElementDTO;
-  onClick: (panel: LibraryElementDTO) => void;
-  onDelete?: (panel: LibraryElementDTO) => void;
+  libraryPanel: LibraryPanelDTO;
+  onClick?: (panel: LibraryPanelDTO) => void;
+  onDelete?: (panel: LibraryPanelDTO) => void;
   showSecondaryActions?: boolean;
+  formatDate?: (dateString: string) => string;
 }
 
-type Props = LibraryPanelCardProps & { children?: JSX.Element | JSX.Element[] };
-
-export const LibraryPanelCard = ({ libraryPanel, onClick, onDelete, showSecondaryActions }: Props) => {
+export const LibraryPanelCard: React.FC<LibraryPanelCardProps & { children?: JSX.Element | JSX.Element[] }> = ({
+  libraryPanel,
+  children,
+  onClick,
+  onDelete,
+  formatDate,
+  showSecondaryActions,
+}) => {
+  const styles = useStyles(getStyles);
   const [showDeletionModal, setShowDeletionModal] = useState(false);
 
   const onDeletePanel = () => {
@@ -27,20 +29,46 @@ export const LibraryPanelCard = ({ libraryPanel, onClick, onDelete, showSecondar
     setShowDeletionModal(false);
   };
 
-  const panelPlugin = config.panels[libraryPanel.model.type] ?? getPanelPluginNotFound(libraryPanel.model.type).meta;
-
   return (
     <>
-      <PanelTypeCard
-        isCurrent={false}
-        title={libraryPanel.name}
-        description={libraryPanel.description}
-        plugin={panelPlugin}
-        onClick={() => onClick?.(libraryPanel)}
-        onDelete={showSecondaryActions ? () => setShowDeletionModal(true) : undefined}
-      >
-        <FolderLink libraryPanel={libraryPanel} />
-      </PanelTypeCard>
+      <Card heading={libraryPanel.name} onClick={onClick ? () => onClick(libraryPanel) : undefined}>
+        <Card.Figure>
+          <Icon className={styles.panelIcon} name="book-open" size="xl" />
+        </Card.Figure>
+        <Card.Meta>
+          <span>Reusable panel</span>
+          <Tooltip content="Connected dashboards" placement="bottom">
+            <div className={styles.tooltip}>
+              <Icon name="apps" className={styles.detailIcon} />
+              {libraryPanel.meta.connectedDashboards}
+            </div>
+          </Tooltip>
+          <span>
+            Last edited {formatDate?.(libraryPanel.meta.updated ?? '') ?? libraryPanel.meta.updated} by{' '}
+            {libraryPanel.meta.updatedBy.name}
+          </span>
+        </Card.Meta>
+        {/*
+        Commenting this out as tagging isn't implemented yet.
+        <Card.Tags>
+          <TagList className={styles.tagList} tags={['associated panel tag']} />
+        </Card.Tags> */}
+        {children && <Card.Actions>{children}</Card.Actions>}
+        {showSecondaryActions && (
+          <Card.SecondaryActions>
+            <IconButton
+              name="trash-alt"
+              tooltip="Delete panel"
+              tooltipPlacement="bottom"
+              onClick={() => setShowDeletionModal(true)}
+            />
+            {/*
+          Commenting this out as panel favoriting hasn't been implemented yet.
+          <IconButton name="star" tooltip="Favorite panel" tooltipPlacement="bottom" />
+          */}
+          </Card.SecondaryActions>
+        )}
+      </Card>
       {showDeletionModal && (
         <DeleteLibraryPanelModal
           libraryPanel={libraryPanel}
@@ -52,49 +80,19 @@ export const LibraryPanelCard = ({ libraryPanel, onClick, onDelete, showSecondar
   );
 };
 
-interface FolderLinkProps {
-  libraryPanel: LibraryElementDTO;
-}
-
-function FolderLink({ libraryPanel }: FolderLinkProps): ReactElement | null {
-  const styles = useStyles2(getStyles);
-
-  if (!libraryPanel.meta?.folderUid && !libraryPanel.meta?.folderName) {
-    return null;
-  }
-
-  if (!libraryPanel.meta.folderUid) {
-    return (
-      <span className={styles.metaContainer}>
-        <Icon name={'folder'} size="sm" />
-        <span>{libraryPanel.meta.folderName}</span>
-      </span>
-    );
-  }
-
-  return (
-    <span className={styles.metaContainer}>
-      <Link href={`/dashboards/f/${libraryPanel.meta.folderUid}`}>
-        <Icon name={'folder-upload'} size="sm" />
-        <span>{libraryPanel.meta.folderName}</span>
-      </Link>
-    </span>
-  );
-}
-
-function getStyles(theme: GrafanaTheme2) {
+const getStyles = (theme: GrafanaTheme) => {
   return {
-    metaContainer: css`
-      display: flex;
-      align-items: center;
-      color: ${theme.colors.text.secondary};
-      font-size: ${theme.typography.bodySmall.fontSize};
-      padding-top: ${theme.spacing(0.5)};
-
-      svg {
-        margin-right: ${theme.spacing(0.5)};
-        margin-bottom: 3px;
-      }
+    tooltip: css`
+      display: inline;
+    `,
+    detailIcon: css`
+      margin-right: 0.5ch;
+    `,
+    panelIcon: css`
+      color: ${theme.colors.textWeak};
+    `,
+    tagList: css`
+      align-self: center;
     `,
   };
-}
+};

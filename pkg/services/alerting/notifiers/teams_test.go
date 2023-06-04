@@ -3,73 +3,71 @@ package notifiers
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
+	"github.com/grafana/grafana/pkg/models"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestTeamsNotifier(t *testing.T) {
-	encryptionService := encryptionservice.SetupTestService(t)
+	Convey("Teams notifier tests", t, func() {
+		Convey("Parsing alert notification from settings", func() {
+			Convey("empty settings should return error", func() {
+				json := `{ }`
 
-	t.Run("Parsing alert notification from settings", func(t *testing.T) {
-		t.Run("empty settings should return error", func(t *testing.T) {
-			json := `{ }`
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "ops",
+					Type:     "teams",
+					Settings: settingsJSON,
+				}
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "ops",
-				Type:     "teams",
-				Settings: settingsJSON,
-			}
+				_, err := NewTeamsNotifier(model)
+				So(err, ShouldNotBeNil)
+			})
 
-			_, err := NewTeamsNotifier(model, encryptionService.GetDecryptedValue, nil)
-			require.Error(t, err)
-		})
-
-		t.Run("from settings", func(t *testing.T) {
-			json := `
+			Convey("from settings", func() {
+				json := `
 				{
           "url": "http://google.com"
 				}`
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "ops",
-				Type:     "teams",
-				Settings: settingsJSON,
-			}
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "ops",
+					Type:     "teams",
+					Settings: settingsJSON,
+				}
 
-			not, err := NewTeamsNotifier(model, encryptionService.GetDecryptedValue, nil)
-			teamsNotifier := not.(*TeamsNotifier)
+				not, err := NewTeamsNotifier(model)
+				teamsNotifier := not.(*TeamsNotifier)
 
-			require.Nil(t, err)
-			require.Equal(t, "ops", teamsNotifier.Name)
-			require.Equal(t, "teams", teamsNotifier.Type)
-			require.Equal(t, "http://google.com", teamsNotifier.URL)
-		})
+				So(err, ShouldBeNil)
+				So(teamsNotifier.Name, ShouldEqual, "ops")
+				So(teamsNotifier.Type, ShouldEqual, "teams")
+				So(teamsNotifier.URL, ShouldEqual, "http://google.com")
+			})
 
-		t.Run("from settings with Recipient and Mention", func(t *testing.T) {
-			json := `
+			Convey("from settings with Recipient and Mention", func() {
+				json := `
 				{
           "url": "http://google.com"
 				}`
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "ops",
-				Type:     "teams",
-				Settings: settingsJSON,
-			}
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "ops",
+					Type:     "teams",
+					Settings: settingsJSON,
+				}
 
-			not, err := NewTeamsNotifier(model, encryptionService.GetDecryptedValue, nil)
-			teamsNotifier := not.(*TeamsNotifier)
+				not, err := NewTeamsNotifier(model)
+				teamsNotifier := not.(*TeamsNotifier)
 
-			require.Nil(t, err)
-			require.Equal(t, "ops", teamsNotifier.Name)
-			require.Equal(t, "teams", teamsNotifier.Type)
-			require.Equal(t, "http://google.com", teamsNotifier.URL)
+				So(err, ShouldBeNil)
+				So(teamsNotifier.Name, ShouldEqual, "ops")
+				So(teamsNotifier.Type, ShouldEqual, "teams")
+				So(teamsNotifier.URL, ShouldEqual, "http://google.com")
+			})
 		})
 	})
 }

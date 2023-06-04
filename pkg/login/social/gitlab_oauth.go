@@ -6,16 +6,19 @@ import (
 	"net/http"
 	"regexp"
 
-	"golang.org/x/oauth2"
+	"github.com/grafana/grafana/pkg/models"
 
-	"github.com/grafana/grafana/pkg/models/roletype"
+	"golang.org/x/oauth2"
 )
 
 type SocialGitlab struct {
 	*SocialBase
-	allowedGroups   []string
-	apiUrl          string
-	skipOrgRoleSync bool
+	allowedGroups []string
+	apiUrl        string
+}
+
+func (s *SocialGitlab) Type() int {
+	return int(models.GITLAB)
 }
 
 func (s *SocialGitlab) IsGroupMember(groups []string) bool {
@@ -86,7 +89,7 @@ func (s *SocialGitlab) GetGroupsPage(client *http.Client, url string) ([]string,
 	return fullPaths, next
 }
 
-func (s *SocialGitlab) UserInfo(client *http.Client, _ *oauth2.Token) (*BasicUserInfo, error) {
+func (s *SocialGitlab) UserInfo(client *http.Client, token *oauth2.Token) (*BasicUserInfo, error) {
 	var data struct {
 		Id       int
 		Username string
@@ -100,7 +103,8 @@ func (s *SocialGitlab) UserInfo(client *http.Client, _ *oauth2.Token) (*BasicUse
 		return nil, fmt.Errorf("Error getting user info: %s", err)
 	}
 
-	if err = json.Unmarshal(response.Body, &data); err != nil {
+	err = json.Unmarshal(response.Body, &data)
+	if err != nil {
 		return nil, fmt.Errorf("error getting user info: %s", err)
 	}
 
@@ -110,31 +114,12 @@ func (s *SocialGitlab) UserInfo(client *http.Client, _ *oauth2.Token) (*BasicUse
 
 	groups := s.GetGroups(client)
 
-	var role roletype.RoleType
-	var isGrafanaAdmin *bool = nil
-	if !s.skipOrgRoleSync {
-		var grafanaAdmin bool
-		role, grafanaAdmin = s.extractRoleAndAdmin(response.Body, groups, true)
-		if s.roleAttributeStrict && !role.IsValid() {
-			return nil, &InvalidBasicRoleError{idP: "Gitlab", assignedRole: string(role)}
-		}
-
-		if s.allowAssignGrafanaAdmin {
-			isGrafanaAdmin = &grafanaAdmin
-		}
-	}
-	if s.allowAssignGrafanaAdmin && s.skipOrgRoleSync {
-		s.log.Debug("allowAssignGrafanaAdmin and skipOrgRoleSync are both set, Grafana Admin role will not be synced, consider setting one or the other")
-	}
-
 	userInfo := &BasicUserInfo{
-		Id:             fmt.Sprintf("%d", data.Id),
-		Name:           data.Name,
-		Login:          data.Username,
-		Email:          data.Email,
-		Groups:         groups,
-		Role:           role,
-		IsGrafanaAdmin: isGrafanaAdmin,
+		Id:     fmt.Sprintf("%d", data.Id),
+		Name:   data.Name,
+		Login:  data.Username,
+		Email:  data.Email,
+		Groups: groups,
 	}
 
 	if !s.IsGroupMember(groups) {

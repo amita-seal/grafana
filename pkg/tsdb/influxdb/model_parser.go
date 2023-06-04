@@ -1,33 +1,29 @@
 package influxdb
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
-
 	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/tsdb"
 )
 
 type InfluxdbQueryParser struct{}
 
-func (qp *InfluxdbQueryParser) Parse(query backend.DataQuery) (*Query, error) {
-	model, err := simplejson.NewJson(query.JSON)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't unmarshal query")
-	}
-
+func (qp *InfluxdbQueryParser) Parse(model *simplejson.Json, dsInfo *models.DataSource) (*Query, error) {
 	policy := model.Get("policy").MustString("default")
 	rawQuery := model.Get("query").MustString("")
 	useRawQuery := model.Get("rawQuery").MustBool(false)
 	alias := model.Get("alias").MustString("")
 	tz := model.Get("tz").MustString("")
-	limit := model.Get("limit").MustString("")
-	slimit := model.Get("slimit").MustString("")
-	orderByTime := model.Get("orderByTime").MustString("")
 
 	measurement := model.Get("measurement").MustString("")
+
+	resultFormat, err := model.Get("resultFormat").String()
+	if err != nil {
+		return nil, err
+	}
 
 	tags, err := qp.parseTags(model)
 	if err != nil {
@@ -44,37 +40,30 @@ func (qp *InfluxdbQueryParser) Parse(query backend.DataQuery) (*Query, error) {
 		return nil, err
 	}
 
-	interval := query.Interval
-
-	// we make sure it is at least 1 millisecond
-	minInterval := time.Millisecond
-
-	if interval < minInterval {
-		interval = minInterval
+	parsedInterval, err := tsdb.GetIntervalFrom(dsInfo, model, time.Millisecond*1)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Query{
-		Measurement: measurement,
-		Policy:      policy,
-		GroupBy:     groupBys,
-		Tags:        tags,
-		Selects:     selects,
-		RawQuery:    rawQuery,
-		Interval:    interval,
-		Alias:       alias,
-		UseRawQuery: useRawQuery,
-		Tz:          tz,
-		Limit:       limit,
-		Slimit:      slimit,
-		OrderByTime: orderByTime,
+		Measurement:  measurement,
+		Policy:       policy,
+		ResultFormat: resultFormat,
+		GroupBy:      groupBys,
+		Tags:         tags,
+		Selects:      selects,
+		RawQuery:     rawQuery,
+		Interval:     parsedInterval,
+		Alias:        alias,
+		UseRawQuery:  useRawQuery,
+		Tz:           tz,
 	}, nil
 }
 
 func (qp *InfluxdbQueryParser) parseSelects(model *simplejson.Json) ([]*Select, error) {
-	selectObjs := model.Get("select").MustArray()
-	result := make([]*Select, 0, len(selectObjs))
+	var result []*Select
 
-	for _, selectObj := range selectObjs {
+	for _, selectObj := range model.Get("select").MustArray() {
 		selectJson := simplejson.NewFromAny(selectObj)
 		var parts Select
 
@@ -95,9 +84,8 @@ func (qp *InfluxdbQueryParser) parseSelects(model *simplejson.Json) ([]*Select, 
 }
 
 func (*InfluxdbQueryParser) parseTags(model *simplejson.Json) ([]*Tag, error) {
-	tags := model.Get("tags").MustArray()
-	result := make([]*Tag, 0, len(tags))
-	for _, t := range tags {
+	var result []*Tag
+	for _, t := range model.Get("tags").MustArray() {
 		tagJson := simplejson.NewFromAny(t)
 		tag := &Tag{}
 		var err error
@@ -162,9 +150,8 @@ func (*InfluxdbQueryParser) parseQueryPart(model *simplejson.Json) (*QueryPart, 
 }
 
 func (qp *InfluxdbQueryParser) parseGroupBy(model *simplejson.Json) ([]*QueryPart, error) {
-	groupBy := model.Get("groupBy").MustArray()
-	result := make([]*QueryPart, 0, len(groupBy))
-	for _, groupObj := range groupBy {
+	var result []*QueryPart
+	for _, groupObj := range model.Get("groupBy").MustArray() {
 		groupJson := simplejson.NewFromAny(groupObj)
 		queryPart, err := qp.parseQueryPart(groupJson)
 		if err != nil {

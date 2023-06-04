@@ -1,16 +1,14 @@
-import { Story, Meta } from '@storybook/react';
 import React from 'react';
-
-import { VizOrientation, ThresholdsMode, Field, FieldType, getDisplayProcessor } from '@grafana/data';
+import { Story } from '@storybook/react';
 import { BarGauge, BarGaugeDisplayMode } from '@grafana/ui';
-
-import { useTheme2 } from '../../themes';
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
+import { NOOP_CONTROL } from '../../utils/storybook/noopControl';
+import { VizOrientation, ThresholdsMode, Field, FieldType, getDisplayProcessor } from '@grafana/data';
 import { Props } from './BarGauge';
+import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
 import mdx from './BarGauge.mdx';
+import { useTheme } from '../../themes';
 
-const meta: Meta = {
+export default {
   title: 'Visualizations/BarGauge',
   component: BarGauge,
   decorators: [withCenteredStory],
@@ -18,18 +16,8 @@ const meta: Meta = {
     docs: {
       page: mdx,
     },
-    controls: {
-      exclude: [
-        'theme',
-        'field',
-        'value',
-        'display',
-        'orientation',
-        'text',
-        'onClick',
-        'className',
-        'alignmentFactors',
-      ],
+    knobs: {
+      disable: true,
     },
   },
   args: {
@@ -57,6 +45,15 @@ const meta: Meta = {
     height: { control: { type: 'range', min: 200, max: 800 } },
     threshold1Color: { control: 'color' },
     threshold2Color: { control: 'color' },
+    theme: NOOP_CONTROL,
+    field: NOOP_CONTROL,
+    value: NOOP_CONTROL,
+    display: NOOP_CONTROL,
+    orientation: NOOP_CONTROL,
+    text: NOOP_CONTROL,
+    onClick: NOOP_CONTROL,
+    className: NOOP_CONTROL,
+    alignmentFactors: NOOP_CONTROL,
   },
 };
 
@@ -72,7 +69,7 @@ interface StoryProps extends Partial<Props> {
 }
 
 const AddBarGaugeStory = (storyProps: StoryProps) => {
-  const theme = useTheme2();
+  const theme = useTheme();
 
   const field: Partial<Field> = {
     type: FieldType.number,
@@ -89,7 +86,7 @@ const AddBarGaugeStory = (storyProps: StoryProps) => {
       },
     },
   };
-  field.display = getDisplayProcessor({ field, theme });
+  field.display = getDisplayProcessor({ field });
 
   const props: Partial<Props> = {
     theme,
@@ -125,5 +122,3 @@ barGaugeHorizontal.args = {
   width: 500,
   orientation: VizOrientation.Horizontal,
 };
-
-export default meta;

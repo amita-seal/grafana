@@ -3,23 +3,27 @@ import { Team, TeamGroup, TeamMember, TeamPermissionLevel } from 'app/types';
 export const getMultipleMockTeams = (numberOfTeams: number): Team[] => {
   const teams: Team[] = [];
   for (let i = 1; i <= numberOfTeams; i++) {
-    teams.push(getMockTeam(i));
+    teams.push({
+      id: i,
+      name: `test-${i}`,
+      avatarUrl: 'some/url/',
+      email: `test-${i}@test.com`,
+      memberCount: i,
+      permission: TeamPermissionLevel.Member,
+    });
   }
 
   return teams;
 };
 
-export const getMockTeam = (i = 1, overrides = {}): Team => {
+export const getMockTeam = (): Team => {
   return {
-    id: i,
-    name: `test-${i}`,
+    id: 1,
+    name: 'test',
     avatarUrl: 'some/url/',
-    email: `test-${i}@test.com`,
-    memberCount: i,
+    email: 'test@test.com',
+    memberCount: 1,
     permission: TeamPermissionLevel.Member,
-    accessControl: { isEditor: false },
-    orgId: 0,
-    ...overrides,
   };
 };
 

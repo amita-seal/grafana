@@ -1,2 +1,2 @@
-declare let OpenTsDatasource: any;
+declare var OpenTsDatasource: any;
 export default OpenTsDatasource;

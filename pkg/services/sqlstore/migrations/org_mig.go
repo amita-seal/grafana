@@ -41,7 +41,6 @@ func addOrgMigrations(mg *Migrator) {
 		Indices: []*Index{
 			{Cols: []string{"org_id"}},
 			{Cols: []string{"org_id", "user_id"}, Type: UniqueIndex},
-			{Cols: []string{"user_id"}},
 		},
 	}
 

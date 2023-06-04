@@ -1,56 +1,29 @@
 import { MonoTypeOperatorFunction } from 'rxjs';
 
-import { MatcherConfig, DataTransformerConfig } from '@grafana/schema';
-
-import { RegistryItemWithOptions } from '../utils/Registry';
-
 import { DataFrame, Field } from './dataFrame';
-import { InterpolateFunction } from './panel';
-
-/** deprecated, use it from schema */
-export type { MatcherConfig };
-
-/**
- * Context passed to transformDataFrame and to each transform operator
- */
-export interface DataTransformContext {
-  interpolate: InterpolateFunction;
-}
+import { RegistryItemWithOptions } from '../utils/Registry';
 
 /**
  * Function that transform data frames (AKA transformer)
- *
- * @public
  */
 export interface DataTransformerInfo<TOptions = any> extends RegistryItemWithOptions {
   /**
    * Function that configures transformation and returns a transformer
    * @param options
    */
-  operator: (options: TOptions, context: DataTransformContext) => MonoTypeOperatorFunction<DataFrame[]>;
+  operator: (options: TOptions) => MonoTypeOperatorFunction<DataFrame[]>;
 }
 
-/**
- * Function that returns a cutsom transform operator for transforming data frames
- *
- * @public
- */
-export type CustomTransformOperator = (context: DataTransformContext) => MonoTypeOperatorFunction<DataFrame[]>;
-
-/**
- * Many transformations can be called with a simple synchronous function.
- * When a transformer is defined, it should have identical behavior to using the operator
- *
- * @public
- */
-export interface SynchronousDataTransformerInfo<TOptions = any> extends DataTransformerInfo<TOptions> {
-  transformer: (options: TOptions, context: DataTransformContext) => (frames: DataFrame[]) => DataFrame[];
+export interface DataTransformerConfig<TOptions = any> {
+  /**
+   * Unique identifier of transformer
+   */
+  id: string;
+  /**
+   * Options to be passed to the transformer
+   */
+  options: TOptions;
 }
-
-/**
- * @deprecated use TransformationConfig from schema
- */
-export type { DataTransformerConfig };
 
 export type FrameMatcher = (frame: DataFrame) => boolean;
 export type FieldMatcher = (field: Field, frame: DataFrame, allFrames: DataFrame[]) => boolean;
@@ -79,13 +52,7 @@ export interface ValueMatcherInfo<TOptions = any> extends RegistryItemWithOption
   isApplicable: (field: Field) => boolean;
   getDefaultOptions: (field: Field) => TOptions;
 }
-
-/**
- * @public
- */
-export enum SpecialValue {
-  True = 'true',
-  False = 'false',
-  Null = 'null',
-  Empty = 'empty',
+export interface MatcherConfig<TOptions = any> {
+  id: string;
+  options?: TOptions;
 }

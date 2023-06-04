@@ -1,15 +1,13 @@
 import React, { PureComponent } from 'react';
-
-import { FolderInfo } from 'app/types';
-import { DashboardAcl, PermissionLevel } from 'app/types/acl';
-
-import DisabledPermissionsListItem from './DisabledPermissionListItem';
 import PermissionsListItem from './PermissionListItem';
+import DisabledPermissionsListItem from './DisabledPermissionListItem';
+import { FolderInfo } from 'app/types';
+import { DashboardAcl } from 'app/types/acl';
 
 export interface Props {
   items: DashboardAcl[];
   onRemoveItem: (item: DashboardAcl) => void;
-  onPermissionChanged: (item: DashboardAcl, level: PermissionLevel) => void;
+  onPermissionChanged: any;
   isFetching: boolean;
   folderInfo?: FolderInfo;
 }

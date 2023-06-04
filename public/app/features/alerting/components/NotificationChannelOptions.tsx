@@ -1,14 +1,10 @@
-import React from 'react';
-
+import React, { FC } from 'react';
 import { SelectableValue } from '@grafana/data';
-import { Button, Checkbox, Field, Input } from '@grafana/ui';
-
+import { Button, Checkbox, Field, FormAPI, Input } from '@grafana/ui';
+import { OptionElement } from './OptionElement';
 import { NotificationChannelDTO, NotificationChannelOption, NotificationChannelSecureFields } from '../../../types';
 
-import { NotificationSettingsProps } from './NotificationChannelForm';
-import { OptionElement } from './OptionElement';
-
-interface Props extends NotificationSettingsProps {
+interface Props extends Omit<FormAPI<NotificationChannelDTO>, 'formState' | 'getValues' | 'watch'> {
   selectedChannelOptions: NotificationChannelOption[];
   currentFormValues: NotificationChannelDTO;
   secureFields: NotificationChannelSecureFields;
@@ -16,7 +12,7 @@ interface Props extends NotificationSettingsProps {
   onResetSecureField: (key: string) => void;
 }
 
-export const NotificationChannelOptions = ({
+export const NotificationChannelOptions: FC<Props> = ({
   control,
   currentFormValues,
   errors,
@@ -24,7 +20,7 @@ export const NotificationChannelOptions = ({
   register,
   onResetSecureField,
   secureFields,
-}: Props) => {
+}) => {
   return (
     <>
       {selectedChannelOptions.map((option: NotificationChannelOption, index: number) => {
@@ -43,9 +39,8 @@ export const NotificationChannelOptions = ({
           return (
             <Field key={key}>
               <Checkbox
-                {...register(
-                  option.secure ? `secureSettings.${option.propertyName}` : `settings.${option.propertyName}`
-                )}
+                name={option.secure ? `secureSettings.${option.propertyName}` : `settings.${option.propertyName}`}
+                ref={register}
                 label={option.label}
                 description={option.description}
               />
@@ -65,7 +60,12 @@ export const NotificationChannelOptions = ({
                 readOnly={true}
                 value="Configured"
                 suffix={
-                  <Button onClick={() => onResetSecureField(option.propertyName)} fill="text" type="button" size="sm">
+                  <Button
+                    onClick={() => onResetSecureField(option.propertyName)}
+                    variant="link"
+                    type="button"
+                    size="sm"
+                  >
                     Clear
                   </Button>
                 }

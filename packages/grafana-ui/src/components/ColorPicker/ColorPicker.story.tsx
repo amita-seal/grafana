@@ -1,91 +1,79 @@
-import { action } from '@storybook/addon-actions';
-import { useArgs } from '@storybook/client-api';
-import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-
-import { SeriesColorPicker, ColorPicker, clearButtonStyles, useStyles2 } from '@grafana/ui';
-
+import { Story } from '@storybook/react';
+import { SeriesColorPicker, ColorPicker } from '@grafana/ui';
+import { action } from '@storybook/addon-actions';
 import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { NOOP_CONTROL } from '../../utils/storybook/noopControl';
+import { UseState } from '../../utils/storybook/UseState';
 import { renderComponentWithTheme } from '../../utils/storybook/withTheme';
-
+import { ColorPickerProps } from './ColorPickerPopover';
 import mdx from './ColorPicker.mdx';
-import { ColorPickerInput } from './ColorPickerInput';
 
-const meta: Meta<typeof ColorPicker> = {
+export default {
   title: 'Pickers and Editors/ColorPicker',
   component: ColorPicker,
-  // SB7 has broken subcomponent types due to dropping support for the feature
-  // https://github.com/storybookjs/storybook/issues/20782
-  // @ts-ignore
-  subcomponents: { SeriesColorPicker, ColorPickerInput },
+  subcomponents: { SeriesColorPicker },
   decorators: [withCenteredStory],
   parameters: {
     docs: {
       page: mdx,
     },
-    controls: {
-      exclude: ['onChange', 'onColorChange'],
+    knobs: {
+      disable: true,
     },
   },
   args: {
     enableNamedColors: false,
-    color: '#00ff00',
+  },
+  argTypes: {
+    color: NOOP_CONTROL,
+    onChange: NOOP_CONTROL,
+    onColorChange: NOOP_CONTROL,
   },
 };
 
-export const Basic: StoryFn<typeof ColorPicker> = ({ color, enableNamedColors }) => {
-  const [, updateArgs] = useArgs();
-  return renderComponentWithTheme(ColorPicker, {
-    enableNamedColors,
-    color,
-    onChange: (color: string) => {
-      action('Color changed')(color);
-      updateArgs({ color });
-    },
-  });
-};
-
-export const SeriesPicker: StoryFn<typeof SeriesColorPicker> = ({ color, enableNamedColors }) => {
-  const [, updateArgs] = useArgs();
-  const clearButton = useStyles2(clearButtonStyles);
+export const Basic: Story<ColorPickerProps> = ({ enableNamedColors }) => {
   return (
-    <SeriesColorPicker
-      enableNamedColors={enableNamedColors}
-      yaxis={1}
-      onToggleAxis={() => {}}
-      color={color}
-      onChange={(color) => {
-        action('Color changed')(color);
-        updateArgs({ color });
+    <UseState initialState="#00ff00">
+      {(selectedColor, updateSelectedColor) => {
+        return renderComponentWithTheme(ColorPicker, {
+          enableNamedColors,
+          color: selectedColor,
+          onChange: (color: any) => {
+            action('Color changed')(color);
+            updateSelectedColor(color);
+          },
+        });
       }}
-    >
-      {({ ref, showColorPicker, hideColorPicker }) => (
-        <button
-          type="button"
-          ref={ref}
-          onMouseLeave={hideColorPicker}
-          onClick={showColorPicker}
-          style={{ color }}
-          className={clearButton}
-        >
-          Open color picker
-        </button>
-      )}
-    </SeriesColorPicker>
+    </UseState>
   );
 };
 
-export const Input: StoryFn<typeof ColorPickerInput> = ({ color }) => {
-  const [, updateArgs] = useArgs();
+export const SeriesPicker: Story<ColorPickerProps> = ({ enableNamedColors }) => {
   return (
-    <ColorPickerInput
-      value={color}
-      onChange={(color) => {
-        action('Color changed')(color);
-        updateArgs({ color });
+    <UseState initialState="#00ff00">
+      {(selectedColor, updateSelectedColor) => {
+        return (
+          <SeriesColorPicker
+            enableNamedColors={enableNamedColors}
+            yaxis={1}
+            onToggleAxis={() => {}}
+            color={selectedColor}
+            onChange={(color) => updateSelectedColor(color)}
+          >
+            {({ ref, showColorPicker, hideColorPicker }) => (
+              <div
+                ref={ref}
+                onMouseLeave={hideColorPicker}
+                onClick={showColorPicker}
+                style={{ color: selectedColor, cursor: 'pointer' }}
+              >
+                Open color picker
+              </div>
+            )}
+          </SeriesColorPicker>
+        );
       }}
-    />
+    </UseState>
   );
 };
-
-export default meta;

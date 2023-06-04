@@ -1,17 +1,15 @@
+import _ from 'lodash';
 import $ from 'jquery';
-import { defaults } from 'lodash';
-import { ComponentType } from 'react';
-
-import { isTableData, PanelEvents, PanelPlugin, PanelProps } from '@grafana/data';
-import config from 'app/core/config';
-import { applyFilterFromTable } from 'app/features/variables/adhoc/actions';
 import { MetricsPanelCtrl } from 'app/plugins/sdk';
-import { dispatch } from 'app/store/store';
-
-import { columnOptionsTab } from './column_options';
-import { tablePanelEditor } from './editor';
-import { TableRenderer } from './renderer';
+import config from 'app/core/config';
 import { transformDataToTable } from './transformers';
+import { tablePanelEditor } from './editor';
+import { columnOptionsTab } from './column_options';
+import { TableRenderer } from './renderer';
+import { isTableData, PanelEvents, PanelPlugin, PanelProps } from '@grafana/data';
+import { dispatch } from 'app/store/store';
+import { ComponentType } from 'react';
+import { applyFilterFromTable } from 'app/features/variables/adhoc/actions';
 
 export class TablePanelCtrl extends MetricsPanelCtrl {
   static templateUrl = 'module.html';
@@ -54,8 +52,7 @@ export class TablePanelCtrl extends MetricsPanelCtrl {
     sort: { col: 0, desc: true },
   };
 
-  static $inject = ['$scope', '$injector', 'annotationsSrv', '$sanitize'];
-
+  /** @ngInject */
   constructor($scope: any, $injector: any, private annotationsSrv: any, private $sanitize: any) {
     super($scope, $injector);
 
@@ -68,7 +65,7 @@ export class TablePanelCtrl extends MetricsPanelCtrl {
       delete this.panel.fields;
     }
 
-    defaults(this.panel, this.panelDefaults);
+    _.defaults(this.panel, this.panelDefaults);
 
     this.panelHasRowColorMode = Boolean(this.panel.styles.find((style: any) => style.colorMode === 'row'));
     this.panelHasLinks = Boolean(this.panel.styles.find((style: any) => style.link));
@@ -141,7 +138,7 @@ export class TablePanelCtrl extends MetricsPanelCtrl {
       this.dashboard.getTimezone(),
       this.$sanitize,
       this.templateSrv,
-      config.theme2
+      config.theme
     );
 
     return super.render(this.table);
@@ -269,6 +266,6 @@ export class TablePanelCtrl extends MetricsPanelCtrl {
   }
 }
 
-export const plugin = new PanelPlugin(null as unknown as ComponentType<PanelProps<any>>);
+export const plugin = new PanelPlugin((null as unknown) as ComponentType<PanelProps<any>>);
 plugin.angularPanelCtrl = TablePanelCtrl;
 plugin.setNoPadding();

@@ -1,15 +1,32 @@
-import { DataSourcePlugin } from '@grafana/data';
-import { SQLQuery } from 'app/features/plugins/sql/types';
-
-import { CheatSheet } from './CheatSheet';
-import { QueryEditor } from './QueryEditor';
-import { PostgresConfigEditor } from './configuration/ConfigurationEditor';
 import { PostgresDatasource } from './datasource';
-import { PostgresOptions, SecureJsonData } from './types';
+import { PostgresQueryCtrl } from './query_ctrl';
+import { PostgresConfigCtrl } from './config_ctrl';
 
-export const plugin = new DataSourcePlugin<PostgresDatasource, SQLQuery, PostgresOptions, SecureJsonData>(
-  PostgresDatasource
-)
-  .setQueryEditor(QueryEditor)
-  .setQueryEditorHelp(CheatSheet)
-  .setConfigEditor(PostgresConfigEditor);
+const defaultQuery = `SELECT
+  extract(epoch from time_column) AS time,
+  text_column as text,
+  tags_column as tags
+FROM
+  metric_table
+WHERE
+  $__timeFilter(time_column)
+`;
+
+class PostgresAnnotationsQueryCtrl {
+  static templateUrl = 'partials/annotations.editor.html';
+
+  annotation: any;
+
+  /** @ngInject */
+  constructor() {
+    this.annotation.rawQuery = this.annotation.rawQuery || defaultQuery;
+  }
+}
+
+export {
+  PostgresDatasource,
+  PostgresDatasource as Datasource,
+  PostgresQueryCtrl as QueryCtrl,
+  PostgresConfigCtrl as ConfigCtrl,
+  PostgresAnnotationsQueryCtrl as AnnotationsQueryCtrl,
+};

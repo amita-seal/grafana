@@ -1,19 +1,6 @@
 import { OrgRole, OrgUser } from 'app/types';
 
-import { UsersFetchResult, initialState } from '../state/reducers';
-
-export const getFetchUsersMock = (amount: number): UsersFetchResult => {
-  const users = getMockUsers(amount);
-
-  return {
-    orgUsers: users as OrgUser[],
-    perPage: initialState.perPage,
-    page: initialState.page,
-    totalCount: initialState.totalPages,
-  };
-};
-
-export const getMockUsers = (amount: number): OrgUser[] => {
+export const getMockUsers = (amount: number) => {
   const users = [];
 
   for (let i = 0; i <= amount; i++) {
@@ -27,8 +14,6 @@ export const getMockUsers = (amount: number): OrgUser[] => {
       orgId: 1,
       role: 'Admin',
       userId: i,
-      isDisabled: false,
-      authLabels: [],
     });
   }
 

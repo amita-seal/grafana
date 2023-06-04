@@ -3,6 +3,7 @@ package fs
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -75,7 +76,6 @@ func copyFileContents(src, dst string) (err error) {
 		}
 	}()
 
-	//nolint:gosec
 	out, err := os.Create(dst)
 	if err != nil {
 		return
@@ -126,7 +126,7 @@ func CopyRecursive(src, dst string) error {
 		}
 	}
 
-	entries, err := os.ReadDir(src)
+	entries, err := ioutil.ReadDir(src)
 	if err != nil {
 		return err
 	}

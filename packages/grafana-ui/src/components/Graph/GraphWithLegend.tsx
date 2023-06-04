@@ -1,26 +1,23 @@
 // Libraries
 
-import { css } from '@emotion/css';
 import React from 'react';
-
+import { css } from 'emotion';
 import { GraphSeriesValue } from '@grafana/data';
-import { LegendDisplayMode, LegendPlacement } from '@grafana/schema';
-
-import { stylesFactory } from '../../themes';
-import { CustomScrollbar } from '../CustomScrollbar/CustomScrollbar';
-import { VizLegend } from '../VizLegend/VizLegend';
-import { VizLegendItem } from '../VizLegend/types';
 
 import { Graph, GraphProps } from './Graph';
+import { VizLegendItem, LegendDisplayMode, SeriesColorChangeHandler, LegendPlacement } from '../VizLegend/types';
+import { VizLegend } from '../VizLegend/VizLegend';
+import { CustomScrollbar } from '../CustomScrollbar/CustomScrollbar';
+import { stylesFactory } from '../../themes';
 
 export interface GraphWithLegendProps extends GraphProps {
   legendDisplayMode: LegendDisplayMode;
-  legendVisibility: boolean;
   placement: LegendPlacement;
   hideEmpty?: boolean;
   hideZero?: boolean;
   sortLegendBy?: string;
   sortLegendDesc?: boolean;
+  onSeriesColorChange?: SeriesColorChangeHandler;
   onSeriesToggle?: (label: string, event: React.MouseEvent<HTMLElement>) => void;
   onToggleSort: (sortBy: string) => void;
 }
@@ -47,7 +44,7 @@ const shouldHideLegendItem = (data: GraphSeriesValue[][], hideEmpty = false, hid
   return (hideEmpty && isNullOnlySeries) || (hideZero && isZeroOnlySeries);
 };
 
-export const GraphWithLegend = (props: GraphWithLegendProps) => {
+export const GraphWithLegend: React.FunctionComponent<GraphWithLegendProps> = (props: GraphWithLegendProps) => {
   const {
     series,
     timeRange,
@@ -59,8 +56,8 @@ export const GraphWithLegend = (props: GraphWithLegendProps) => {
     sortLegendBy,
     sortLegendDesc,
     legendDisplayMode,
-    legendVisibility,
     placement,
+    onSeriesColorChange,
     onSeriesToggle,
     onToggleSort,
     hideEmpty,
@@ -108,7 +105,7 @@ export const GraphWithLegend = (props: GraphWithLegendProps) => {
         </Graph>
       </div>
 
-      {legendVisibility && (
+      {legendDisplayMode !== LegendDisplayMode.Hidden && (
         <div className={legendContainer}>
           <CustomScrollbar hideHorizontalTrack>
             <VizLegend
@@ -122,6 +119,7 @@ export const GraphWithLegend = (props: GraphWithLegendProps) => {
                   onSeriesToggle(item.label, event);
                 }
               }}
+              onSeriesColorChange={onSeriesColorChange}
               onToggleSort={onToggleSort}
             />
           </CustomScrollbar>

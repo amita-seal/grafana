@@ -1,102 +1,72 @@
-import React from 'react';
-
-import { LinkTarget } from '@grafana/data';
-import { config } from '@grafana/runtime';
+import React, { FC } from 'react';
+import config from 'app/core/config';
 import { Icon, IconName } from '@grafana/ui';
-import { t } from 'app/core/internationalization';
 
 export interface FooterLink {
-  target: LinkTarget;
   text: string;
-  id: string;
-  icon?: IconName;
+  icon?: string;
   url?: string;
+  target?: string;
 }
 
 export let getFooterLinks = (): FooterLink[] => {
   return [
     {
-      target: '_blank',
-      id: 'documentation',
-      text: t('nav.help/documentation', 'Documentation'),
+      text: 'Documentation',
       icon: 'document-info',
       url: 'https://grafana.com/docs/grafana/latest/?utm_source=grafana_footer',
+      target: '_blank',
     },
     {
-      target: '_blank',
-      id: 'support',
-      text: t('nav.help/support', 'Support'),
+      text: 'Support',
       icon: 'question-circle',
       url: 'https://grafana.com/products/enterprise/?utm_source=grafana_footer',
+      target: '_blank',
     },
     {
-      target: '_blank',
-      id: 'community',
-      text: t('nav.help/community', 'Community'),
+      text: 'Community',
       icon: 'comments-alt',
       url: 'https://community.grafana.com/?utm_source=grafana_footer',
+      target: '_blank',
     },
   ];
 };
 
-export function getVersionMeta(version: string) {
-  const isBeta = version.includes('-beta');
-
-  return {
-    hasReleaseNotes: true,
-    isBeta,
-  };
-}
-
-export function getVersionLinks(): FooterLink[] {
+export let getVersionLinks = (): FooterLink[] => {
   const { buildInfo, licenseInfo } = config;
   const links: FooterLink[] = [];
   const stateInfo = licenseInfo.stateInfo ? ` (${licenseInfo.stateInfo})` : '';
 
-  links.push({
-    target: '_blank',
-    id: 'license',
-    text: `${buildInfo.edition}${stateInfo}`,
-    url: licenseInfo.licenseUrl,
-  });
+  links.push({ text: `${buildInfo.edition}${stateInfo}`, url: licenseInfo.licenseUrl });
 
   if (buildInfo.hideVersion) {
     return links;
   }
 
-  const { hasReleaseNotes } = getVersionMeta(buildInfo.version);
-
-  links.push({
-    target: '_blank',
-    id: 'version',
-    text: `v${buildInfo.version} (${buildInfo.commit})`,
-    url: hasReleaseNotes ? `https://github.com/grafana/grafana/blob/main/CHANGELOG.md` : undefined,
-  });
+  links.push({ text: `v${buildInfo.version} (${buildInfo.commit})` });
 
   if (buildInfo.hasUpdate) {
     links.push({
-      target: '_blank',
-      id: 'updateVersion',
       text: `New version available!`,
       icon: 'download-alt',
       url: 'https://grafana.com/grafana/download?utm_source=grafana_footer',
+      target: '_blank',
     });
   }
 
   return links;
-}
+};
 
 export function setFooterLinksFn(fn: typeof getFooterLinks) {
   getFooterLinks = fn;
 }
 
-export interface Props {
-  /** Link overrides to show specific links in the UI */
-  customLinks?: FooterLink[] | null;
+export function setVersionLinkFn(fn: typeof getFooterLinks) {
+  getVersionLinks = fn;
 }
 
-export const Footer = React.memo(({ customLinks }: Props) => {
-  const links = (customLinks || getFooterLinks()).concat(getVersionLinks());
+export const Footer: FC = React.memo(() => {
+  const links = getFooterLinks().concat(getVersionLinks());
 
   return (
     <footer className="footer">
@@ -104,7 +74,9 @@ export const Footer = React.memo(({ customLinks }: Props) => {
         <ul>
           {links.map((link) => (
             <li key={link.text}>
-              <FooterItem item={link} />
+              <a href={link.url} target={link.target} rel="noopener">
+                {link.icon && <Icon name={link.icon as IconName} />} {link.text}
+              </a>
             </li>
           ))}
         </ul>
@@ -114,19 +86,3 @@ export const Footer = React.memo(({ customLinks }: Props) => {
 });
 
 Footer.displayName = 'Footer';
-
-function FooterItem({ item }: { item: FooterLink }) {
-  const content = item.url ? (
-    <a href={item.url} target={item.target} rel="noopener noreferrer" id={item.id}>
-      {item.text}
-    </a>
-  ) : (
-    item.text
-  );
-
-  return (
-    <>
-      {item.icon && <Icon name={item.icon} />} {content}
-    </>
-  );
-}

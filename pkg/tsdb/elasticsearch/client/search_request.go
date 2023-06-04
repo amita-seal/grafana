@@ -2,21 +2,16 @@ package es
 
 import (
 	"strings"
-	"time"
-)
 
-const (
-	HighlightPreTagsString  = "@HIGHLIGHT@"
-	HighlightPostTagsString = "@/HIGHLIGHT@"
-	HighlightFragmentSize   = 2147483647
+	"github.com/grafana/grafana/pkg/tsdb"
 )
 
 // SearchRequestBuilder represents a builder which can build a search request
 type SearchRequestBuilder struct {
-	interval time.Duration
-	index    string
-	size     int
-	// Currently sort is map, but based in examples it should be an array https://www.elastic.co/guide/en/elasticsearch/reference/current/sort-search-results.html
+	version      int
+	interval     tsdb.Interval
+	index        string
+	size         int
 	sort         map[string]interface{}
 	queryBuilder *QueryBuilder
 	aggBuilders  []AggBuilder
@@ -24,8 +19,9 @@ type SearchRequestBuilder struct {
 }
 
 // NewSearchRequestBuilder create a new search request builder
-func NewSearchRequestBuilder(interval time.Duration) *SearchRequestBuilder {
+func NewSearchRequestBuilder(version int, interval tsdb.Interval) *SearchRequestBuilder {
 	builder := &SearchRequestBuilder{
+		version:     version,
 		interval:    interval,
 		sort:        make(map[string]interface{}),
 		customProps: make(map[string]interface{}),
@@ -73,21 +69,10 @@ func (b *SearchRequestBuilder) Size(size int) *SearchRequestBuilder {
 	return b
 }
 
-type SortOrder string
-
-const (
-	SortOrderAsc  SortOrder = "asc"
-	SortOrderDesc SortOrder = "desc"
-)
-
-// Sort adds a "asc" | "desc" sort to the search request
-func (b *SearchRequestBuilder) Sort(order SortOrder, field string, unmappedType string) *SearchRequestBuilder {
-	if order != SortOrderAsc && order != SortOrderDesc {
-		return b
-	}
-
+// SortDesc adds a sort to the search request
+func (b *SearchRequestBuilder) SortDesc(field, unmappedType string) *SearchRequestBuilder {
 	props := map[string]string{
-		"order": string(order),
+		"order": "desc",
 	}
 
 	if unmappedType != "" {
@@ -99,39 +84,19 @@ func (b *SearchRequestBuilder) Sort(order SortOrder, field string, unmappedType 
 	return b
 }
 
-// AddTimeFieldWithStandardizedFormat adds a time field to fields with standardized time format
-func (b *SearchRequestBuilder) AddTimeFieldWithStandardizedFormat(timeField string) *SearchRequestBuilder {
-	b.customProps["fields"] = []map[string]string{{"field": timeField, "format": "strict_date_optional_time_nanos"}}
-	return b
-}
-
 // AddDocValueField adds a doc value field to the search request
 func (b *SearchRequestBuilder) AddDocValueField(field string) *SearchRequestBuilder {
-	b.customProps["docvalue_fields"] = []string{field}
+	// fields field not supported on version >= 5
+	if b.version < 5 {
+		b.customProps["fields"] = []string{"*", "_source"}
+	}
 
 	b.customProps["script_fields"] = make(map[string]interface{})
 
-	return b
-}
-
-// Add highlights to the search request for log queries
-func (b *SearchRequestBuilder) AddHighlight() *SearchRequestBuilder {
-	b.customProps["highlight"] = map[string]interface{}{
-		"fields": map[string]interface{}{
-			"*": map[string]interface{}{},
-		},
-		"pre_tags":      []string{HighlightPreTagsString},
-		"post_tags":     []string{HighlightPostTagsString},
-		"fragment_size": HighlightFragmentSize,
-	}
-	return b
-}
-
-func (b *SearchRequestBuilder) AddSearchAfter(value interface{}) *SearchRequestBuilder {
-	if b.customProps["search_after"] == nil {
-		b.customProps["search_after"] = []interface{}{value}
+	if b.version < 5 {
+		b.customProps["fielddata_fields"] = []string{field}
 	} else {
-		b.customProps["search_after"] = append(b.customProps["search_after"].([]interface{}), value)
+		b.customProps["docvalue_fields"] = []string{field}
 	}
 
 	return b
@@ -147,24 +112,27 @@ func (b *SearchRequestBuilder) Query() *QueryBuilder {
 
 // Agg initiate and returns a new aggregation builder
 func (b *SearchRequestBuilder) Agg() AggBuilder {
-	aggBuilder := newAggBuilder()
+	aggBuilder := newAggBuilder(b.version)
 	b.aggBuilders = append(b.aggBuilders, aggBuilder)
 	return aggBuilder
 }
 
 // MultiSearchRequestBuilder represents a builder which can build a multi search request
 type MultiSearchRequestBuilder struct {
+	version         int
 	requestBuilders []*SearchRequestBuilder
 }
 
 // NewMultiSearchRequestBuilder creates a new multi search request builder
-func NewMultiSearchRequestBuilder() *MultiSearchRequestBuilder {
-	return &MultiSearchRequestBuilder{}
+func NewMultiSearchRequestBuilder(version int) *MultiSearchRequestBuilder {
+	return &MultiSearchRequestBuilder{
+		version: version,
+	}
 }
 
 // Search initiates and returns a new search request builder
-func (m *MultiSearchRequestBuilder) Search(interval time.Duration) *SearchRequestBuilder {
-	b := NewSearchRequestBuilder(interval)
+func (m *MultiSearchRequestBuilder) Search(interval tsdb.Interval) *SearchRequestBuilder {
+	b := NewSearchRequestBuilder(m.version, interval)
 	m.requestBuilders = append(m.requestBuilders, b)
 	return b
 }
@@ -269,7 +237,7 @@ func (b *FilterQueryBuilder) Build() ([]Filter, error) {
 }
 
 // AddDateRangeFilter adds a new time range filter
-func (b *FilterQueryBuilder) AddDateRangeFilter(timeField string, lte, gte int64, format string) *FilterQueryBuilder {
+func (b *FilterQueryBuilder) AddDateRangeFilter(timeField, lte, gte, format string) *FilterQueryBuilder {
 	b.filters = append(b.filters, &RangeFilter{
 		Key:    timeField,
 		Lte:    lte,
@@ -297,7 +265,6 @@ type AggBuilder interface {
 	Histogram(key, field string, fn func(a *HistogramAgg, b AggBuilder)) AggBuilder
 	DateHistogram(key, field string, fn func(a *DateHistogramAgg, b AggBuilder)) AggBuilder
 	Terms(key, field string, fn func(a *TermsAggregation, b AggBuilder)) AggBuilder
-	Nested(key, path string, fn func(a *NestedAggregation, b AggBuilder)) AggBuilder
 	Filters(key string, fn func(a *FiltersAggregation, b AggBuilder)) AggBuilder
 	GeoHashGrid(key, field string, fn func(a *GeoHashGridAggregation, b AggBuilder)) AggBuilder
 	Metric(key, metricType, field string, fn func(a *MetricAggregation)) AggBuilder
@@ -308,11 +275,13 @@ type AggBuilder interface {
 type aggBuilderImpl struct {
 	AggBuilder
 	aggDefs []*aggDef
+	version int
 }
 
-func newAggBuilder() *aggBuilderImpl {
+func newAggBuilder(version int) *aggBuilderImpl {
 	return &aggBuilderImpl{
 		aggDefs: make([]*aggDef, 0),
+		version: version,
 	}
 }
 
@@ -350,7 +319,7 @@ func (b *aggBuilderImpl) Histogram(key, field string, fn func(a *HistogramAgg, b
 	})
 
 	if fn != nil {
-		builder := newAggBuilder()
+		builder := newAggBuilder(b.version)
 		aggDef.builders = append(aggDef.builders, builder)
 		fn(innerAgg, builder)
 	}
@@ -370,7 +339,7 @@ func (b *aggBuilderImpl) DateHistogram(key, field string, fn func(a *DateHistogr
 	})
 
 	if fn != nil {
-		builder := newAggBuilder()
+		builder := newAggBuilder(b.version)
 		aggDef.builders = append(aggDef.builders, builder)
 		fn(innerAgg, builder)
 	}
@@ -393,36 +362,16 @@ func (b *aggBuilderImpl) Terms(key, field string, fn func(a *TermsAggregation, b
 	})
 
 	if fn != nil {
-		builder := newAggBuilder()
+		builder := newAggBuilder(b.version)
 		aggDef.builders = append(aggDef.builders, builder)
 		fn(innerAgg, builder)
 	}
 
-	if len(innerAgg.Order) > 0 {
+	if b.version >= 60 && len(innerAgg.Order) > 0 {
 		if orderBy, exists := innerAgg.Order[termsOrderTerm]; exists {
 			innerAgg.Order["_key"] = orderBy
 			delete(innerAgg.Order, termsOrderTerm)
 		}
-	}
-
-	b.aggDefs = append(b.aggDefs, aggDef)
-
-	return b
-}
-
-func (b *aggBuilderImpl) Nested(key, field string, fn func(a *NestedAggregation, b AggBuilder)) AggBuilder {
-	innerAgg := &NestedAggregation{
-		Path: field,
-	}
-	aggDef := newAggDef(key, &aggContainer{
-		Type:        "nested",
-		Aggregation: innerAgg,
-	})
-
-	if fn != nil {
-		builder := newAggBuilder()
-		aggDef.builders = append(aggDef.builders, builder)
-		fn(innerAgg, builder)
 	}
 
 	b.aggDefs = append(b.aggDefs, aggDef)
@@ -439,7 +388,7 @@ func (b *aggBuilderImpl) Filters(key string, fn func(a *FiltersAggregation, b Ag
 		Aggregation: innerAgg,
 	})
 	if fn != nil {
-		builder := newAggBuilder()
+		builder := newAggBuilder(b.version)
 		aggDef.builders = append(aggDef.builders, builder)
 		fn(innerAgg, builder)
 	}
@@ -460,7 +409,7 @@ func (b *aggBuilderImpl) GeoHashGrid(key, field string, fn func(a *GeoHashGridAg
 	})
 
 	if fn != nil {
-		builder := newAggBuilder()
+		builder := newAggBuilder(b.version)
 		aggDef.builders = append(aggDef.builders, builder)
 		fn(innerAgg, builder)
 	}
@@ -472,11 +421,9 @@ func (b *aggBuilderImpl) GeoHashGrid(key, field string, fn func(a *GeoHashGridAg
 
 func (b *aggBuilderImpl) Metric(key, metricType, field string, fn func(a *MetricAggregation)) AggBuilder {
 	innerAgg := &MetricAggregation{
-		Type:     metricType,
 		Field:    field,
 		Settings: make(map[string]interface{}),
 	}
-
 	aggDef := newAggDef(key, &aggContainer{
 		Type:        metricType,
 		Aggregation: innerAgg,

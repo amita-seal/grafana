@@ -1,6 +1,4 @@
-import { isNumber } from 'lodash';
 import React, { PureComponent } from 'react';
-
 import {
   DisplayValueAlignmentFactors,
   FieldDisplay,
@@ -10,15 +8,15 @@ import {
   FieldConfig,
   DisplayProcessor,
   DisplayValue,
-  VizOrientation,
 } from '@grafana/data';
 import { BarGauge, DataLinksContextMenu, VizRepeater, VizRepeaterRenderValueProps } from '@grafana/ui';
-import { DataLinksContextMenuApi } from '@grafana/ui/src/components/DataLinks/DataLinksContextMenu';
+
 import { config } from 'app/core/config';
+import { BarGaugeOptions } from './types';
+import { DataLinksContextMenuApi } from '@grafana/ui/src/components/DataLinks/DataLinksContextMenu';
+import { isNumber } from 'lodash';
 
-import { Options } from './panelcfg.gen';
-
-export class BarGaugePanel extends PureComponent<BarGaugePanelProps> {
+export class BarGaugePanel extends PureComponent<PanelProps<BarGaugeOptions>> {
   renderComponent = (
     valueProps: VizRepeaterRenderValueProps<FieldDisplay, DisplayValueAlignmentFactors>,
     menuProps: DataLinksContextMenuApi
@@ -30,7 +28,7 @@ export class BarGaugePanel extends PureComponent<BarGaugePanelProps> {
 
     let processor: DisplayProcessor | undefined = undefined;
     if (view && isNumber(colIndex)) {
-      processor = view.getFieldDisplayProcessor(colIndex);
+      processor = view!.getFieldDisplayProcessor(colIndex as number);
     }
 
     return (
@@ -42,41 +40,40 @@ export class BarGaugePanel extends PureComponent<BarGaugePanelProps> {
         field={field}
         text={options.text}
         display={processor}
-        theme={config.theme2}
+        theme={config.theme}
         itemSpacing={this.getItemSpacing()}
         displayMode={options.displayMode}
         onClick={openMenu}
         className={targetClassName}
         alignmentFactors={count > 1 ? alignmentFactors : undefined}
         showUnfilled={options.showUnfilled}
-        valueDisplayMode={options.valueMode}
       />
     );
   };
 
   renderValue = (valueProps: VizRepeaterRenderValueProps<FieldDisplay, DisplayValueAlignmentFactors>): JSX.Element => {
-    const { value, orientation } = valueProps;
+    const { value } = valueProps;
     const { hasLinks, getLinks } = value;
 
     if (hasLinks && getLinks) {
       return (
-        <div style={{ width: '100%', display: orientation === VizOrientation.Vertical ? 'flex' : 'initial' }}>
-          <DataLinksContextMenu links={getLinks}>{(api) => this.renderComponent(valueProps, api)}</DataLinksContextMenu>
-        </div>
+        <DataLinksContextMenu links={getLinks} config={value.field}>
+          {(api) => {
+            return this.renderComponent(valueProps, api);
+          }}
+        </DataLinksContextMenu>
       );
     }
-
     return this.renderComponent(valueProps, {});
   };
 
   getValues = (): FieldDisplay[] => {
     const { data, options, replaceVariables, fieldConfig, timeZone } = this.props;
-
     return getFieldDisplayValues({
       fieldConfig,
       reduceOptions: options.reduceOptions,
       replaceVariables,
-      theme: config.theme2,
+      theme: config.theme,
       data: data.series,
       timeZone,
     });
@@ -102,17 +99,15 @@ export class BarGaugePanel extends PureComponent<BarGaugePanelProps> {
         renderCounter={renderCounter}
         width={width}
         height={height}
-        minVizWidth={options.minVizWidth}
-        minVizHeight={options.minVizHeight}
+        minVizHeight={10}
         itemSpacing={this.getItemSpacing()}
         orientation={options.orientation}
       />
     );
   }
 }
-export type BarGaugePanelProps = PanelProps<Options>;
 
-export function clearNameForSingleSeries(count: number, field: FieldConfig, display: DisplayValue): DisplayValue {
+export function clearNameForSingleSeries(count: number, field: FieldConfig<any>, display: DisplayValue): DisplayValue {
   if (count === 1 && !field.displayName) {
     return {
       ...display,

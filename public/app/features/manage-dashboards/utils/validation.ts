@@ -1,37 +1,25 @@
+import validationSrv from '../services/ValidationSrv';
 import { getBackendSrv } from '@grafana/runtime';
 
-import { validationSrv } from '../services/ValidationSrv';
-
 export const validateDashboardJson = (json: string) => {
-  let dashboard;
   try {
-    dashboard = JSON.parse(json);
+    JSON.parse(json);
+    return true;
   } catch (error) {
     return 'Not valid JSON';
   }
-  if (dashboard && dashboard.hasOwnProperty('tags')) {
-    if (Array.isArray(dashboard.tags)) {
-      const hasInvalidTag = dashboard.tags.some((tag: string) => typeof tag !== 'string');
-      if (hasInvalidTag) {
-        return 'tags expected array of strings';
-      }
-    } else {
-      return 'tags expected array';
-    }
-  }
-  return true;
 };
 
 export const validateGcomDashboard = (gcomDashboard: string) => {
   // From DashboardImportCtrl
   const match = /(^\d+$)|dashboards\/(\d+)/.exec(gcomDashboard);
 
-  return match && (match[1] || match[2]) ? true : 'Could not find a valid Grafana.com ID';
+  return match && (match[1] || match[2]) ? true : 'Could not find a valid Grafana.com id';
 };
 
-export const validateTitle = (newTitle: string, folderUid: string) => {
+export const validateTitle = (newTitle: string, folderId: number) => {
   return validationSrv
-    .validateNewDashboardName(folderUid, newTitle)
+    .validateNewDashboardName(folderId, newTitle)
     .then(() => {
       return true;
     })
@@ -46,7 +34,7 @@ export const validateUid = (value: string) => {
   return getBackendSrv()
     .get(`/api/dashboards/uid/${value}`)
     .then((existingDashboard) => {
-      return `Dashboard named '${existingDashboard?.dashboard.title}' in folder '${existingDashboard?.meta.folderTitle}' has the same UID`;
+      return `Dashboard named '${existingDashboard?.dashboard.title}' in folder '${existingDashboard?.meta.folderTitle}' has the same uid`;
     })
     .catch((error) => {
       error.isHandled = true;

@@ -1,13 +1,11 @@
-import { css, cx } from '@emotion/css';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { FC, useCallback, useMemo, useState } from 'react';
+import { Field, GrafanaTheme, SelectableValue } from '@grafana/data';
+import { css, cx } from 'emotion';
 
-import { Field, GrafanaTheme2, SelectableValue } from '@grafana/data';
-
-import { Button, ClickOutsideWrapper, HorizontalGroup, IconButton, Label, VerticalGroup } from '..';
-import { useStyles2, useTheme2 } from '../../themes';
-
-import { FilterList } from './FilterList';
 import { TableStyles } from './styles';
+import { stylesFactory, useStyles } from '../../themes';
+import { Button, ClickOutsideWrapper, HorizontalGroup, Label, VerticalGroup } from '..';
+import { FilterList } from './FilterList';
 import { calculateUniqueFieldValues, getFilteredOptions, valuesToOptions } from './utils';
 
 interface Props {
@@ -17,13 +15,11 @@ interface Props {
   field?: Field;
 }
 
-export const FilterPopup = ({ column: { preFilteredRows, filterValue, setFilter }, onClose, field }: Props) => {
-  const theme = useTheme2();
+export const FilterPopup: FC<Props> = ({ column: { preFilteredRows, filterValue, setFilter }, onClose, field }) => {
   const uniqueValues = useMemo(() => calculateUniqueFieldValues(preFilteredRows, field), [preFilteredRows, field]);
   const options = useMemo(() => valuesToOptions(uniqueValues), [uniqueValues]);
   const filteredOptions = useMemo(() => getFilteredOptions(options, filterValue), [options, filterValue]);
   const [values, setValues] = useState<SelectableValue[]>(filteredOptions);
-  const [matchCase, setMatchCase] = useState(false);
 
   const onCancel = useCallback((event?: React.MouseEvent) => onClose(), [onClose]);
 
@@ -46,28 +42,16 @@ export const FilterPopup = ({ column: { preFilteredRows, filterValue, setFilter 
   );
 
   const clearFilterVisible = useMemo(() => filterValue !== undefined, [filterValue]);
-  const styles = useStyles2(getStyles);
+  const styles = useStyles(getStyles);
 
   return (
     <ClickOutsideWrapper onClick={onCancel} useCapture={true}>
-      {/* This is just blocking click events from bubbeling and should not have a keyboard interaction. */}
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div className={cx(styles.filterContainer)} onClick={stopPropagation}>
         <VerticalGroup spacing="lg">
           <VerticalGroup spacing="xs">
-            <HorizontalGroup justify="space-between" align="center">
-              <Label className={styles.label}>Filter by values:</Label>
-              <IconButton
-                name="text-fields"
-                tooltip="Match case"
-                style={{ color: matchCase ? theme.colors.text.link : theme.colors.text.disabled }}
-                onClick={() => {
-                  setMatchCase((s) => !s);
-                }}
-              />
-            </HorizontalGroup>
+            <Label>Filter by values:</Label>
             <div className={cx(styles.listDivider)} />
-            <FilterList onChange={setValues} values={values} options={options} caseSensitive={matchCase} />
+            <FilterList onChange={setValues} values={values} options={options} />
           </VerticalGroup>
           <HorizontalGroup spacing="lg">
             <HorizontalGroup>
@@ -80,7 +64,7 @@ export const FilterPopup = ({ column: { preFilteredRows, filterValue, setFilter 
             </HorizontalGroup>
             {clearFilterVisible && (
               <HorizontalGroup>
-                <Button fill="text" size="sm" onClick={onClearFilter}>
+                <Button variant="link" size="sm" onClick={onClearFilter}>
                   Clear filter
                 </Button>
               </HorizontalGroup>
@@ -92,30 +76,27 @@ export const FilterPopup = ({ column: { preFilteredRows, filterValue, setFilter 
   );
 };
 
-const getStyles = (theme: GrafanaTheme2) => ({
+const getStyles = stylesFactory((theme: GrafanaTheme) => ({
   filterContainer: css`
     label: filterContainer;
     width: 100%;
     min-width: 250px;
     height: 100%;
     max-height: 400px;
-    background-color: ${theme.colors.background.primary};
-    border: 1px solid ${theme.colors.border.weak};
-    padding: ${theme.spacing(2)};
-    margin: ${theme.spacing(1)} 0;
-    box-shadow: ${theme.shadows.z3};
-    border-radius: ${theme.shape.radius.default};
+    background-color: ${theme.colors.bg1};
+    border: ${theme.border.width.sm} solid ${theme.colors.border2};
+    padding: ${theme.spacing.md};
+    margin: ${theme.spacing.sm} 0;
+    box-shadow: 0px 0px 20px ${theme.colors.dropdownShadow};
+    border-radius: ${theme.spacing.xs};
   `,
   listDivider: css`
     label: listDivider;
     width: 100%;
-    border-top: 1px solid ${theme.colors.border.medium};
-    padding: ${theme.spacing(0.5, 2)};
+    border-top: ${theme.border.width.sm} solid ${theme.colors.border2};
+    padding: ${theme.spacing.xs} ${theme.spacing.md};
   `,
-  label: css`
-    margin-bottom: 0;
-  `,
-});
+}));
 
 const stopPropagation = (event: React.MouseEvent) => {
   event.stopPropagation();

@@ -5,17 +5,10 @@ export { standardTransformers } from './transformers';
 export * from './fieldReducer';
 export { transformDataFrame } from './transformDataFrame';
 export {
-  type TransformerRegistryItem,
-  type TransformerUIProps,
+  TransformerRegistryItem,
+  TransformerUIProps,
   standardTransformersRegistry,
 } from './standardTransformersRegistry';
-export {
-  type RegexpOrNamesMatcherOptions,
-  type ByNamesMatcherOptions,
-  ByNamesMatcherMode,
-} from './matchers/nameMatcher';
-export type { RenameByRegexTransformerOptions } from './transformers/renameByRegex';
-/** @deprecated -- will be removed in future versions */
-export { joinDataFrames as outerJoinDataFrames, isLikelyAscendingVector } from './transformers/joinDataFrames';
-export * from './transformers/histogram';
-export { ensureTimeField } from './transformers/convertFieldType';
+export { RegexpOrNamesMatcherOptions, ByNamesMatcherOptions, ByNamesMatcherMode } from './matchers/nameMatcher';
+export { RenameByRegexTransformerOptions } from './transformers/renameByRegex';
+export { outerJoinDataFrames } from './transformers/joinDataFrames';

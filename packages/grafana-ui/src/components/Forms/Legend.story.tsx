@@ -1,31 +1,27 @@
-import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
+import { text } from '@storybook/addon-knobs';
 
 import { Legend } from '@grafana/ui';
-
 import mdx from './Legend.mdx';
 
-const meta: Meta<typeof Legend> = {
+const getKnobs = () => {
+  return {
+    label: text('text', 'Form section'),
+  };
+};
+
+export default {
   title: 'Forms/Legend',
   component: Legend,
   parameters: {
     docs: {
       page: mdx,
     },
-    controls: {
-      exclude: ['description'],
-    },
-  },
-  argTypes: {
-    children: { name: 'Label' },
   },
 };
 
-export const Basic: StoryFn<typeof Legend> = (args) => {
-  return <Legend>{args.children}</Legend>;
-};
-Basic.args = {
-  children: 'Form section',
-};
+export const basic = () => {
+  const { label } = getKnobs();
 
-export default meta;
+  return <Legend>{label}</Legend>;
+};

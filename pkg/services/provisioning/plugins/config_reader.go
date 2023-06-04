@@ -1,37 +1,34 @@
 package plugins
 
 import (
-	"context"
 	"fmt"
-	"io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/plugins"
+	"gopkg.in/yaml.v2"
 )
 
 type configReader interface {
-	readConfig(ctx context.Context, path string) ([]*pluginsAsConfig, error)
+	readConfig(path string) ([]*pluginsAsConfig, error)
 }
 
 type configReaderImpl struct {
-	log         log.Logger
-	pluginStore plugins.Store
+	log log.Logger
 }
 
-func newConfigReader(logger log.Logger, pluginStore plugins.Store) configReader {
-	return &configReaderImpl{log: logger, pluginStore: pluginStore}
+func newConfigReader(logger log.Logger) configReader {
+	return &configReaderImpl{log: logger}
 }
 
-func (cr *configReaderImpl) readConfig(ctx context.Context, path string) ([]*pluginsAsConfig, error) {
+func (cr *configReaderImpl) readConfig(path string) ([]*pluginsAsConfig, error) {
 	var apps []*pluginsAsConfig
 	cr.log.Debug("Looking for plugin provisioning files", "path", path)
 
-	files, err := os.ReadDir(path)
+	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		cr.log.Error("Failed to read plugin provisioning files from directory", "path", path, "error", err)
 		return apps, nil
@@ -58,7 +55,7 @@ func (cr *configReaderImpl) readConfig(ctx context.Context, path string) ([]*plu
 
 	checkOrgIDAndOrgName(apps)
 
-	err = cr.validatePluginsConfig(ctx, apps)
+	err = validatePluginsConfig(apps)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +63,7 @@ func (cr *configReaderImpl) readConfig(ctx context.Context, path string) ([]*plu
 	return apps, nil
 }
 
-func (cr *configReaderImpl) parsePluginConfig(path string, file fs.DirEntry) (*pluginsAsConfig, error) {
+func (cr *configReaderImpl) parsePluginConfig(path string, file os.FileInfo) (*pluginsAsConfig, error) {
 	filename, err := filepath.Abs(filepath.Join(path, file.Name()))
 	if err != nil {
 		return nil, err
@@ -74,7 +71,7 @@ func (cr *configReaderImpl) parsePluginConfig(path string, file fs.DirEntry) (*p
 
 	// nolint:gosec
 	// We can ignore the gosec G304 warning on this one because `filename` comes from ps.Cfg.ProvisioningPath
-	yamlFile, err := os.ReadFile(filename)
+	yamlFile, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -108,15 +105,15 @@ func validateRequiredField(apps []*pluginsAsConfig) error {
 	return nil
 }
 
-func (cr *configReaderImpl) validatePluginsConfig(ctx context.Context, apps []*pluginsAsConfig) error {
+func validatePluginsConfig(apps []*pluginsAsConfig) error {
 	for i := range apps {
 		if apps[i].Apps == nil {
 			continue
 		}
 
 		for _, app := range apps[i].Apps {
-			if _, exists := cr.pluginStore.Plugin(ctx, app.PluginID); !exists {
-				return fmt.Errorf("plugin not installed: %q", app.PluginID)
+			if !plugins.IsAppInstalled(app.PluginID) {
+				return fmt.Errorf("app plugin not installed: %s", app.PluginID)
 			}
 		}
 	}

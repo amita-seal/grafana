@@ -1,5 +1,4 @@
 import { e2e } from '../index';
-
 import { selectOption } from './selectOption';
 
 export interface TimeRangeConfig {
@@ -9,31 +8,22 @@ export interface TimeRangeConfig {
 }
 
 export const setTimeRange = ({ from, to, zone }: TimeRangeConfig) => {
-  e2e.components.TimePicker.openButton().click();
+  e2e().get('[aria-label="TimePicker Open Button"]').click();
 
   if (zone) {
-    e2e().contains('button', 'Change time settings').click();
+    e2e().contains('button', 'Change time zone').click();
 
-    if (e2e.components.TimeZonePicker.containerV2) {
-      selectOption({
-        clickToOpen: true,
-        container: e2e.components.TimeZonePicker.containerV2(),
-        optionText: zone,
-      });
-    } else {
-      selectOption({
-        clickToOpen: true,
-        container: e2e.components.TimeZonePicker.container(),
-        optionText: zone,
-      });
-    }
+    selectOption({
+      clickToOpen: false,
+      container: e2e.components.TimeZonePicker.container(),
+      optionText: zone,
+    });
   }
 
   // For smaller screens
-  e2e.components.TimePicker.absoluteTimeRangeTitle().click();
+  e2e().get('[aria-label="TimePicker absolute time range"]').click();
 
-  e2e.components.TimePicker.fromField().clear().type(from);
-  e2e.components.TimePicker.toField().clear().type(to);
-
-  e2e.components.TimePicker.applyTimeRange().click();
+  e2e().get('[aria-label="TimePicker from field"]').clear().type(from);
+  e2e().get('[aria-label="TimePicker to field"]').clear().type(to);
+  e2e().get('[aria-label="TimePicker submit button"]').click();
 };

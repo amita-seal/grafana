@@ -1,10 +1,9 @@
-import { ReactElement, useEffect, useState } from 'react';
-
-import { LoadingState, PanelMenuItem } from '@grafana/data';
-import { getPanelStateForModel } from 'app/features/panel/state/selectors';
-import { useSelector } from 'app/types';
+import { FC, ReactElement, useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { PanelMenuItem } from '@grafana/data';
 
 import { DashboardModel, PanelModel } from '../../state';
+import { StoreState } from '../../../../types';
 import { getPanelMenu } from '../../utils/getPanelMenu';
 
 interface PanelHeaderMenuProviderApi {
@@ -14,17 +13,17 @@ interface PanelHeaderMenuProviderApi {
 interface Props {
   panel: PanelModel;
   dashboard: DashboardModel;
-  loadingState?: LoadingState;
   children: (props: PanelHeaderMenuProviderApi) => ReactElement;
 }
 
-export function PanelHeaderMenuProvider({ panel, dashboard, loadingState, children }: Props) {
+export const PanelHeaderMenuProvider: FC<Props> = ({ panel, dashboard, children }) => {
   const [items, setItems] = useState<PanelMenuItem[]>([]);
-  const angularComponent = useSelector((state) => getPanelStateForModel(state, panel)?.angularComponent);
-
+  const angularComponent = useSelector(
+    (state: StoreState) => state.dashboard.panels[panel.id]?.angularComponent || null
+  );
   useEffect(() => {
     setItems(getPanelMenu(dashboard, panel, angularComponent));
-  }, [dashboard, panel, angularComponent, loadingState, setItems]);
+  }, [dashboard, panel, angularComponent, setItems]);
 
   return children({ items });
-}
+};

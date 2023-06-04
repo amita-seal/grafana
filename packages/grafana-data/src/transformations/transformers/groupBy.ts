@@ -1,12 +1,13 @@
 import { map } from 'rxjs/operators';
 
-import { guessFieldTypeForField } from '../../dataframe/processDataFrame';
-import { getFieldDisplayName } from '../../field/fieldState';
+import { DataTransformerID } from './ids';
 import { DataFrame, Field, FieldType } from '../../types/dataFrame';
 import { DataTransformerInfo } from '../../types/transformations';
+import { getFieldDisplayName } from '../../field/fieldState';
+import { ArrayVector } from '../../vector/ArrayVector';
+import { guessFieldTypeForField } from '../../dataframe/processDataFrame';
 import { reduceField, ReducerID } from '../fieldReducer';
-
-import { DataTransformerID } from './ids';
+import { MutableField } from '../../dataframe/MutableDataFrame';
 
 export enum GroupByOperationID {
   aggregate = 'aggregate',
@@ -31,7 +32,7 @@ export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> 
   },
 
   /**
-   * Return a modified copy of the series. If the transform is not or should not
+   * Return a modified copy of the series.  If the transform is not or should not
    * be applied, just return the input series
    */
   operator: (options) => (source) =>
@@ -62,13 +63,13 @@ export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> 
 
           // Group the values by fields and groups so we can get all values for a
           // group for a given field.
-          const valuesByGroupKey = new Map<string, Record<string, Field>>();
+          const valuesByGroupKey: Record<string, Record<string, MutableField>> = {};
           for (let rowIndex = 0; rowIndex < frame.length; rowIndex++) {
-            const groupKey = String(groupByFields.map((field) => field.values[rowIndex]));
-            const valuesByField = valuesByGroupKey.get(groupKey) ?? {};
+            const groupKey = String(groupByFields.map((field) => field.values.get(rowIndex)));
+            const valuesByField = valuesByGroupKey[groupKey] ?? {};
 
-            if (!valuesByGroupKey.has(groupKey)) {
-              valuesByGroupKey.set(groupKey, valuesByField);
+            if (!valuesByGroupKey[groupKey]) {
+              valuesByGroupKey[groupKey] = valuesByField;
             }
 
             for (let field of frame.fields) {
@@ -79,23 +80,25 @@ export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> 
                   name: fieldName,
                   type: field.type,
                   config: { ...field.config },
-                  values: [],
+                  values: new ArrayVector(),
                 };
               }
 
-              valuesByField[fieldName].values.push(field.values[rowIndex]);
+              valuesByField[fieldName].values.add(field.values.get(rowIndex));
             }
           }
 
           const fields: Field[] = [];
+          const groupKeys = Object.keys(valuesByGroupKey);
 
           for (const field of groupByFields) {
-            const values: any[] = [];
+            const values = new ArrayVector();
             const fieldName = getFieldDisplayName(field);
 
-            valuesByGroupKey.forEach((value) => {
-              values.push(value[fieldName].values[0]);
-            });
+            for (let key of groupKeys) {
+              const valuesByField = valuesByGroupKey[key];
+              values.add(valuesByField[fieldName].values.get(0));
+            }
 
             fields.push({
               name: field.name,
@@ -117,8 +120,8 @@ export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> 
             const aggregations = options.fields[fieldName].aggregations;
             const valuesByAggregation: Record<string, any[]> = {};
 
-            valuesByGroupKey.forEach((value) => {
-              const fieldWithValuesForGroup = value[fieldName];
+            for (const groupKey of groupKeys) {
+              const fieldWithValuesForGroup = valuesByGroupKey[groupKey][fieldName];
               const results = reduceField({
                 field: fieldWithValuesForGroup,
                 reducers: aggregations,
@@ -130,12 +133,12 @@ export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> 
                 }
                 valuesByAggregation[aggregation].push(results[aggregation]);
               }
-            });
+            }
 
             for (const aggregation of aggregations) {
               const aggregationField: Field = {
                 name: `${fieldName} (${aggregation})`,
-                values: valuesByAggregation[aggregation],
+                values: new ArrayVector(valuesByAggregation[aggregation]),
                 type: FieldType.other,
                 config: {},
               };
@@ -147,7 +150,7 @@ export const groupByTransformer: DataTransformerInfo<GroupByTransformerOptions> 
 
           processed.push({
             fields,
-            length: valuesByGroupKey.size,
+            length: groupKeys.length,
           });
         }
 

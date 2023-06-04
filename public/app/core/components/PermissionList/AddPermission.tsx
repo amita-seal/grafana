@@ -1,12 +1,11 @@
-import { css } from '@emotion/css';
 import React, { Component } from 'react';
-
-import { GrafanaTheme2, SelectableValue } from '@grafana/data';
-import { Button, Form, HorizontalGroup, Select, stylesFactory } from '@grafana/ui';
-import { TeamPicker } from 'app/core/components/Select/TeamPicker';
-import { UserPicker } from 'app/core/components/Select/UserPicker';
+import { css } from 'emotion';
 import config from 'app/core/config';
-import { OrgUser, Team } from 'app/types';
+import { UserPicker } from 'app/core/components/Select/UserPicker';
+import { TeamPicker, Team } from 'app/core/components/Select/TeamPicker';
+import { Button, Form, HorizontalGroup, Icon, Select, stylesFactory } from '@grafana/ui';
+import { GrafanaTheme, SelectableValue } from '@grafana/data';
+import { User } from 'app/types';
 import {
   dashboardPermissionLevels,
   dashboardAclTargets,
@@ -15,8 +14,6 @@ import {
   NewDashboardAclItem,
   OrgRole,
 } from 'app/types/acl';
-
-import { CloseButton } from '../CloseButton/CloseButton';
 
 export interface Props {
   onAddPermission: (item: NewDashboardAclItem) => void;
@@ -43,8 +40,8 @@ class AddPermissions extends Component<Props, NewDashboardAclItem> {
     };
   }
 
-  onTypeChanged = (item: SelectableValue<AclTarget>) => {
-    const type = item.value;
+  onTypeChanged = (item: any) => {
+    const type = item.value as AclTarget;
 
     switch (type) {
       case AclTarget.User:
@@ -60,12 +57,12 @@ class AddPermissions extends Component<Props, NewDashboardAclItem> {
     }
   };
 
-  onUserSelected = (user: SelectableValue<OrgUser['userId']>) => {
+  onUserSelected = (user: User) => {
     this.setState({ userId: user && !Array.isArray(user) ? user.id : 0 });
   };
 
-  onTeamSelected = (team: SelectableValue<Team>) => {
-    this.setState({ teamId: team.value?.id && !Array.isArray(team.value) ? team.value.id : 0 });
+  onTeamSelected = (team: Team) => {
+    this.setState({ teamId: team && !Array.isArray(team) ? team.id : 0 });
   };
 
   onPermissionChanged = (permission: SelectableValue<PermissionLevel>) => {
@@ -92,17 +89,18 @@ class AddPermissions extends Component<Props, NewDashboardAclItem> {
     const newItem = this.state;
     const pickerClassName = 'min-width-20';
     const isValid = this.isValid();
-    const styles = getStyles(config.theme2);
+    const styles = getStyles(config.theme);
 
     return (
       <div className="cta-form">
-        <CloseButton onClick={onCancel} />
+        <button className="cta-form__close btn btn-transparent" onClick={onCancel}>
+          <Icon name="times" />
+        </button>
         <h5>Add Permission For</h5>
         <Form maxWidth="none" onSubmit={this.onSubmit}>
           {() => (
             <HorizontalGroup>
               <Select
-                aria-label="Role to add new permission to"
                 isSearchable={false}
                 value={this.state.type}
                 options={dashboardAclTargets}
@@ -120,7 +118,6 @@ class AddPermissions extends Component<Props, NewDashboardAclItem> {
               <span className={styles.label}>Can</span>
 
               <Select
-                aria-label="Permission level"
                 isSearchable={false}
                 value={this.state.permission}
                 options={dashboardPermissionLevels}
@@ -138,9 +135,9 @@ class AddPermissions extends Component<Props, NewDashboardAclItem> {
   }
 }
 
-const getStyles = stylesFactory((theme: GrafanaTheme2) => ({
+const getStyles = stylesFactory((theme: GrafanaTheme) => ({
   label: css`
-    color: ${theme.colors.primary.text};
+    color: ${theme.colors.textBlue};
     font-weight: bold;
   `,
 }));

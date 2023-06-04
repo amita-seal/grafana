@@ -1,5 +1,4 @@
 import { toDataFrame } from '../../dataframe/processDataFrame';
-
 import { concatenateFields, ConcatenateFrameNameMode } from './concat';
 
 export const simpleABC = toDataFrame({
@@ -25,28 +24,28 @@ describe('Concat Transformer', () => {
     const frame = concatenateFields([simpleABC, simpleXYZ], { frameNameMode: ConcatenateFrameNameMode.Drop });
     expect(frame.length).toBe(3);
     expect(frame.fields.map((f) => ({ name: f.name, labels: f.labels }))).toMatchInlineSnapshot(`
-      [
-        {
+      Array [
+        Object {
           "labels": undefined,
           "name": "A",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "B",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "C",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "X",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "Y",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "Z",
         },
@@ -58,28 +57,28 @@ describe('Concat Transformer', () => {
     const frame = concatenateFields([simpleABC, simpleXYZ], { frameNameMode: ConcatenateFrameNameMode.FieldName });
     expect(frame.length).toBe(3);
     expect(frame.fields.map((f) => ({ name: f.name, labels: f.labels }))).toMatchInlineSnapshot(`
-      [
-        {
+      Array [
+        Object {
           "labels": undefined,
           "name": "ABC · A",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "ABC · B",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "ABC · C",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "XYZ · X",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "XYZ · Y",
         },
-        {
+        Object {
           "labels": undefined,
           "name": "XYZ · Z",
         },
@@ -94,39 +93,39 @@ describe('Concat Transformer', () => {
     });
     expect(frame.length).toBe(3);
     expect(frame.fields.map((f) => ({ name: f.name, labels: f.labels }))).toMatchInlineSnapshot(`
-      [
-        {
-          "labels": {
+      Array [
+        Object {
+          "labels": Object {
             "sensor": "ABC",
           },
           "name": "A",
         },
-        {
-          "labels": {
+        Object {
+          "labels": Object {
             "sensor": "ABC",
           },
           "name": "B",
         },
-        {
-          "labels": {
+        Object {
+          "labels": Object {
             "sensor": "ABC",
           },
           "name": "C",
         },
-        {
-          "labels": {
+        Object {
+          "labels": Object {
             "sensor": "XYZ",
           },
           "name": "X",
         },
-        {
-          "labels": {
+        Object {
+          "labels": Object {
             "sensor": "XYZ",
           },
           "name": "Y",
         },
-        {
-          "labels": {
+        Object {
+          "labels": Object {
             "sensor": "XYZ",
           },
           "name": "Z",

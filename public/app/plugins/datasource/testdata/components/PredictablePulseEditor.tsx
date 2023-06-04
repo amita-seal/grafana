@@ -1,16 +1,9 @@
 import React, { ChangeEvent } from 'react';
-
-import { InlineField, InlineFieldRow, Input } from '@grafana/ui';
-
 import { EditorProps } from '../QueryEditor';
-import { PulseWaveQuery } from '../dataquery.gen';
+import { InlineField, InlineFieldRow, Input } from '@grafana/ui';
+import { PulseWaveQuery } from '../types';
 
-const fields: Array<{
-  label: string;
-  id: keyof PulseWaveQuery;
-  placeholder: string;
-  tooltip: string;
-}> = [
+const fields = [
   { label: 'Step', id: 'timeStep', placeholder: '60', tooltip: 'The number of seconds between datapoints.' },
   {
     label: 'On Count',
@@ -51,7 +44,7 @@ export const PredictablePulseEditor = ({ onChange, query }: EditorProps) => {
               type="number"
               name={id}
               id={`pulseWave.${id}-${query.refId}`}
-              value={query.pulseWave?.[id]}
+              value={query.pulseWave?.[id as keyof PulseWaveQuery]}
               placeholder={placeholder}
               onChange={onInputChange}
             />

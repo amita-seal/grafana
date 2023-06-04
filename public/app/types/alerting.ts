@@ -1,5 +1,7 @@
-import { SelectableValue } from '@grafana/data';
-import { IconName } from '@grafana/ui';
+import { DataFrame, DataQuery, PanelData, SelectableValue, TimeRange } from '@grafana/data';
+import { PanelQueryRunner } from '../features/query/state/PanelQueryRunner';
+import { QueryGroupOptions } from './query';
+import { ExpressionQuery } from '../features/expressions/types';
 
 export interface AlertRuleDTO {
   id: number;
@@ -26,7 +28,7 @@ export interface AlertRule {
   state: string;
   newStateDate?: string;
   stateText: string;
-  stateIcon: IconName;
+  stateIcon: string;
   stateClass: string;
   stateAge: string;
   url: string;
@@ -36,7 +38,7 @@ export interface AlertRule {
   evalData?: { noData?: boolean; evalMatches?: any };
 }
 
-export type GrafanaNotifierType =
+export type NotifierType =
   | 'discord'
   | 'hipchat'
   | 'email'
@@ -57,25 +59,10 @@ export type GrafanaNotifierType =
   | 'LINE'
   | 'kafka';
 
-export type CloudNotifierType =
-  | 'email'
-  | 'pagerduty'
-  | 'pushover'
-  | 'slack'
-  | 'opsgenie'
-  | 'victorops'
-  | 'webhook'
-  | 'wechat'
-  | 'webex'
-  | 'telegram'
-  | 'sns'
-  | 'discord';
-
-export type NotifierType = GrafanaNotifierType | CloudNotifierType;
-export interface NotifierDTO<T = NotifierType> {
+export interface NotifierDTO {
   name: string;
   description: string;
-  type: T;
+  type: NotifierType;
   heading: string;
   options: NotificationChannelOption[];
   info?: string;
@@ -118,15 +105,7 @@ export interface ChannelTypeSettings {
 }
 
 export interface NotificationChannelOption {
-  element:
-    | 'input'
-    | 'select'
-    | 'checkbox'
-    | 'textarea'
-    | 'subform'
-    | 'subform_array'
-    | 'key_value_map'
-    | 'string_array';
+  element: 'input' | 'select' | 'checkbox' | 'textarea';
   inputType: string;
   label: string;
   description: string;
@@ -134,13 +113,9 @@ export interface NotificationChannelOption {
   propertyName: string;
   required: boolean;
   secure: boolean;
-  selectOptions?: Array<SelectableValue<string>> | null;
-  defaultValue?: SelectableValue<string>;
+  selectOptions?: Array<SelectableValue<string>>;
   showWhen: { field: string; is: string };
   validationRule: string;
-  subformOptions?: NotificationChannelOption[];
-  dependsOn: string;
-  setValueAs?: (value: string | boolean) => string | number | boolean | null;
 }
 
 export interface NotificationChannelState {
@@ -149,38 +124,6 @@ export interface NotificationChannelState {
   notificationChannel: any;
 }
 
-export interface NotifierStatus {
-  lastNotifyAttemptError?: null | string;
-  lastNotifyAttempt: string;
-  lastNotifyAttemptDuration: string;
-  name: string;
-  sendResolved?: boolean;
-}
-
-export interface NotifiersState {
-  [key: string]: NotifierStatus[]; // key is the notifier type
-}
-
-export interface ReceiverState {
-  active: boolean;
-  notifiers: NotifiersState;
-  errorCount: number; // errors by receiver
-}
-
-export interface ReceiversState {
-  [key: string]: ReceiverState;
-}
-
-export interface ContactPointsState {
-  receivers: ReceiversState;
-  errorCount: number;
-}
-
-export interface ReceiversStateDTO {
-  active: boolean;
-  integrations: NotifierStatus[];
-  name: string;
-}
 export interface AlertRulesState {
   items: AlertRule[];
   searchQuery: string;
@@ -194,23 +137,40 @@ export interface AlertNotification {
   type: string;
 }
 
-export interface AnnotationItemDTO {
+export interface AlertDefinitionState {
+  uiState: AlertDefinitionUiState;
+  alertDefinition: AlertDefinition;
+  queryRunner?: PanelQueryRunner;
+  data: PanelData[];
+  alertDefinitions: AlertDefinition[];
+  getInstances: () => DataFrame[];
+  getQueryOptions: () => QueryGroupOptions;
+}
+
+export interface AlertDefinition {
   id: number;
-  alertId: number;
-  alertName: string;
-  dashboardId: number;
-  panelId: number;
-  userId: number;
-  newState: string;
-  prevState: string;
-  created: number;
-  updated: number;
-  time: number;
-  timeEnd: number;
-  text: string;
-  tags: string[];
-  login: string;
-  email: string;
-  avatarUrl: string;
-  data: any;
+  uid: string;
+  title: string;
+  description: string;
+  condition: string;
+  data: any[];
+  intervalSeconds: number;
+}
+
+export interface AlertDefinitionDTO extends AlertDefinition {
+  queryType: string;
+  refId: string;
+  relativeTimeRange: TimeRange;
+  orgId: number;
+  updated: string;
+  version: number;
+}
+
+export interface AlertDefinitionQueryModel {
+  model: DataQuery | ExpressionQuery;
+}
+
+export interface AlertDefinitionUiState {
+  rightPaneSize: number;
+  topPaneSize: number;
 }

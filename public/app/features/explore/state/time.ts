@@ -1,19 +1,22 @@
 import { AnyAction, createAction, PayloadAction } from '@reduxjs/toolkit';
-
-import { AbsoluteTimeRange, dateTimeForTimeZone, LoadingState, RawTimeRange, TimeRange } from '@grafana/data';
-import { getTemplateSrv } from '@grafana/runtime';
+import {
+  AbsoluteTimeRange,
+  dateTimeForTimeZone,
+  LoadingState,
+  RawTimeRange,
+  sortLogsResult,
+  TimeRange,
+} from '@grafana/data';
 import { RefreshPicker } from '@grafana/ui';
+
 import { getTimeRange, refreshIntervalToSortOrder, stopQueryState } from 'app/core/utils/explore';
-import { sortLogsResult } from 'app/features/logs/utils';
-import { getFiscalYearStartMonth, getTimeZone } from 'app/features/profile/state/selectors';
 import { ExploreItemState, ThunkResult } from 'app/types';
 import { ExploreId } from 'app/types/explore';
-
+import { getTimeZone } from 'app/features/profile/state/selectors';
 import { getTimeSrv } from '../../dashboard/services/TimeSrv';
-import { TimeModel } from '../../dashboard/state/TimeModel';
-
-import { syncTimesAction, stateSave } from './main';
+import { DashboardModel } from 'app/features/dashboard/state';
 import { runQueries } from './query';
+import { syncTimesAction, stateSave } from './main';
 
 //
 // Actions and Payloads
@@ -43,13 +46,13 @@ export const updateTimeRange = (options: {
   return (dispatch, getState) => {
     const { syncedTimes } = getState().explore;
     if (syncedTimes) {
-      Object.keys(getState().explore.panes).forEach((exploreId) => {
-        dispatch(updateTime({ ...options, exploreId: exploreId as ExploreId }));
-        dispatch(runQueries(exploreId as ExploreId, { preserveCache: true }));
-      });
+      dispatch(updateTime({ ...options, exploreId: ExploreId.left }));
+      dispatch(runQueries(ExploreId.left));
+      dispatch(updateTime({ ...options, exploreId: ExploreId.right }));
+      dispatch(runQueries(ExploreId.right));
     } else {
       dispatch(updateTime({ ...options }));
-      dispatch(runQueries(options.exploreId, { preserveCache: true }));
+      dispatch(runQueries(options.exploreId));
     }
   };
 };
@@ -71,9 +74,8 @@ export const updateTime = (config: {
 }): ThunkResult<void> => {
   return (dispatch, getState) => {
     const { exploreId, absoluteRange: absRange, rawRange: actionRange } = config;
-    const itemState = getState().explore.panes[exploreId]!;
+    const itemState = getState().explore[exploreId]!;
     const timeZone = getTimeZone(getState().user);
-    const fiscalYearStartMonth = getFiscalYearStartMonth(getState().user);
     const { range: rangeInState } = itemState;
     let rawRange: RawTimeRange = rangeInState.raw;
 
@@ -88,23 +90,16 @@ export const updateTime = (config: {
       rawRange = actionRange;
     }
 
-    const range = getTimeRange(timeZone, rawRange, fiscalYearStartMonth);
+    const range = getTimeRange(timeZone, rawRange);
     const absoluteRange: AbsoluteTimeRange = { from: range.from.valueOf(), to: range.to.valueOf() };
-    const timeModel: TimeModel = {
-      time: range.raw,
-      refresh: false,
-      timepicker: {},
-      getTimezone: () => timeZone,
-      timeRangeUpdated: (rawTimeRange: RawTimeRange) => {
-        dispatch(updateTimeRange({ exploreId: exploreId, rawRange: rawTimeRange }));
-      },
-    };
 
-    // We need to re-initialize TimeSrv because it might have been triggered by the other Explore pane (when split)
-    getTimeSrv().init(timeModel);
-    // After re-initializing TimeSrv we need to update the time range in Template service for interpolation
-    // of __from and __to variables
-    getTemplateSrv().updateTimeRange(getTimeSrv().timeRange());
+    getTimeSrv().init(
+      new DashboardModel({
+        time: range.raw,
+        refresh: false,
+        timeZone,
+      })
+    );
 
     dispatch(changeRangeAction({ exploreId, range, absoluteRange }));
   };
@@ -116,36 +111,15 @@ export const updateTime = (config: {
  */
 export function syncTimes(exploreId: ExploreId): ThunkResult<void> {
   return (dispatch, getState) => {
-    const range = getState().explore.panes[exploreId]!.range.raw;
-
-    Object.keys(getState().explore.panes)
-      .filter((key) => key !== exploreId)
-      .forEach((exploreId) => {
-        dispatch(updateTimeRange({ exploreId: exploreId as ExploreId, rawRange: range }));
-      });
-
+    if (exploreId === ExploreId.left) {
+      const leftState = getState().explore.left;
+      dispatch(updateTimeRange({ exploreId: ExploreId.right, rawRange: leftState.range.raw }));
+    } else {
+      const rightState = getState().explore.right!;
+      dispatch(updateTimeRange({ exploreId: ExploreId.left, rawRange: rightState.range.raw }));
+    }
     const isTimeSynced = getState().explore.syncedTimes;
     dispatch(syncTimesAction({ syncedTimes: !isTimeSynced }));
-    dispatch(stateSave());
-  };
-}
-
-/**
- * Forces the timepicker's time into absolute time.
- * The conversion is applied to all Explore panes.
- * Useful to produce a bookmarkable URL that points to the same data.
- */
-export function makeAbsoluteTime(): ThunkResult<void> {
-  return (dispatch, getState) => {
-    const timeZone = getTimeZone(getState().user);
-    const fiscalYearStartMonth = getFiscalYearStartMonth(getState().user);
-
-    Object.entries(getState().explore.panes).forEach(([exploreId, exploreItemState]) => {
-      const range = getTimeRange(timeZone, exploreItemState!.range.raw, fiscalYearStartMonth);
-      const absoluteRange: AbsoluteTimeRange = { from: range.from.valueOf(), to: range.to.valueOf() };
-      dispatch(updateTime({ exploreId: exploreId as ExploreId, absoluteRange }));
-    });
-
     dispatch(stateSave());
   };
 }

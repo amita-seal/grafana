@@ -1,10 +1,9 @@
-import { css, cx } from '@emotion/css';
-import { omit } from 'lodash';
-import React, { InputHTMLAttributes } from 'react';
-
-import { Button } from '../Button/Button';
+import omit from 'lodash/omit';
+import React, { InputHTMLAttributes, FunctionComponent } from 'react';
 import { FormField } from '../FormField/FormField';
-import { PopoverContent } from '../Tooltip';
+import { Button } from '../Button/Button';
+import { css, cx } from 'emotion';
+import { PopoverContent } from '../Tooltip/Tooltip';
 
 export interface Props extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onReset'> {
   // Function to use when reset is clicked. Means you have to reset the input value yourself as this is  uncontrolled
@@ -18,7 +17,6 @@ export interface Props extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onRe
   inputWidth?: number;
   // Placeholder of the input field when in non configured state.
   placeholder?: string;
-  interactive?: boolean;
 }
 
 const getSecretFormFieldStyles = () => {
@@ -39,7 +37,7 @@ const getSecretFormFieldStyles = () => {
  * form field. This is used for passwords or anything that is encrypted on the server and is later returned encrypted
  * to the user (like datasource passwords).
  */
-export const SecretFormField = ({
+export const SecretFormField: FunctionComponent<Props> = ({
   label = 'Password',
   labelWidth,
   inputWidth = 12,
@@ -47,7 +45,6 @@ export const SecretFormField = ({
   isConfigured,
   tooltip,
   placeholder = 'Password',
-  interactive,
   ...inputProps
 }: Props) => {
   const styles = getSecretFormFieldStyles();
@@ -55,7 +52,6 @@ export const SecretFormField = ({
     <FormField
       label={label!}
       tooltip={tooltip}
-      interactive={interactive}
       labelWidth={labelWidth}
       inputEl={
         isConfigured ? (
@@ -67,7 +63,7 @@ export const SecretFormField = ({
               value="configured"
               {...omit(inputProps, 'value')}
             />
-            <Button onClick={onReset} variant="secondary" type="button">
+            <Button onClick={onReset} variant="secondary">
               Reset
             </Button>
           </>

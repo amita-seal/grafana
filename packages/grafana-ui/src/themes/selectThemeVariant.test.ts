@@ -1,7 +1,5 @@
 import { GrafanaThemeType } from '@grafana/data';
-
 import { selectThemeVariant } from './selectThemeVariant';
-
 import { mockTheme } from './index';
 
 const lightThemeMock = {

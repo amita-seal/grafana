@@ -1,7 +1,7 @@
-export { Dimensions } from './Dimensions/Dimensions';
+export { Stats } from './Stats';
+export { Dimensions } from './Dimensions';
 export { QueryInlineField, QueryField } from './Forms';
-export { QueryEditor as PanelQueryEditor } from './QueryEditor';
+export { Alias } from './Alias';
+export { MetricsQueryFieldsEditor } from './MetricsQueryFieldsEditor';
+export { PanelQueryEditor } from './PanelQueryEditor';
 export { CloudWatchLogsQueryEditor } from './LogsQueryEditor';
-export { MetricStatEditor } from './MetricStatEditor';
-export { SQLBuilderEditor } from './SQLBuilderEditor';
-export { MathExpressionQueryField } from './MathExpressionQueryField';

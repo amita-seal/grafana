@@ -1,8 +1,6 @@
-import { memoize } from 'lodash';
 import moment from 'moment-timezone';
-
+import { memoize } from 'lodash';
 import { TimeZone } from '../types';
-
 import { getTimeZone } from './common';
 
 export enum InternalTimeZones {
@@ -50,13 +48,11 @@ export const getTimeZoneInfo = (zone: string, timestamp: number): TimeZoneInfo |
   return mapToInfo(zone, timestamp);
 };
 
-export const getTimeZones = memoize((includeInternal: boolean | InternalTimeZones[] = false): TimeZone[] => {
+export const getTimeZones = memoize((includeInternal = false): TimeZone[] => {
   const initial: TimeZone[] = [];
 
-  if (includeInternal === true) {
-    initial.push(InternalTimeZones.default, InternalTimeZones.localBrowserTime, InternalTimeZones.utc);
-  } else if (includeInternal) {
-    initial.push(...includeInternal);
+  if (includeInternal) {
+    initial.push.apply(initial, [InternalTimeZones.default, InternalTimeZones.localBrowserTime, InternalTimeZones.utc]);
   }
 
   return moment.tz.names().reduce((zones: TimeZone[], zone: string) => {
@@ -71,34 +67,32 @@ export const getTimeZones = memoize((includeInternal: boolean | InternalTimeZone
   }, initial);
 });
 
-export const getTimeZoneGroups = memoize(
-  (includeInternal: boolean | InternalTimeZones[] = false): GroupedTimeZones[] => {
-    const timeZones = getTimeZones(includeInternal);
+export const getTimeZoneGroups = memoize((includeInternal = false): GroupedTimeZones[] => {
+  const timeZones = getTimeZones(includeInternal);
 
-    const groups = timeZones.reduce((groups: Record<string, TimeZone[]>, zone: TimeZone) => {
-      const delimiter = zone.indexOf('/');
+  const groups = timeZones.reduce((groups: Record<string, TimeZone[]>, zone: TimeZone) => {
+    const delimiter = zone.indexOf('/');
 
-      if (delimiter === -1) {
-        const group = '';
-        groups[group] = groups[group] ?? [];
-        groups[group].push(zone);
-
-        return groups;
-      }
-
-      const group = zone.slice(0, delimiter);
+    if (delimiter === -1) {
+      const group = '';
       groups[group] = groups[group] ?? [];
       groups[group].push(zone);
 
       return groups;
-    }, {});
+    }
 
-    return Object.keys(groups).map((name) => ({
-      name,
-      zones: groups[name],
-    }));
-  }
-);
+    const group = zone.substr(0, delimiter);
+    groups[group] = groups[group] ?? [];
+    groups[group].push(zone);
+
+    return groups;
+  }, {});
+
+  return Object.keys(groups).map((name) => ({
+    name,
+    zones: groups[name],
+  }));
+});
 
 const mapInternal = (zone: string, timestamp: number): TimeZoneInfo | undefined => {
   switch (zone) {
@@ -341,7 +335,7 @@ const countryByCode: Record<string, string> = {
   OM: 'Oman',
   PK: 'Pakistan',
   PW: 'Palau',
-  PS: 'Palestine, State of',
+  PS: 'Palestinian Territory (Occupied)',
   PA: 'Panama',
   PG: 'Papua New Guinea',
   PY: 'Paraguay',

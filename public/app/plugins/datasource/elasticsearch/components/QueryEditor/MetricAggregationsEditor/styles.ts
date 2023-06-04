@@ -1,18 +1,16 @@
-import { css } from '@emotion/css';
+import { GrafanaTheme } from '@grafana/data';
+import { stylesFactory } from '@grafana/ui';
+import { css } from 'emotion';
 
-import { GrafanaTheme2 } from '@grafana/data';
-
-export const getStyles = (theme: GrafanaTheme2, hidden: boolean) => {
-  return {
-    color:
-      hidden &&
-      css`
-        &,
-        &:hover,
-        label,
-        a {
-          color: ${hidden ? theme.colors.text.disabled : theme.colors.text.primary};
-        }
-      `,
-  };
-};
+export const getStyles = stylesFactory((theme: GrafanaTheme, hidden: boolean) => ({
+  color:
+    hidden &&
+    css`
+      &,
+      &:hover,
+      label,
+      a {
+        color: ${hidden ? theme.colors.textFaint : theme.colors.text};
+      }
+    `,
+}));

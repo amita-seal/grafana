@@ -1,14 +1,15 @@
-import { action } from '@storybook/addon-actions';
-import { Meta, StoryFn } from '@storybook/react';
 import React, { useState } from 'react';
-
-import { SegmentInput, Icon, SegmentSection } from '@grafana/ui';
-
-import { SegmentInputProps } from './SegmentInput';
+import { action } from '@storybook/addon-actions';
+import { SegmentInput, Icon } from '@grafana/ui';
 
 const SegmentFrame = ({ children }: any) => (
   <>
-    <SegmentSection label="Segment Name">{children}</SegmentSection>
+    <div className="gf-form-inline">
+      <div className="gf-form">
+        <span className="gf-form-label width-8 query-keyword">Segment Name</span>
+      </div>
+      {children}
+    </div>
   </>
 );
 
@@ -27,7 +28,7 @@ export const BasicInput = () => {
   );
 };
 
-const meta: Meta<typeof SegmentInput> = {
+export default {
   title: 'Data Source/Segment/SegmentInput',
   component: SegmentInput,
 };
@@ -87,51 +88,14 @@ export const InputWithAutoFocus = () => {
       {inputComponents.map((InputComponent: any, i: number) => (
         <InputComponent initialValue="test" key={i} />
       ))}
-      <button
-        type="button"
+      <a
         className="gf-form-label query-part"
         onClick={() => {
           setInputComponents([...inputComponents, InputComponent]);
         }}
       >
         <Icon name="plus" />
-      </button>
+      </a>
     </SegmentFrame>
   );
 };
-
-export const Basic: StoryFn<React.ComponentType<SegmentInputProps>> = (args: SegmentInputProps) => {
-  const [value, setValue] = useState(args.value);
-
-  const props: SegmentInputProps = {
-    ...args,
-    value,
-    onChange: (value) => {
-      setValue(value);
-      action('onChange fired')({ value });
-    },
-    onExpandedChange: (expanded) => action('onExpandedChange fired')({ expanded }),
-  };
-
-  return (
-    <SegmentSection label="Segment:">
-      <SegmentInput {...props} />
-    </SegmentSection>
-  );
-};
-
-Basic.parameters = {
-  controls: {
-    exclude: ['value', 'onChange', 'Component', 'className', 'onExpandedChange'],
-  },
-};
-
-Basic.args = {
-  value: 'Initial input value',
-  placeholder: 'Placeholder text',
-  disabled: false,
-  autofocus: false,
-  inputPlaceholder: 'Start typing...',
-};
-
-export default meta;

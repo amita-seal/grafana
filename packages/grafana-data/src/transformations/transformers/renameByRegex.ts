@@ -1,11 +1,8 @@
-import { map } from 'rxjs/operators';
-
-import { getFieldDisplayName } from '../../field/fieldState';
-import { stringToJsRegex } from '../../text/string';
-import { DataFrame } from '../../types/dataFrame';
-import { DataTransformerInfo } from '../../types/transformations';
-
 import { DataTransformerID } from './ids';
+import { DataTransformerInfo } from '../../types/transformations';
+import { map } from 'rxjs/operators';
+import { DataFrame } from '../../types/dataFrame';
+import { getFieldDisplayName } from '../../field/fieldState';
 
 /**
  * Options for renameByRegexTransformer
@@ -33,7 +30,7 @@ export const renameByRegexTransformer: DataTransformerInfo<RenameByRegexTransfor
   },
 
   /**
-   * Return a modified copy of the series. If the transform is not or should not
+   * Return a modified copy of the series.  If the transform is not or should not
    * be applied, just return the input series
    */
   operator: (options) => (source) =>
@@ -48,7 +45,7 @@ export const renameByRegexTransformer: DataTransformerInfo<RenameByRegexTransfor
 };
 
 const renameFieldsByRegex = (options: RenameByRegexTransformerOptions) => (frame: DataFrame) => {
-  const regex = stringToJsRegex(options.regex);
+  const regex = new RegExp(options.regex);
   const fields = frame.fields.map((field) => {
     const displayName = getFieldDisplayName(field, frame);
     if (!regex.test(displayName)) {

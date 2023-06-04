@@ -1,54 +1,14 @@
-import { render, screen } from '@testing-library/react';
 import React from 'react';
-import { AutoSizerProps } from 'react-virtualized-auto-sizer';
-import { TestProvider } from 'test/helpers/TestProvider';
-
-import { DataSourceApi, LoadingState, CoreApp, createTheme, EventBusSrv } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-import { ExploreId } from 'app/types';
-
-import { Explore, Props } from './Explore';
+import { DataSourceApi, LoadingState, toUtc, DataQueryError, DataQueryRequest, CoreApp } from '@grafana/data';
+import { getFirstNonQueryRowSpecificError } from 'app/core/utils/explore';
+import { ExploreId } from 'app/types/explore';
+import { shallow } from 'enzyme';
+import { Explore, ExploreProps } from './Explore';
 import { scanStopAction } from './state/query';
-import { createEmptyQueryResponse } from './state/utils';
+import { SecondaryActions } from './SecondaryActions';
+import { getTheme } from '@grafana/ui';
 
-const resizeWindow = (x: number, y: number) => {
-  global.innerWidth = x;
-  global.innerHeight = y;
-  global.dispatchEvent(new Event('resize'));
-};
-
-const makeEmptyQueryResponse = (loadingState: LoadingState) => {
-  const baseEmptyResponse = createEmptyQueryResponse();
-
-  baseEmptyResponse.request = {
-    requestId: '1',
-    intervalMs: 0,
-    interval: '1s',
-    panelId: 1,
-    range: baseEmptyResponse.timeRange,
-    scopedVars: {
-      apps: {
-        value: 'value',
-        text: 'text',
-      },
-    },
-    targets: [
-      {
-        refId: 'A',
-      },
-    ],
-    timezone: 'UTC',
-    app: CoreApp.Explore,
-    startTime: 0,
-  };
-
-  baseEmptyResponse.state = loadingState;
-
-  return baseEmptyResponse;
-};
-
-const dummyProps: Props = {
-  logsResult: undefined,
+const dummyProps: ExploreProps = {
   changeSize: jest.fn(),
   datasourceInstance: {
     meta: {
@@ -63,109 +23,105 @@ const dummyProps: Props = {
   exploreId: ExploreId.left,
   loading: false,
   modifyQueries: jest.fn(),
+  scanning: false,
+  scanRange: {
+    from: '0',
+    to: '0',
+  },
   scanStart: jest.fn(),
   scanStopAction: scanStopAction,
   setQueries: jest.fn(),
   queryKeys: [],
-  queries: [],
   isLive: false,
   syncedTimes: false,
   updateTimeRange: jest.fn(),
-  makeAbsoluteTime: jest.fn(),
   graphResult: [],
   absoluteRange: {
     from: 0,
     to: 0,
   },
   timeZone: 'UTC',
-  queryResponse: makeEmptyQueryResponse(LoadingState.NotStarted),
+  onHiddenSeriesChanged: jest.fn(),
+  queryResponse: {
+    state: LoadingState.NotStarted,
+    series: [],
+    request: ({
+      requestId: '1',
+      dashboardId: 0,
+      interval: '1s',
+      panelId: 1,
+      scopedVars: {
+        apps: {
+          value: 'value',
+        },
+      },
+      targets: [
+        {
+          refId: 'A',
+        },
+      ],
+      timezone: 'UTC',
+      app: CoreApp.Explore,
+      startTime: 0,
+    } as unknown) as DataQueryRequest,
+    error: {} as DataQueryError,
+    timeRange: {
+      from: toUtc('2019-01-01 10:00:00'),
+      to: toUtc('2019-01-01 16:00:00'),
+      raw: {
+        from: 'now-6h',
+        to: 'now',
+      },
+    },
+  },
+  originPanelId: 1,
   addQueryRow: jest.fn(),
-  theme: createTheme(),
+  theme: getTheme(),
   showMetrics: true,
   showLogs: true,
   showTable: true,
   showTrace: true,
   showNodeGraph: true,
-  showFlameGraph: true,
-  splitOpen: jest.fn(),
-  splitted: false,
-  isFromCompactUrl: false,
-  eventBus: new EventBusSrv(),
-  showRawPrometheus: false,
-  showLogsSample: false,
-  logsSample: { enabled: false },
-  setSupplementaryQueryEnabled: jest.fn(),
+  splitOpen: (() => {}) as any,
 };
 
-jest.mock('@grafana/runtime/src/services/dataSourceSrv', () => {
-  return {
-    getDataSourceSrv: () => ({
-      get: () => Promise.resolve({}),
-      getList: () => [],
-      getInstanceSettings: () => {},
-    }),
-  };
-});
-
-jest.mock('app/core/core', () => ({
-  contextSrv: {
-    hasAccess: () => true,
-  },
-}));
-
-// for the AutoSizer component to have a width
-jest.mock('react-virtualized-auto-sizer', () => {
-  return ({ children }: AutoSizerProps) => children({ height: 1, width: 1 });
-});
-
-const setup = (overrideProps?: Partial<Props>) => {
-  const exploreProps = { ...dummyProps, ...overrideProps };
-
-  return render(
-    <TestProvider>
-      <Explore {...exploreProps} />
-    </TestProvider>
-  );
+const setupErrors = (hasRefId?: boolean) => {
+  return [
+    {
+      message: 'Error message',
+      status: '400',
+      statusText: 'Bad Request',
+      refId: hasRefId ? 'A' : '',
+    },
+  ];
 };
 
 describe('Explore', () => {
-  it('should not render no data with not started loading state', async () => {
-    setup();
-
-    // Wait for the Explore component to render
-    await screen.findByTestId(selectors.components.DataSourcePicker.container);
-
-    expect(screen.queryByTestId('explore-no-data')).not.toBeInTheDocument();
+  it('should render component', () => {
+    const wrapper = shallow(<Explore {...dummyProps} />);
+    expect(wrapper).toMatchSnapshot();
   });
 
-  it('should render no data with done loading state', async () => {
-    const queryResp = makeEmptyQueryResponse(LoadingState.Done);
-    setup({ queryResponse: queryResp });
-
-    // Wait for the Explore component to render
-    await screen.findByTestId(selectors.components.DataSourcePicker.container);
-
-    expect(screen.getByTestId('explore-no-data')).toBeInTheDocument();
+  it('renders SecondaryActions and add row button', () => {
+    const wrapper = shallow(<Explore {...dummyProps} />);
+    expect(wrapper.find(SecondaryActions)).toHaveLength(1);
+    expect(wrapper.find(SecondaryActions).props().addQueryRowButtonHidden).toBe(false);
   });
 
-  describe('On small screens', () => {
-    const windowWidth = global.innerWidth,
-      windowHeight = global.innerHeight;
+  it('should filter out a query-row-specific error when looking for non-query-row-specific errors', async () => {
+    const queryErrors = setupErrors(true);
+    const queryError = getFirstNonQueryRowSpecificError(queryErrors);
+    expect(queryError).toBeUndefined();
+  });
 
-    beforeAll(() => {
-      resizeWindow(500, 500);
-    });
-
-    afterAll(() => {
-      resizeWindow(windowWidth, windowHeight);
-    });
-
-    it('should render data source picker', async () => {
-      setup();
-
-      const dataSourcePicker = await screen.findByTestId(selectors.components.DataSourcePicker.container);
-
-      expect(dataSourcePicker).toBeInTheDocument();
+  it('should not filter out a generic error when looking for non-query-row-specific errors', async () => {
+    const queryErrors = setupErrors();
+    const queryError = getFirstNonQueryRowSpecificError(queryErrors);
+    expect(queryError).toEqual({
+      message: 'Error message',
+      status: '400',
+      statusText: 'Bad Request',
+      refId: '',
     });
   });
 });

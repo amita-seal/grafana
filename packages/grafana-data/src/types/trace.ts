@@ -1,9 +1,9 @@
 /**
  * Type representing a tag in a trace span or fields of a log.
  */
-export type TraceKeyValuePair<T = any> = {
+export type TraceKeyValuePair = {
   key: string;
-  value: T;
+  value: any;
 };
 
 /**
@@ -13,12 +13,6 @@ export type TraceLog = {
   // Millisecond epoch time
   timestamp: number;
   fields: TraceKeyValuePair[];
-};
-
-export type TraceSpanReference = {
-  traceID: string;
-  spanID: string;
-  tags?: TraceKeyValuePair[];
 };
 
 /**
@@ -37,7 +31,7 @@ export interface TraceSpanRow {
   // Milliseconds
   duration: number;
   logs?: TraceLog[];
-  references?: TraceSpanReference[];
+
   // Note: To mark spen as having error add tag error: true
   tags?: TraceKeyValuePair[];
   warnings?: string[];

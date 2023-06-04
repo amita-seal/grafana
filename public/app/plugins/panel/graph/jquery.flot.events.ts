@@ -1,13 +1,13 @@
+import angular from 'angular';
 import $ from 'jquery';
-import { partition, each } from 'lodash';
+import _ from 'lodash';
 //@ts-ignore
 import Drop from 'tether-drop';
-
 import { CreatePlotOverlay } from '@grafana/data';
-import { getLegacyAngularInjector } from '@grafana/runtime';
 
+/** @ngInject */
 const createAnnotationToolip: CreatePlotOverlay = (element, event, plot) => {
-  const injector = getLegacyAngularInjector();
+  const injector = angular.element(document).injector();
   const content = document.createElement('div');
   content.innerHTML = '<annotation-tooltip event="event" on-edit="onEdit()"></annotation-tooltip>';
 
@@ -51,6 +51,7 @@ const createAnnotationToolip: CreatePlotOverlay = (element, event, plot) => {
 
 let markerElementToAttachTo: any = null;
 
+/** @ngInject */
 const createEditPopover: CreatePlotOverlay = (element, event, plot) => {
   const eventManager = plot.getOptions().events.manager;
   if (eventManager.editorOpen) {
@@ -67,7 +68,7 @@ const createEditPopover: CreatePlotOverlay = (element, event, plot) => {
 
   // wait for element to be attached and positioned
   setTimeout(() => {
-    const injector = getLegacyAngularInjector();
+    const injector = angular.element(document).injector();
     const content = document.createElement('div');
     content.innerHTML = '<event-editor panel-ctrl="panelCtrl" event="event" close="close()"></event-editor>';
 
@@ -143,6 +144,7 @@ export class DrawableEvent {
   _width: any;
   _height: any;
 
+  /** @ngInject */
   constructor(
     object: JQuery,
     drawFunc: any,
@@ -195,6 +197,7 @@ export class VisualEvent {
   _drawableEvent: any;
   _hidden: any;
 
+  /** @ngInject */
   constructor(options: any, drawableEvent: DrawableEvent) {
     this._options = options;
     this._drawableEvent = drawableEvent;
@@ -230,6 +233,7 @@ export class EventMarkers {
   _plot: any;
   eventsEnabled: any;
 
+  /** @ngInject */
   constructor(plot: any) {
     this._events = [];
     this._types = [];
@@ -249,7 +253,7 @@ export class EventMarkers {
    * create internal objects for the given events
    */
   setupEvents(events: any[]) {
-    const parts = partition(events, 'isRegion');
+    const parts = _.partition(events, 'isRegion');
     const regions = parts[0];
     events = parts[1];
 
@@ -528,7 +532,7 @@ export class EventMarkers {
     const regionOffset = right > xmax ? 0 : lineWidth; // only include lineWidth when right line is visible
     regionWidth = regionEnd - regionStart + regionOffset;
 
-    each([left, right], (position) => {
+    _.each([left, right], (position) => {
       // only draw visible region lines
       if (xmin <= position && position < xmax) {
         const line = $('<div class="events_line flot-temp-elem"></div>').css({
@@ -627,6 +631,8 @@ export class EventMarkers {
 /**
  * initialize the plugin for the given plot
  */
+
+/** @ngInject */
 export function init(this: any, plot: any) {
   const that = this;
   const eventMarkers = new EventMarkers(plot);

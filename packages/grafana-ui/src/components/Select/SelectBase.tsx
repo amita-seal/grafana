@@ -1,28 +1,29 @@
-import React, { ComponentProps, useCallback, useEffect, useRef, useState } from 'react';
-import { default as ReactSelect } from 'react-select';
-import { default as ReactAsyncSelect } from 'react-select/async';
-import { default as AsyncCreatable } from 'react-select/async-creatable';
-import Creatable from 'react-select/creatable';
+import React, { useCallback } from 'react';
+// @ts-ignore
+import { default as ReactSelect } from '@torkelo/react-select';
+// @ts-ignore
+import Creatable from '@torkelo/react-select/creatable';
+// @ts-ignore
+import { default as ReactAsyncSelect } from '@torkelo/react-select/async';
+// @ts-ignore
+import { default as AsyncCreatable } from '@torkelo/react-select/async-creatable';
 
-import { SelectableValue, toOption } from '@grafana/data';
-
-import { useTheme2 } from '../../themes';
 import { Icon } from '../Icon/Icon';
 import { Spinner } from '../Spinner/Spinner';
-
-import { DropdownIndicator } from './DropdownIndicator';
+import { css, cx } from 'emotion';
+import resetSelectStyles from './resetSelectStyles';
+import { SelectMenu, SelectMenuOptions } from './SelectMenu';
 import { IndicatorsContainer } from './IndicatorsContainer';
+import { ValueContainer } from './ValueContainer';
 import { InputControl } from './InputControl';
-import { MultiValueContainer, MultiValueRemove } from './MultiValue';
-import { SelectContainer } from './SelectContainer';
-import { SelectMenu, SelectMenuOptions, VirtualizedSelectMenu } from './SelectMenu';
+import { DropdownIndicator } from './DropdownIndicator';
 import { SelectOptionGroup } from './SelectOptionGroup';
 import { SingleValue } from './SingleValue';
-import { ValueContainer } from './ValueContainer';
+import { MultiValueContainer, MultiValueRemove } from './MultiValue';
+import { useTheme } from '../../themes';
 import { getSelectStyles } from './getSelectStyles';
-import { useCustomSelectStyles } from './resetSelectStyles';
-import { ActionMeta, SelectBaseProps } from './types';
-import { cleanValue, findSelectedValue, omitDescriptions } from './utils';
+import { cleanValue, findSelectedValue } from './utils';
+import { SelectBaseProps, SelectValue } from './types';
 
 interface ExtraValuesIndicatorProps {
   maxVisibleValues?: number | undefined;
@@ -89,16 +90,13 @@ const CustomControl = (props: any) => {
 
 export function SelectBase<T>({
   allowCustomValue = false,
-  allowCreateWhileLoading = false,
   'aria-label': ariaLabel,
   autoFocus = false,
   backspaceRemovesValue = true,
-  blurInputOnSelect,
   cacheOptions,
   className,
   closeMenuOnSelect = true,
   components,
-  createOptionPosition = 'last',
   defaultOptions,
   defaultValue,
   disabled = false,
@@ -121,9 +119,8 @@ export function SelectBase<T>({
   maxMenuHeight = 300,
   minMenuHeight,
   maxVisibleValues,
-  menuPlacement = 'auto',
+  menuPlacement = 'bottom',
   menuPosition,
-  menuShouldPortal = true,
   noOptionsMessage = 'No options found',
   onBlur,
   onChange,
@@ -132,7 +129,6 @@ export function SelectBase<T>({
   onInputChange,
   onKeyDown,
   onOpenMenu,
-  onFocus,
   openMenuOnFocus = false,
   options = [],
   placeholder = 'Choose',
@@ -141,49 +137,21 @@ export function SelectBase<T>({
   showAllSelectedWhenOpen = true,
   tabSelectsValue = true,
   value,
-  virtualized = false,
   width,
-  isValidNewOption,
-  formatOptionLabel,
-  hideSelectedOptions,
 }: SelectBaseProps<T>) {
-  const theme = useTheme2();
+  const theme = useTheme();
   const styles = getSelectStyles(theme);
-
-  const reactSelectRef = useRef<{ controlRef: HTMLElement }>(null);
-  const [closeToBottom, setCloseToBottom] = useState<boolean>(false);
-  const selectStyles = useCustomSelectStyles(theme, width);
-
-  // Infer the menu position for asynchronously loaded options. menuPlacement="auto" doesn't work when the menu is
-  // automatically opened when the component is created (it happens in SegmentSelect by setting menuIsOpen={true}).
-  // We can remove this workaround when the bug in react-select is fixed: https://github.com/JedWatson/react-select/issues/4936
-  // Note: we use useEffect instead of hooking into onMenuOpen due to another bug: https://github.com/JedWatson/react-select/issues/3375
-  useEffect(() => {
-    if (
-      loadOptions &&
-      isOpen &&
-      reactSelectRef.current &&
-      reactSelectRef.current.controlRef &&
-      menuPlacement === 'auto'
-    ) {
-      const distance = window.innerHeight - reactSelectRef.current.controlRef.getBoundingClientRect().bottom;
-      setCloseToBottom(distance < maxMenuHeight);
-    }
-  }, [maxMenuHeight, menuPlacement, loadOptions, isOpen]);
-
   const onChangeWithEmpty = useCallback(
-    (value: SelectableValue<T>, action: ActionMeta) => {
+    (value: SelectValue<T>) => {
       if (isMulti && (value === undefined || value === null)) {
-        return onChange([], action);
+        return onChange([]);
       }
-      onChange(value, action);
+      onChange(value);
     },
     [isMulti, onChange]
   );
-
-  let ReactSelectComponent = ReactSelect;
-
-  const creatableProps: ComponentProps<typeof Creatable<SelectableValue<T>>> = {};
+  let ReactSelectComponent: ReactSelect | Creatable = ReactSelect;
+  const creatableProps: any = {};
   let asyncSelectProps: any = {};
   let selectedValue;
   if (isMulti && loadOptions) {
@@ -192,16 +160,8 @@ export function SelectBase<T>({
     // If option is passed as a plain value (value property from SelectableValue property)
     // we are selecting the corresponding value from the options
     if (isMulti && value && Array.isArray(value) && !loadOptions) {
-      selectedValue = value.map((v) => {
-        // @ts-ignore
-        const selectableValue = findSelectedValue(v.value ?? v, options);
-        // If the select allows custom values there likely won't be a selectableValue in options
-        // so we must return a new selectableValue
-        if (!allowCustomValue || selectableValue) {
-          return selectableValue;
-        }
-        return typeof v === 'string' ? toOption(v) : v;
-      });
+      // @ts-ignore
+      selectedValue = value.map((v) => findSelectedValue(v.value ?? v, options));
     } else if (loadOptions) {
       const hasValue = defaultValue || value;
       selectedValue = hasValue ? [hasValue] : [];
@@ -214,18 +174,14 @@ export function SelectBase<T>({
     'aria-label': ariaLabel,
     autoFocus,
     backspaceRemovesValue,
-    blurInputOnSelect,
     captureMenuScroll: false,
     closeMenuOnSelect,
-    // We don't want to close if we're actually scrolling the menu
-    // So only close if none of the parents are the select menu itself
     defaultValue,
     // Also passing disabled, as this is the new Select API, and I want to use this prop instead of react-select's one
     disabled,
     filterOption,
     getOptionLabel,
     getOptionValue,
-    hideSelectedOptions,
     inputValue,
     invalid,
     isClearable,
@@ -241,10 +197,8 @@ export function SelectBase<T>({
     minMenuHeight,
     maxVisibleValues,
     menuIsOpen: isOpen,
-    menuPlacement: menuPlacement === 'auto' && closeToBottom ? 'top' : menuPlacement,
+    menuPlacement,
     menuPosition,
-    menuShouldBlockScroll: true,
-    menuPortalTarget: menuShouldPortal && typeof document !== 'undefined' ? document.body : undefined,
     menuShouldScrollIntoView: false,
     onBlur,
     onChange: onChangeWithEmpty,
@@ -252,10 +206,8 @@ export function SelectBase<T>({
     onKeyDown,
     onMenuClose: onCloseMenu,
     onMenuOpen: onOpenMenu,
-    onFocus,
-    formatOptionLabel,
     openMenuOnFocus,
-    options: virtualized ? omitDescriptions(options) : options,
+    options,
     placeholder,
     prefix,
     renderControl,
@@ -265,17 +217,14 @@ export function SelectBase<T>({
   };
 
   if (allowCustomValue) {
-    ReactSelectComponent = Creatable as any;
-    creatableProps.allowCreateWhileLoading = allowCreateWhileLoading;
-    creatableProps.formatCreateLabel = formatCreateLabel ?? defaultFormatCreateLabel;
+    ReactSelectComponent = Creatable;
+    creatableProps.formatCreateLabel = formatCreateLabel ?? ((input: string) => `Create: ${input}`);
     creatableProps.onCreateOption = onCreateOption;
-    creatableProps.createOptionPosition = createOptionPosition;
-    creatableProps.isValidNewOption = isValidNewOption;
   }
 
   // Instead of having AsyncSelect, as a separate component we render ReactAsyncSelect
   if (loadOptions) {
-    ReactSelectComponent = (allowCustomValue ? AsyncCreatable : ReactAsyncSelect) as any;
+    ReactSelectComponent = allowCustomValue ? AsyncCreatable : ReactAsyncSelect;
     asyncSelectProps = {
       loadOptions,
       cacheOptions,
@@ -283,16 +232,34 @@ export function SelectBase<T>({
     };
   }
 
-  const SelectMenuComponent = virtualized ? VirtualizedSelectMenu : SelectMenu;
-
   return (
     <>
       <ReactSelectComponent
-        ref={reactSelectRef}
         components={{
-          MenuList: SelectMenuComponent,
+          MenuList: SelectMenu,
           Group: SelectOptionGroup,
           ValueContainer,
+          Placeholder(props: any) {
+            return (
+              <div
+                {...props.innerProps}
+                className={cx(
+                  css(props.getStyles('placeholder', props)),
+                  css`
+                    display: inline-block;
+                    color: ${theme.colors.formInputPlaceholderText};
+                    position: absolute;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    box-sizing: border-box;
+                    line-height: 1;
+                  `
+                )}
+              >
+                {props.children}
+              </div>
+            );
+          },
           IndicatorsContainer(props: any) {
             const { selectProps } = props;
             const { value, showAllSelectedWhenOpen, maxVisibleValues, menuIsOpen } = selectProps;
@@ -325,9 +292,6 @@ export function SelectBase<T>({
             return (
               <Icon
                 name="times"
-                role="button"
-                aria-label="select-clear-value"
-                className={styles.singleValueRemove}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -336,48 +300,57 @@ export function SelectBase<T>({
               />
             );
           },
-          LoadingIndicator() {
-            return <Spinner inline />;
+          LoadingIndicator(props: any) {
+            return <Spinner inline={true} />;
           },
-          LoadingMessage() {
+          LoadingMessage(props: any) {
             return <div className={styles.loadingMessage}>{loadingMessage}</div>;
           },
-          NoOptionsMessage() {
+          NoOptionsMessage(props: any) {
             return (
               <div className={styles.loadingMessage} aria-label="No options provided">
                 {noOptionsMessage}
               </div>
             );
           },
-          DropdownIndicator(props) {
+          DropdownIndicator(props: any) {
             return <DropdownIndicator isOpen={props.selectProps.menuIsOpen} />;
           },
-          SingleValue(props: any) {
-            return <SingleValue {...props} disabled={disabled} />;
-          },
-          SelectContainer,
+          SingleValue: SingleValue,
           MultiValueContainer: MultiValueContainer,
-          MultiValueRemove: !disabled ? MultiValueRemove : () => null,
+          MultiValueRemove: MultiValueRemove,
           ...components,
         }}
-        styles={selectStyles}
+        styles={{
+          ...resetSelectStyles(),
+          menuPortal: ({ position, width }: any) => ({
+            position,
+            width,
+            zIndex: theme.zIndex.dropdown,
+          }),
+          //These are required for the menu positioning to function
+          menu: ({ top, bottom, position }: any) => ({
+            top,
+            bottom,
+            position,
+            marginBottom: !!bottom ? '10px' : '0',
+            minWidth: '100%',
+            zIndex: theme.zIndex.dropdown,
+          }),
+          container: () => ({
+            position: 'relative',
+            width: width ? `${8 * width}px` : '100%',
+          }),
+          option: (provided: any, state: any) => ({
+            ...provided,
+            opacity: state.isDisabled ? 0.5 : 1,
+          }),
+        }}
         className={className}
         {...commonSelectProps}
         {...creatableProps}
         {...asyncSelectProps}
       />
     </>
-  );
-}
-
-function defaultFormatCreateLabel(input: string) {
-  return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-      <div>{input}</div>
-      <div style={{ flexGrow: 1 }} />
-      <div className="muted small" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        Hit enter to add
-      </div>
-    </div>
   );
 }

@@ -11,7 +11,6 @@ type Column struct {
 	Nullable        bool
 	IsPrimaryKey    bool
 	IsAutoIncrement bool
-	IsLatin         bool
 	Default         string
 }
 

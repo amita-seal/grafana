@@ -1,15 +1,10 @@
-import { includes, isDate } from 'lodash';
-
+import includes from 'lodash/includes';
+import isDate from 'lodash/isDate';
+import { DateTime, dateTime, dateTimeForTimeZone, ISO_8601, isDateTime, DurationUnit } from './moment_wrapper';
 import { TimeZone } from '../types/index';
 
-import { DateTime, dateTime, dateTimeForTimeZone, DurationUnit, isDateTime, ISO_8601 } from './moment_wrapper';
+const units: DurationUnit[] = ['y', 'M', 'w', 'd', 'h', 'm', 's'];
 
-const units: DurationUnit[] = ['y', 'M', 'w', 'd', 'h', 'm', 's', 'Q'];
-
-/**
- * Determine if a string contains a relative date time.
- * @param text
- */
 export function isMathString(text: string | DateTime | Date): boolean {
   if (!text) {
     return false;
@@ -32,8 +27,7 @@ export function isMathString(text: string | DateTime | Date): boolean {
 export function parse(
   text?: string | DateTime | Date | null,
   roundUp?: boolean,
-  timezone?: TimeZone,
-  fiscalYearStartMonth?: number
+  timezone?: TimeZone
 ): DateTime | undefined {
   if (!text) {
     return undefined;
@@ -74,7 +68,7 @@ export function parse(
       return time;
     }
 
-    return parseDateMath(mathString, time, roundUp, fiscalYearStartMonth);
+    return parseDateMath(mathString, time, roundUp);
   }
 }
 
@@ -103,12 +97,7 @@ export function isValid(text: string | DateTime): boolean {
  * @param roundUp If true it will round the time to endOf time unit, otherwise to startOf time unit.
  */
 // TODO: Had to revert Andrejs `time: moment.Moment` to `time: any`
-export function parseDateMath(
-  mathString: string,
-  time: any,
-  roundUp?: boolean,
-  fiscalYearStartMonth = 0
-): DateTime | undefined {
+export function parseDateMath(mathString: string, time: any, roundUp?: boolean): DateTime | undefined {
   const strippedMathString = mathString.replace(/\s/g, '');
   const dateTime = time;
   let i = 0;
@@ -119,7 +108,6 @@ export function parseDateMath(
     let type;
     let num;
     let unit;
-    let isFiscal = false;
 
     if (c === '/') {
       type = 0;
@@ -134,7 +122,7 @@ export function parseDateMath(
     if (isNaN(parseInt(strippedMathString.charAt(i), 10))) {
       num = 1;
     } else if (strippedMathString.length === 2) {
-      num = parseInt(strippedMathString.charAt(i), 10);
+      num = strippedMathString.charAt(i);
     } else {
       const numFrom = i;
       while (!isNaN(parseInt(strippedMathString.charAt(i), 10))) {
@@ -154,27 +142,14 @@ export function parseDateMath(
     }
     unit = strippedMathString.charAt(i++);
 
-    if (unit === 'f') {
-      unit = strippedMathString.charAt(i++);
-      isFiscal = true;
-    }
-
     if (!includes(units, unit)) {
       return undefined;
     } else {
       if (type === 0) {
         if (roundUp) {
-          if (isFiscal) {
-            roundToFiscal(fiscalYearStartMonth, dateTime, unit, roundUp);
-          } else {
-            dateTime.endOf(unit);
-          }
+          dateTime.endOf(unit);
         } else {
-          if (isFiscal) {
-            roundToFiscal(fiscalYearStartMonth, dateTime, unit, roundUp);
-          } else {
-            dateTime.startOf(unit);
-          }
+          dateTime.startOf(unit);
         }
       } else if (type === 1) {
         dateTime.add(num, unit);
@@ -184,25 +159,4 @@ export function parseDateMath(
     }
   }
   return dateTime;
-}
-
-export function roundToFiscal(fyStartMonth: number, dateTime: any, unit: string, roundUp: boolean | undefined) {
-  switch (unit) {
-    case 'y':
-      if (roundUp) {
-        roundToFiscal(fyStartMonth, dateTime, unit, false).add(11, 'M').endOf('M');
-      } else {
-        dateTime.subtract((dateTime.month() - fyStartMonth + 12) % 12, 'M').startOf('M');
-      }
-      return dateTime;
-    case 'Q':
-      if (roundUp) {
-        roundToFiscal(fyStartMonth, dateTime, unit, false).add(2, 'M').endOf('M');
-      } else {
-        dateTime.subtract((dateTime.month() - fyStartMonth + 3) % 3, 'M').startOf('M');
-      }
-      return dateTime;
-    default:
-      return undefined;
-  }
 }

@@ -1,7 +1,6 @@
 package models
 
 import (
-	"io/fs"
 	"os"
 )
 
@@ -50,6 +49,6 @@ type PluginRepo struct {
 type IoUtil interface {
 	Stat(path string) (os.FileInfo, error)
 	RemoveAll(path string) error
-	ReadDir(path string) ([]fs.DirEntry, error)
+	ReadDir(path string) ([]os.FileInfo, error)
 	ReadFile(filename string) ([]byte, error)
 }

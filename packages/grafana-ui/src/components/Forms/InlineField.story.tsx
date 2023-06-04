@@ -1,84 +1,47 @@
-import { action } from '@storybook/addon-actions';
-import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-
+import { action } from '@storybook/addon-actions';
 import { Input } from '../Input/Input';
 import { Select } from '../Select/Select';
-
 import { InlineField } from './InlineField';
 import mdx from './InlineField.mdx';
 
-const meta: Meta<typeof InlineField> = {
+export default {
   title: 'Forms/InlineField',
   component: InlineField,
-  argTypes: {
-    label: { control: { type: 'text' } },
-    labelWidth: { control: { type: 'number' } },
-    tooltip: { control: { type: 'text' } },
-    error: { control: { type: 'text' } },
-  },
   parameters: {
     docs: {
       page: mdx,
     },
-    controls: {
-      exclude: ['htmlFor', 'className', 'children'],
-    },
   },
 };
 
-export const basic: StoryFn<typeof InlineField> = (args) => {
+export const basic = () => {
   return (
-    <InlineField {...args}>
+    <InlineField label="Inline field">
       <Input placeholder="Inline input" />
     </InlineField>
   );
 };
 
-basic.args = {
-  label: 'Inline field',
-  transparent: false,
-  grow: false,
-  shrink: false,
-  disabled: false,
-  interactive: false,
-  loading: false,
-  required: false,
-  invalid: false,
-  validationMessageHorizontalOverflow: false,
-};
-
-export const withTooltip: StoryFn<typeof InlineField> = (args) => {
+export const withTooltip = () => {
   return (
-    <InlineField {...args}>
+    <InlineField label="Label" tooltip="Tooltip">
       <Input placeholder="Inline input" />
     </InlineField>
   );
 };
 
-withTooltip.args = {
-  tooltip: 'Tooltip',
-  ...basic.args,
-  label: 'Label',
-};
-
-export const grow: StoryFn<typeof InlineField> = (args) => {
+export const grow = () => {
   return (
-    <InlineField {...args}>
+    <InlineField label="Label" grow>
       <Input placeholder="Inline input" />
     </InlineField>
   );
 };
 
-grow.args = {
-  ...basic.args,
-  label: 'Label',
-  grow: true,
-};
-
-export const withSelect: StoryFn<typeof InlineField> = (args) => {
+export const withSelect = () => {
   return (
-    <InlineField {...args}>
+    <InlineField label="Select option">
       <Select
         width={16}
         onChange={action('item selected')}
@@ -91,12 +54,7 @@ export const withSelect: StoryFn<typeof InlineField> = (args) => {
   );
 };
 
-withSelect.args = {
-  ...basic.args,
-  label: 'Select option',
-};
-
-export const multiple: StoryFn<typeof InlineField> = () => {
+export const multiple = () => {
   return (
     <>
       <InlineField label="Field 1">
@@ -111,20 +69,3 @@ export const multiple: StoryFn<typeof InlineField> = () => {
     </>
   );
 };
-
-export const error: StoryFn<typeof InlineField> = (args) => {
-  return (
-    <InlineField {...args}>
-      <Input placeholder="Inline input" />
-    </InlineField>
-  );
-};
-
-error.args = {
-  ...basic.args,
-  label: 'Label',
-  error: 'Error',
-  invalid: true,
-};
-
-export default meta;

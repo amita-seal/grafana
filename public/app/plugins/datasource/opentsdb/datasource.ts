@@ -1,21 +1,8 @@
-import {
-  clone,
-  cloneDeep,
-  compact,
-  each,
-  every,
-  filter,
-  findIndex,
-  has,
-  includes,
-  isArray,
-  isEmpty,
-  map as _map,
-  toPairs,
-} from 'lodash';
-import { lastValueFrom, merge, Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
-
+import angular from 'angular';
+import _ from 'lodash';
+import { Observable, of } from 'rxjs';
+import { map } from 'rxjs/operators';
+import { FetchResponse, getBackendSrv } from '@grafana/runtime';
 import {
   AnnotationEvent,
   DataQueryRequest,
@@ -23,14 +10,10 @@ import {
   DataSourceApi,
   dateMath,
   ScopedVars,
-  toDataFrame,
 } from '@grafana/data';
-import { FetchResponse, getBackendSrv } from '@grafana/runtime';
-import { getTemplateSrv, TemplateSrv } from 'app/features/templating/template_srv';
 
-import { AnnotationEditor } from './components/AnnotationEditor';
-import { prepareAnnotation } from './migrations';
-import { OpenTsdbFilter, OpenTsdbOptions, OpenTsdbQuery } from './types';
+import { getTemplateSrv, TemplateSrv } from 'app/features/templating/template_srv';
+import { OpenTsdbOptions, OpenTsdbQuery } from './types';
 
 export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenTsdbOptions> {
   type: any;
@@ -61,82 +44,49 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
 
     this.aggregatorsPromise = null;
     this.filterTypesPromise = null;
-    this.annotations = {
-      QueryEditor: AnnotationEditor,
-      prepareAnnotation,
-    };
   }
 
   // Called once per panel (graph)
   query(options: DataQueryRequest<OpenTsdbQuery>): Observable<DataQueryResponse> {
-    // migrate annotations
-    if (options.targets.some((target: OpenTsdbQuery) => target.fromAnnotations)) {
-      const streams: Array<Observable<DataQueryResponse>> = [];
-
-      for (const annotation of options.targets) {
-        if (annotation.target) {
-          streams.push(
-            new Observable((subscriber) => {
-              this.annotationEvent(options, annotation)
-                .then((events) => subscriber.next({ data: [toDataFrame(events)] }))
-                .catch((ex) => {
-                  // grafana fetch throws the error so for annotation consistency among datasources
-                  // we return an empty array which displays as 'no events found'
-                  // in the annnotation editor
-                  return subscriber.next({ data: [toDataFrame([])] });
-                })
-                .finally(() => subscriber.complete());
-            })
-          );
-        }
-      }
-
-      return merge(...streams);
-    }
-
     const start = this.convertToTSDBTime(options.range.raw.from, false, options.timezone);
     const end = this.convertToTSDBTime(options.range.raw.to, true, options.timezone);
     const qs: any[] = [];
 
-    each(options.targets, (target) => {
+    _.each(options.targets, (target) => {
       if (!target.metric) {
         return;
       }
       qs.push(this.convertTargetToQuery(target, options, this.tsdbVersion));
     });
 
-    const queries = compact(qs);
+    const queries = _.compact(qs);
 
     // No valid targets, return the empty result to save a round trip.
-    if (isEmpty(queries)) {
+    if (_.isEmpty(queries)) {
       return of({ data: [] });
     }
 
     const groupByTags: any = {};
-    each(queries, (query) => {
+    _.each(queries, (query) => {
       if (query.filters && query.filters.length > 0) {
-        each(query.filters, (val) => {
+        _.each(query.filters, (val) => {
           groupByTags[val.tagk] = true;
         });
       } else {
-        each(query.tags, (val, key) => {
+        _.each(query.tags, (val, key) => {
           groupByTags[key] = true;
         });
       }
     });
 
-    options.targets = filter(options.targets, (query) => {
+    options.targets = _.filter(options.targets, (query) => {
       return query.hide !== true;
     });
 
     return this.performTimeSeriesQuery(queries, start, end).pipe(
-      catchError((err) => {
-        // Throw the error message here instead of the whole object to workaround the error parsing error.
-        throw err?.data?.error?.message || 'Error performing time series query.';
-      }),
       map((response) => {
         const metricToTargetMapping = this.mapMetricsToTargets(response.data, options, this.tsdbVersion);
-        const result = _map(response.data, (metricData: any, index: number) => {
+        const result = _.map(response.data, (metricData: any, index: number) => {
           index = metricToTargetMapping[index];
           if (index === -1) {
             index = 0;
@@ -156,30 +106,30 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
     );
   }
 
-  annotationEvent(options: DataQueryRequest, annotation: OpenTsdbQuery): Promise<AnnotationEvent[]> {
-    const start = this.convertToTSDBTime(options.range.raw.from, false, options.timezone);
-    const end = this.convertToTSDBTime(options.range.raw.to, true, options.timezone);
+  annotationQuery(options: any): Promise<AnnotationEvent[]> {
+    const start = this.convertToTSDBTime(options.rangeRaw.from, false, options.timezone);
+    const end = this.convertToTSDBTime(options.rangeRaw.to, true, options.timezone);
     const qs = [];
     const eventList: any[] = [];
 
-    qs.push({ aggregator: 'sum', metric: annotation.target });
+    qs.push({ aggregator: 'sum', metric: options.annotation.target });
 
-    const queries = compact(qs);
+    const queries = _.compact(qs);
 
-    return lastValueFrom(
-      this.performTimeSeriesQuery(queries, start, end).pipe(
+    return this.performTimeSeriesQuery(queries, start, end)
+      .pipe(
         map((results) => {
           if (results.data[0]) {
             let annotationObject = results.data[0].annotations;
-            if (annotation.isGlobal) {
+            if (options.annotation.isGlobal) {
               annotationObject = results.data[0].globalAnnotations;
             }
             if (annotationObject) {
-              each(annotationObject, (ann) => {
+              _.each(annotationObject, (annotation) => {
                 const event = {
-                  text: ann.description,
-                  time: Math.floor(ann.startTime) * 1000,
-                  annotation: annotation,
+                  text: annotation.description,
+                  time: Math.floor(annotation.startTime) * 1000,
+                  annotation: options.annotation,
                 };
 
                 eventList.push(event);
@@ -189,13 +139,13 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
           return eventList;
         })
       )
-    );
+      .toPromise();
   }
 
   targetContainsTemplate(target: any) {
     if (target.filters && target.filters.length > 0) {
       for (let i = 0; i < target.filters.length; i++) {
-        if (this.templateSrv.containsTemplate(target.filters[i].filter)) {
+        if (this.templateSrv.variableExists(target.filters[i].filter)) {
           return true;
         }
       }
@@ -203,7 +153,7 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
 
     if (target.tags && Object.keys(target.tags).length > 0) {
       for (const tagKey in target.tags) {
-        if (this.templateSrv.containsTemplate(target.tags[tagKey])) {
+        if (this.templateSrv.variableExists(target.tags[tagKey])) {
           return true;
         }
       }
@@ -242,14 +192,13 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
     return getBackendSrv().fetch(options);
   }
 
-  suggestTagKeys(query: OpenTsdbQuery) {
-    const metric = query.metric ?? '';
+  suggestTagKeys(metric: string | number) {
     return Promise.resolve(this.tagKeys[metric] || []);
   }
 
   _saveTagKeys(metricData: { tags: {}; aggregateTags: any; metric: string | number }) {
     const tagKeys = Object.keys(metricData.tags);
-    each(metricData.aggregateTags, (tag) => {
+    _.each(metricData.aggregateTags, (tag) => {
       tagKeys.push(tag);
     });
 
@@ -285,7 +234,7 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
       map((result: any) => {
         result = result.data.results;
         const tagvs: any[] = [];
-        each(result, (r) => {
+        _.each(result, (r) => {
           if (tagvs.indexOf(r.tags[key]) === -1) {
             tagvs.push(r.tags[key]);
           }
@@ -304,8 +253,8 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
       map((result: any) => {
         result = result.data.results;
         const tagks: any[] = [];
-        each(result, (r) => {
-          each(r.tags, (tagv, tagk) => {
+        _.each(result, (r) => {
+          _.each(r.tags, (tagv, tagk) => {
             if (tagks.indexOf(tagk) === -1) {
               tagks.push(tagk);
             }
@@ -353,7 +302,7 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
     }
 
     const responseTransform = (result: any) => {
-      return _map(result, (value) => {
+      return _.map(result, (value) => {
         return { text: value };
       });
     };
@@ -366,42 +315,42 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
 
     const metricsQuery = interpolated.match(metricsRegex);
     if (metricsQuery) {
-      return lastValueFrom(this._performSuggestQuery(metricsQuery[1], 'metrics').pipe(map(responseTransform)));
+      return this._performSuggestQuery(metricsQuery[1], 'metrics').pipe(map(responseTransform)).toPromise();
     }
 
     const tagNamesQuery = interpolated.match(tagNamesRegex);
     if (tagNamesQuery) {
-      return lastValueFrom(this._performMetricKeyLookup(tagNamesQuery[1]).pipe(map(responseTransform)));
+      return this._performMetricKeyLookup(tagNamesQuery[1]).pipe(map(responseTransform)).toPromise();
     }
 
     const tagValuesQuery = interpolated.match(tagValuesRegex);
     if (tagValuesQuery) {
-      return lastValueFrom(
-        this._performMetricKeyValueLookup(tagValuesQuery[1], tagValuesQuery[2]).pipe(map(responseTransform))
-      );
+      return this._performMetricKeyValueLookup(tagValuesQuery[1], tagValuesQuery[2])
+        .pipe(map(responseTransform))
+        .toPromise();
     }
 
     const tagNamesSuggestQuery = interpolated.match(tagNamesSuggestRegex);
     if (tagNamesSuggestQuery) {
-      return lastValueFrom(this._performSuggestQuery(tagNamesSuggestQuery[1], 'tagk').pipe(map(responseTransform)));
+      return this._performSuggestQuery(tagNamesSuggestQuery[1], 'tagk').pipe(map(responseTransform)).toPromise();
     }
 
     const tagValuesSuggestQuery = interpolated.match(tagValuesSuggestRegex);
     if (tagValuesSuggestQuery) {
-      return lastValueFrom(this._performSuggestQuery(tagValuesSuggestQuery[1], 'tagv').pipe(map(responseTransform)));
+      return this._performSuggestQuery(tagValuesSuggestQuery[1], 'tagv').pipe(map(responseTransform)).toPromise();
     }
 
     return Promise.resolve([]);
   }
 
   testDatasource() {
-    return lastValueFrom(
-      this._performSuggestQuery('cpu', 'metrics').pipe(
+    return this._performSuggestQuery('cpu', 'metrics')
+      .pipe(
         map(() => {
           return { status: 'success', message: 'Data source is working' };
         })
       )
-    );
+      .toPromise();
   }
 
   getAggregators() {
@@ -409,16 +358,16 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
       return this.aggregatorsPromise;
     }
 
-    this.aggregatorsPromise = lastValueFrom(
-      this._get('/api/aggregators').pipe(
+    this.aggregatorsPromise = this._get('/api/aggregators')
+      .pipe(
         map((result: any) => {
-          if (result.data && isArray(result.data)) {
+          if (result.data && _.isArray(result.data)) {
             return result.data.sort();
           }
           return [];
         })
       )
-    );
+      .toPromise();
     return this.aggregatorsPromise;
   }
 
@@ -427,8 +376,8 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
       return this.filterTypesPromise;
     }
 
-    this.filterTypesPromise = lastValueFrom(
-      this._get('/api/config/filters').pipe(
+    this.filterTypesPromise = this._get('/api/config/filters')
+      .pipe(
         map((result: any) => {
           if (result.data) {
             return Object.keys(result.data).sort();
@@ -436,7 +385,7 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
           return [];
         })
       )
-    );
+      .toPromise();
     return this.filterTypesPromise;
   }
 
@@ -445,8 +394,8 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
     const dps: any[] = [];
 
     // TSDB returns datapoints has a hash of ts => value.
-    // Can't use pairs(invert()) because it stringifies keys/values
-    each(md.dps, (v: any, k: number) => {
+    // Can't use _.pairs(invert()) because it stringifies keys/values
+    _.each(md.dps, (v: any, k: number) => {
       if (tsdbResolution === 2) {
         dps.push([v, k * 1]);
       } else {
@@ -464,8 +413,8 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
     options: { scopedVars: any }
   ) {
     if (target.alias) {
-      const scopedVars = clone(options.scopedVars || {});
-      each(md.tags, (value, key) => {
+      const scopedVars = _.clone(options.scopedVars || {});
+      _.each(md.tags, (value, key) => {
         scopedVars['tag_' + key] = { value: value };
       });
       return this.templateSrv.replace(target.alias, scopedVars);
@@ -474,22 +423,22 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
     let label = md.metric;
     const tagData: any[] = [];
 
-    if (!isEmpty(md.tags)) {
-      each(toPairs(md.tags), (tag) => {
-        if (has(groupByTags, tag[0])) {
+    if (!_.isEmpty(md.tags)) {
+      _.each(_.toPairs(md.tags), (tag) => {
+        if (_.has(groupByTags, tag[0])) {
           tagData.push(tag[0] + '=' + tag[1]);
         }
       });
     }
 
-    if (!isEmpty(tagData)) {
+    if (!_.isEmpty(tagData)) {
       label += '{' + tagData.join(', ') + '}';
     }
 
     return label;
   }
 
-  convertTargetToQuery(target: OpenTsdbQuery, options: DataQueryRequest<OpenTsdbQuery>, tsdbVersion: number) {
+  convertTargetToQuery(target: any, options: any, tsdbVersion: number) {
     if (!target.metric || target.hide) {
       return null;
     }
@@ -538,14 +487,18 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
     }
 
     if (target.filters && target.filters.length > 0) {
-      query.filters = cloneDeep(target.filters);
-
+      query.filters = angular.copy(target.filters);
       if (query.filters) {
-        this.interpolateVariablesInFilters(query, options);
+        for (const filterKey in query.filters) {
+          query.filters[filterKey].filter = this.templateSrv.replace(
+            query.filters[filterKey].filter,
+            options.scopedVars,
+            'pipe'
+          );
+        }
       }
     } else {
-      query.tags = cloneDeep(target.tags);
-
+      query.tags = angular.copy(target.tags);
       if (query.tags) {
         for (const tagKey in query.tags) {
           query.tags[tagKey] = this.templateSrv.replace(query.tags[tagKey], options.scopedVars, 'pipe');
@@ -560,32 +513,22 @@ export default class OpenTsDatasource extends DataSourceApi<OpenTsdbQuery, OpenT
     return query;
   }
 
-  interpolateVariablesInFilters(query: OpenTsdbQuery, options: DataQueryRequest<OpenTsdbQuery>) {
-    query.filters = query.filters?.map((filter: OpenTsdbFilter): OpenTsdbFilter => {
-      filter.tagk = this.templateSrv.replace(filter.tagk, options.scopedVars, 'pipe');
-
-      filter.filter = this.templateSrv.replace(filter.filter, options.scopedVars, 'pipe');
-
-      return filter;
-    });
-  }
-
   mapMetricsToTargets(metrics: any, options: any, tsdbVersion: number) {
     let interpolatedTagValue, arrTagV;
-    return _map(metrics, (metricData) => {
+    return _.map(metrics, (metricData) => {
       if (tsdbVersion === 3) {
         return metricData.query.index;
       } else {
-        return findIndex(options.targets as any[], (target) => {
+        return _.findIndex(options.targets as any[], (target) => {
           if (target.filters && target.filters.length > 0) {
             return target.metric === metricData.metric;
           } else {
             return (
               target.metric === metricData.metric &&
-              every(target.tags, (tagV, tagK) => {
+              _.every(target.tags, (tagV, tagK) => {
                 interpolatedTagValue = this.templateSrv.replace(tagV, options.scopedVars, 'pipe');
                 arrTagV = interpolatedTagValue.split('|');
-                return includes(arrTagV, metricData.tags[tagK]) || interpolatedTagValue === '*';
+                return _.includes(arrTagV, metricData.tags[tagK]) || interpolatedTagValue === '*';
               })
             );
           }

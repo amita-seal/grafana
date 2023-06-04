@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"os"
+	"io/ioutil"
 
 	"github.com/grafana/grafana/pkg/infra/log"
 )
@@ -13,7 +13,7 @@ var tlslog = log.New("tls_mysql")
 
 func makeCert(config DatabaseConfig) (*tls.Config, error) {
 	rootCertPool := x509.NewCertPool()
-	pem, err := os.ReadFile(config.CaCertPath)
+	pem, err := ioutil.ReadFile(config.CaCertPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read DB CA Cert path %q: %w", config.CaCertPath, err)
 	}

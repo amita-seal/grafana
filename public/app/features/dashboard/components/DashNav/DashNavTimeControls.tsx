@@ -1,32 +1,43 @@
+// Libraries
 import React, { Component } from 'react';
-import { Unsubscribable } from 'rxjs';
+import { dateMath, GrafanaTheme, TimeZone, TimeRange } from '@grafana/data';
+import { css } from 'emotion';
 
-import { dateMath, TimeRange, TimeZone } from '@grafana/data';
-import { TimeRangeUpdatedEvent } from '@grafana/runtime';
-import { defaultIntervals, RefreshPicker } from '@grafana/ui';
-import { TimePickerWithHistory } from 'app/core/components/TimePicker/TimePickerWithHistory';
-import { appEvents } from 'app/core/core';
-import { t } from 'app/core/internationalization';
-import { getTimeSrv } from 'app/features/dashboard/services/TimeSrv';
-
-import { ShiftTimeEvent, ShiftTimeEventDirection, ZoomOutEvent } from '../../../../types/events';
+// Types
 import { DashboardModel } from '../../state';
+import { LocationState, CoreEvents } from 'app/types';
 
-export interface Props {
+// Components
+import { RefreshPicker, withTheme, stylesFactory, Themeable, defaultIntervals } from '@grafana/ui';
+import { TimePickerWithHistory } from 'app/core/components/TimePicker/TimePickerWithHistory';
+
+// Utils & Services
+import { getTimeSrv } from 'app/features/dashboard/services/TimeSrv';
+import { appEvents } from 'app/core/core';
+
+export interface Props extends Themeable {
   dashboard: DashboardModel;
+  location: LocationState;
   onChangeTimeZone: (timeZone: TimeZone) => void;
-  isOnCanvas?: boolean;
 }
-
-export class DashNavTimeControls extends Component<Props> {
-  private sub?: Unsubscribable;
-
+class UnthemedDashNavTimeControls extends Component<Props> {
   componentDidMount() {
-    this.sub = this.props.dashboard.events.subscribe(TimeRangeUpdatedEvent, () => this.forceUpdate());
+    // Only reason for this is that sometimes time updates can happen via redux location changes
+    // and this happens before timeSrv has had chance to update state (as it listens to angular route-updated)
+    // This can be removed after timeSrv listens redux location
+    this.props.dashboard.on(CoreEvents.timeRangeUpdated, this.triggerForceUpdate);
   }
 
   componentWillUnmount() {
-    this.sub?.unsubscribe();
+    this.props.dashboard.off(CoreEvents.timeRangeUpdated, this.triggerForceUpdate);
+  }
+
+  triggerForceUpdate = () => {
+    this.forceUpdate();
+  };
+
+  get refreshParamInUrl(): string {
+    return this.props.location.query.refresh as string;
   }
 
   onChangeRefreshInterval = (interval: string) => {
@@ -35,16 +46,16 @@ export class DashNavTimeControls extends Component<Props> {
   };
 
   onRefresh = () => {
-    getTimeSrv().refreshTimeModel();
+    getTimeSrv().refreshDashboard();
     return Promise.resolve();
   };
 
   onMoveBack = () => {
-    appEvents.publish(new ShiftTimeEvent({ direction: ShiftTimeEventDirection.Left }));
+    appEvents.emit(CoreEvents.shiftTime, -1);
   };
 
   onMoveForward = () => {
-    appEvents.publish(new ShiftTimeEvent({ direction: ShiftTimeEventDirection.Right }));
+    appEvents.emit(CoreEvents.shiftTime, 1);
   };
 
   onChangeTimePicker = (timeRange: TimeRange) => {
@@ -68,49 +79,49 @@ export class DashNavTimeControls extends Component<Props> {
     this.onRefresh();
   };
 
-  onChangeFiscalYearStartMonth = (month: number) => {
-    this.props.dashboard.fiscalYearStartMonth = month;
-    this.onRefresh();
-  };
-
   onZoom = () => {
-    appEvents.publish(new ZoomOutEvent({ scale: 2 }));
+    appEvents.emit(CoreEvents.zoomOut, 2);
   };
 
   render() {
-    const { dashboard, isOnCanvas } = this.props;
+    const { dashboard, theme } = this.props;
     const { refresh_intervals } = dashboard.timepicker;
     const intervals = getTimeSrv().getValidIntervals(refresh_intervals || defaultIntervals);
 
     const timePickerValue = getTimeSrv().timeRange();
     const timeZone = dashboard.getTimezone();
-    const fiscalYearStartMonth = dashboard.fiscalYearStartMonth;
-    const hideIntervalPicker = dashboard.panelInEdit?.isEditing;
+    const styles = getStyles(theme);
 
     return (
-      <>
+      <div className={styles.container}>
         <TimePickerWithHistory
           value={timePickerValue}
           onChange={this.onChangeTimePicker}
           timeZone={timeZone}
-          fiscalYearStartMonth={fiscalYearStartMonth}
           onMoveBackward={this.onMoveBack}
           onMoveForward={this.onMoveForward}
           onZoom={this.onZoom}
           onChangeTimeZone={this.onChangeTimeZone}
-          onChangeFiscalYearStartMonth={this.onChangeFiscalYearStartMonth}
-          isOnCanvas={isOnCanvas}
         />
         <RefreshPicker
           onIntervalChanged={this.onChangeRefreshInterval}
           onRefresh={this.onRefresh}
           value={dashboard.refresh}
           intervals={intervals}
-          isOnCanvas={isOnCanvas}
-          tooltip={t('dashboard.toolbar.refresh', 'Refresh dashboard')}
-          noIntervalPicker={hideIntervalPicker}
+          tooltip="Refresh dashboard"
         />
-      </>
+      </div>
     );
   }
 }
+
+export const DashNavTimeControls = withTheme(UnthemedDashNavTimeControls);
+
+const getStyles = stylesFactory((theme: GrafanaTheme) => {
+  return {
+    container: css`
+      position: relative;
+      display: flex;
+    `,
+  };
+});

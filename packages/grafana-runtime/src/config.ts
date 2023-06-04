@@ -1,170 +1,81 @@
-import { merge } from 'lodash';
-
+import merge from 'lodash/merge';
+import { getTheme } from '@grafana/ui';
 import {
-  AuthSettings,
-  BootData,
   BuildInfo,
   DataSourceInstanceSettings,
   FeatureToggles,
   GrafanaConfig,
   GrafanaTheme,
-  GrafanaTheme2,
+  GrafanaThemeType,
   LicenseInfo,
-  MapLayerOptions,
-  OAuthSettings,
   PanelPluginMeta,
   systemDateFormats,
   SystemDateFormatSettings,
-  getThemeById,
 } from '@grafana/data';
 
-export interface AzureSettings {
-  cloud?: string;
-  managedIdentityEnabled: boolean;
-  userIdentityEnabled: boolean;
-}
-
-export type AppPluginConfig = {
-  id: string;
-  path: string;
-  version: string;
-  preload: boolean;
-};
-
 export class GrafanaBootConfig implements GrafanaConfig {
-  isPublicDashboardView: boolean;
-  snapshotEnabled = true;
   datasources: { [str: string]: DataSourceInstanceSettings } = {};
   panels: { [key: string]: PanelPluginMeta } = {};
-  apps: Record<string, AppPluginConfig> = {};
-  auth: AuthSettings = {};
   minRefreshInterval = '';
   appUrl = '';
   appSubUrl = '';
   windowTitlePrefix = '';
-  buildInfo: BuildInfo;
+  buildInfo: BuildInfo = {} as BuildInfo;
   newPanelTitle = '';
-  bootData: BootData;
+  bootData: any;
   externalUserMngLinkUrl = '';
   externalUserMngLinkName = '';
   externalUserMngInfo = '';
   allowOrgCreate = false;
-  feedbackLinksEnabled = true;
   disableLoginForm = false;
-  defaultDatasource = ''; // UID
+  defaultDatasource = '';
   alertingEnabled = false;
   alertingErrorOrTimeout = '';
   alertingNoDataOrNullValues = '';
   alertingMinInterval = 1;
-  angularSupportEnabled = false;
   authProxyEnabled = false;
   exploreEnabled = false;
-  queryHistoryEnabled = false;
-  helpEnabled = false;
-  profileEnabled = false;
-  newsFeedEnabled = true;
   ldapEnabled = false;
-  jwtHeaderName = '';
-  jwtUrlLogin = false;
   sigV4AuthEnabled = false;
-  azureAuthEnabled = false;
-  secureSocksDSProxyEnabled = false;
   samlEnabled = false;
-  samlName = '';
   autoAssignOrg = true;
   verifyEmailEnabled = false;
-  oauth: OAuthSettings = {};
-  rbacEnabled = true;
+  oauth: any;
   disableUserSignUp = false;
-  loginHint = '';
-  passwordHint = '';
-  loginError = undefined;
+  loginHint: any;
+  passwordHint: any;
+  loginError: any;
+  navTree: any;
   viewersCanEdit = false;
   editorsCanAdmin = false;
   disableSanitizeHtml = false;
-  trustedTypesDefaultPolicyEnabled = false;
-  cspReportOnlyEnabled = false;
-  liveEnabled = true;
-  /** @deprecated Use `theme2` instead. */
   theme: GrafanaTheme;
-  theme2: GrafanaTheme2;
-  featureToggles: FeatureToggles = {};
-  anonymousEnabled = false;
+  pluginsToPreload: string[] = [];
+  featureToggles: FeatureToggles = {
+    live: false,
+    meta: false,
+    ngalert: false,
+    panelLibrary: false,
+    reportVariables: false,
+  };
   licenseInfo: LicenseInfo = {} as LicenseInfo;
   rendererAvailable = false;
-  dashboardPreviews: {
-    systemRequirements: {
-      met: boolean;
-      requiredImageRendererPluginVersion: string;
-    };
-    thumbnailsExist: boolean;
-  } = { systemRequirements: { met: false, requiredImageRendererPluginVersion: '' }, thumbnailsExist: false };
-  rendererVersion = '';
-  secretsManagerPluginEnabled = false;
-  supportBundlesEnabled = false;
   http2Enabled = false;
   dateFormats?: SystemDateFormatSettings;
-  grafanaJavascriptAgent = {
+  sentry = {
     enabled: false,
+    dsn: '',
     customEndpoint: '',
-    apiKey: '',
-    errorInstrumentalizationEnabled: true,
-    consoleInstrumentalizationEnabled: false,
-    webVitalsInstrumentalizationEnabled: false,
+    sampleRate: 1,
   };
-  pluginCatalogURL = 'https://grafana.com/grafana/plugins/';
-  pluginAdminEnabled = true;
-  pluginAdminExternalManageEnabled = false;
-  pluginCatalogHiddenPlugins: string[] = [];
-  pluginsCDNBaseURL = '';
+  marketplaceUrl?: string;
   expressionsEnabled = false;
-  customTheme?: undefined;
+  customTheme?: any;
   awsAllowedAuthProviders: string[] = [];
   awsAssumeRoleEnabled = false;
-  azure: AzureSettings = {
-    managedIdentityEnabled: false,
-    userIdentityEnabled: false,
-  };
-  caching = {
-    enabled: false,
-  };
-  geomapDefaultBaseLayerConfig?: MapLayerOptions;
-  geomapDisableCustomBaseLayer?: boolean;
-  unifiedAlertingEnabled = false;
-  unifiedAlerting = {
-    minInterval: '',
-    alertStateHistoryBackend: undefined,
-    alertStateHistoryPrimary: undefined,
-  };
-  applicationInsightsConnectionString?: string;
-  applicationInsightsEndpointUrl?: string;
-  recordedQueries = {
-    enabled: true,
-  };
-  featureHighlights = {
-    enabled: false,
-  };
-  reporting = {
-    enabled: true,
-  };
-  googleAnalyticsId: undefined;
-  googleAnalytics4Id: undefined;
-  googleAnalytics4SendManualPageViews = false;
-  rudderstackWriteKey: undefined;
-  rudderstackDataPlaneUrl: undefined;
-  rudderstackSdkUrl: undefined;
-  rudderstackConfigUrl: undefined;
-  sqlConnectionLimits = {
-    maxOpenConns: 100,
-    maxIdleConns: 100,
-    connMaxLifetime: 14400,
-  };
-
-  tokenExpirationDayLimit: undefined;
 
   constructor(options: GrafanaBootConfig) {
-    this.bootData = options.bootData;
-    this.isPublicDashboardView = options.bootData.settings.isPublicDashboardView;
+    this.theme = options.bootData.user.lightTheme ? getTheme(GrafanaThemeType.Light) : getTheme(GrafanaThemeType.Dark);
 
     const defaults = {
       datasources: {},
@@ -176,9 +87,10 @@ export class GrafanaBootConfig implements GrafanaConfig {
       appUrl: '',
       appSubUrl: '',
       buildInfo: {
-        version: '1.0',
+        version: 'v1.0',
         commit: '1',
         env: 'production',
+        isEnterprise: false,
       },
       viewersCanEdit: false,
       editorsCanAdmin: false,
@@ -187,45 +99,10 @@ export class GrafanaBootConfig implements GrafanaConfig {
 
     merge(this, defaults, options);
 
-    this.buildInfo = options.buildInfo || defaults.buildInfo;
-
     if (this.dateFormats) {
       systemDateFormats.update(this.dateFormats);
     }
-
-    overrideFeatureTogglesFromUrl(this);
-
-    if (this.featureToggles.disableAngular) {
-      this.angularSupportEnabled = false;
-    }
-
-    // Creating theme after applying feature toggle overrides in case we need to toggle anything
-    this.theme2 = getThemeById(this.bootData.user.theme);
-    this.bootData.user.lightTheme = this.theme2.isLight;
-    this.theme = this.theme2.v1;
-
-    // Special feature toggle that impact theme/component looks
-    this.theme2.flags.topnav = this.featureToggles.topnav;
   }
-}
-
-function overrideFeatureTogglesFromUrl(config: GrafanaBootConfig) {
-  if (window.location.href.indexOf('__feature') === -1) {
-    return;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  params.forEach((value, key) => {
-    if (key.startsWith('__feature.')) {
-      const featureToggles = config.featureToggles as Record<string, boolean>;
-      const featureName = key.substring(10);
-      const toggleState = value === 'true' || value === ''; // browser rewrites true as ''
-      if (toggleState !== featureToggles[key]) {
-        featureToggles[featureName] = toggleState;
-        console.log(`Setting feature toggle ${featureName} = ${toggleState}`);
-      }
-    }
-  });
 }
 
 const bootData = (window as any).grafanaBootData || {

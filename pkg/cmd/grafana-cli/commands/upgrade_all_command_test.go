@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/grafana/grafana/pkg/cmd/grafana-cli/models"
-	"github.com/grafana/grafana/pkg/plugins"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestVersionComparison(t *testing.T) {
@@ -17,23 +15,15 @@ func TestVersionComparison(t *testing.T) {
 			{Version: "2.0.0"},
 		}
 
-		upgradeablePlugins := []struct {
-			have      plugins.FoundPlugin
-			requested models.Plugin
-		}{
-			{
-				have:      plugins.FoundPlugin{JSONData: plugins.JSONData{Info: plugins.Info{Version: "0.0.0"}}},
-				requested: models.Plugin{Versions: versions},
-			},
-			{
-				have:      plugins.FoundPlugin{JSONData: plugins.JSONData{Info: plugins.Info{Version: "1.0.0"}}},
-				requested: models.Plugin{Versions: versions},
-			},
+		upgradeablePlugins := map[string]models.Plugin{
+			"0.0.0": {Versions: versions},
+			"1.0.0": {Versions: versions},
 		}
 
-		for _, v := range upgradeablePlugins {
-			t.Run(fmt.Sprintf("for %s should be true", v.have.JSONData.Info.Version), func(t *testing.T) {
-				require.True(t, shouldUpgrade(v.have, v.requested))
+		for k, v := range upgradeablePlugins {
+			val := v
+			t.Run(fmt.Sprintf("for %s should be true", k), func(t *testing.T) {
+				assert.True(t, shouldUpgrade(k, &val))
 			})
 		}
 	})
@@ -44,23 +34,15 @@ func TestVersionComparison(t *testing.T) {
 			{Version: "2.0.0"},
 		}
 
-		shouldNotUpgrade := []struct {
-			have      plugins.FoundPlugin
-			requested models.Plugin
-		}{
-			{
-				have:      plugins.FoundPlugin{JSONData: plugins.JSONData{Info: plugins.Info{Version: "2.0.0"}}},
-				requested: models.Plugin{Versions: versions},
-			},
-			{
-				have:      plugins.FoundPlugin{JSONData: plugins.JSONData{Info: plugins.Info{Version: "6.0.0"}}},
-				requested: models.Plugin{Versions: versions},
-			},
+		shouldNotUpgrade := map[string]models.Plugin{
+			"2.0.0": {Versions: versions},
+			"6.0.0": {Versions: versions},
 		}
 
-		for _, v := range shouldNotUpgrade {
-			t.Run(fmt.Sprintf("for %s should be false", v.have.JSONData.Info.Version), func(t *testing.T) {
-				require.False(t, shouldUpgrade(v.have, v.requested))
+		for k, v := range shouldNotUpgrade {
+			val := v
+			t.Run(fmt.Sprintf("for %s should be false", k), func(t *testing.T) {
+				assert.False(t, shouldUpgrade(k, &val))
 			})
 		}
 	})

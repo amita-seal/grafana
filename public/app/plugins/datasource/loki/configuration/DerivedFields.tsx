@@ -1,41 +1,32 @@
-import { css } from '@emotion/css';
-import React, { useCallback, useState } from 'react';
-
-import { GrafanaTheme2, VariableOrigin, DataLinkBuiltInVars } from '@grafana/data';
-import { Button, useTheme2 } from '@grafana/ui';
-
+import React, { useState } from 'react';
+import { css } from 'emotion';
+import { Button, stylesFactory, useTheme } from '@grafana/ui';
+import { GrafanaTheme, VariableOrigin, DataLinkBuiltInVars } from '@grafana/data';
 import { DerivedFieldConfig } from '../types';
-
-import { DebugSection } from './DebugSection';
 import { DerivedField } from './DerivedField';
+import { DebugSection } from './DebugSection';
 
-const getStyles = (theme: GrafanaTheme2) => ({
+const getStyles = stylesFactory((theme: GrafanaTheme) => ({
   infoText: css`
-    padding-bottom: ${theme.spacing(2)};
-    color: ${theme.colors.text.secondary};
+    padding-bottom: ${theme.spacing.md};
+    color: ${theme.colors.textWeak};
   `,
   derivedField: css`
-    margin-bottom: ${theme.spacing(1)};
+    margin-bottom: ${theme.spacing.sm};
   `,
-});
+}));
 
 type Props = {
-  fields?: DerivedFieldConfig[];
+  value?: DerivedFieldConfig[];
   onChange: (value: DerivedFieldConfig[]) => void;
 };
 
-export const DerivedFields = ({ fields = [], onChange }: Props) => {
-  const theme = useTheme2();
+export const DerivedFields = (props: Props) => {
+  const { value, onChange } = props;
+  const theme = useTheme();
   const styles = getStyles(theme);
 
   const [showDebug, setShowDebug] = useState(false);
-
-  const validateName = useCallback(
-    (name: string) => {
-      return fields.filter((field) => field.name && field.name === name).length <= 1;
-    },
-    [fields]
-  );
 
   return (
     <>
@@ -46,34 +37,34 @@ export const DerivedFields = ({ fields = [], onChange }: Props) => {
       </div>
 
       <div className="gf-form-group">
-        {fields.map((field, index) => {
-          return (
-            <DerivedField
-              className={styles.derivedField}
-              key={index}
-              value={field}
-              onChange={(newField) => {
-                const newDerivedFields = [...fields];
-                newDerivedFields.splice(index, 1, newField);
-                onChange(newDerivedFields);
-              }}
-              onDelete={() => {
-                const newDerivedFields = [...fields];
-                newDerivedFields.splice(index, 1);
-                onChange(newDerivedFields);
-              }}
-              validateName={validateName}
-              suggestions={[
-                {
-                  value: DataLinkBuiltInVars.valueRaw,
-                  label: 'Raw value',
-                  documentation: 'Exact string captured by the regular expression',
-                  origin: VariableOrigin.Value,
-                },
-              ]}
-            />
-          );
-        })}
+        {value &&
+          value.map((field, index) => {
+            return (
+              <DerivedField
+                className={styles.derivedField}
+                key={index}
+                value={field}
+                onChange={(newField) => {
+                  const newDerivedFields = [...value];
+                  newDerivedFields.splice(index, 1, newField);
+                  onChange(newDerivedFields);
+                }}
+                onDelete={() => {
+                  const newDerivedFields = [...value];
+                  newDerivedFields.splice(index, 1);
+                  onChange(newDerivedFields);
+                }}
+                suggestions={[
+                  {
+                    value: DataLinkBuiltInVars.valueRaw,
+                    label: 'Raw value',
+                    documentation: 'Exact string captured by the regular expression',
+                    origin: VariableOrigin.Value,
+                  },
+                ]}
+              />
+            );
+          })}
         <div>
           <Button
             variant="secondary"
@@ -83,15 +74,15 @@ export const DerivedFields = ({ fields = [], onChange }: Props) => {
             icon="plus"
             onClick={(event) => {
               event.preventDefault();
-              const newDerivedFields = [...fields, { name: '', matcherRegex: '', urlDisplayLabel: '', url: '' }];
+              const newDerivedFields = [...(value || []), { name: '', matcherRegex: '' }];
               onChange(newDerivedFields);
             }}
           >
             Add
           </Button>
 
-          {fields.length > 0 && (
-            <Button variant="secondary" type="button" onClick={() => setShowDebug(!showDebug)}>
+          {value && value.length > 0 && (
+            <Button variant="secondary" onClick={() => setShowDebug(!showDebug)}>
               {showDebug ? 'Hide example log message' : 'Show example log message'}
             </Button>
           )}
@@ -104,7 +95,7 @@ export const DerivedFields = ({ fields = [], onChange }: Props) => {
             className={css`
               margin-bottom: 10px;
             `}
-            derivedFields={fields}
+            derivedFields={value}
           />
         </div>
       )}

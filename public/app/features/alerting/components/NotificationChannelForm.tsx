@@ -1,18 +1,15 @@
-import { css } from '@emotion/css';
-import React, { useEffect } from 'react';
-
-import { GrafanaTheme2, SelectableValue } from '@grafana/data';
-import { Button, FormAPI, HorizontalGroup, Spinner, useStyles2 } from '@grafana/ui';
-import config from 'app/core/config';
-
+import React, { FC, useEffect } from 'react';
+import { css } from 'emotion';
+import { GrafanaTheme, SelectableValue } from '@grafana/data';
+import { Button, FormAPI, HorizontalGroup, stylesFactory, useTheme, Spinner } from '@grafana/ui';
 import { NotificationChannelType, NotificationChannelDTO, NotificationChannelSecureFields } from '../../../types';
-
+import { NotificationSettings } from './NotificationSettings';
 import { BasicSettings } from './BasicSettings';
 import { ChannelSettings } from './ChannelSettings';
-import { NotificationSettings } from './NotificationSettings';
 
-interface Props
-  extends Pick<FormAPI<NotificationChannelDTO>, 'control' | 'errors' | 'register' | 'watch' | 'getValues'> {
+import config from 'app/core/config';
+
+interface Props extends Omit<FormAPI<NotificationChannelDTO>, 'formState'> {
   selectableChannels: Array<SelectableValue<string>>;
   selectedChannel?: NotificationChannelType;
   imageRendererAvailable: boolean;
@@ -22,11 +19,11 @@ interface Props
 }
 
 export interface NotificationSettingsProps
-  extends Pick<FormAPI<NotificationChannelDTO>, 'control' | 'errors' | 'register'> {
+  extends Omit<FormAPI<NotificationChannelDTO>, 'formState' | 'watch' | 'getValues'> {
   currentFormValues: NotificationChannelDTO;
 }
 
-export const NotificationChannelForm = ({
+export const NotificationChannelForm: FC<Props> = ({
   control,
   errors,
   selectedChannel,
@@ -38,24 +35,25 @@ export const NotificationChannelForm = ({
   onTestChannel,
   resetSecureField,
   secureFields,
-}: Props) => {
-  const styles = useStyles2(getStyles);
+}) => {
+  const styles = getStyles(useTheme());
+
+  /*
+   Finds fields that have dependencies on other fields and removes duplicates.
+   Needs to be prefixed with settings.
+  */
+  const fieldsToWatch =
+    new Set(
+      selectedChannel?.options
+        .filter((o) => o.showWhen.field)
+        .map((option) => {
+          return `settings.${option.showWhen.field}`;
+        })
+    ) || [];
 
   useEffect(() => {
-    /*
-      Find fields that have dependencies on other fields and removes duplicates.
-      Needs to be prefixed with settings.
-    */
-    const fieldsToWatch =
-      new Set(
-        selectedChannel?.options
-          .filter((o) => o.showWhen.field)
-          .map((option) => {
-            return `settings.${option.showWhen.field}`;
-          })
-      ) || [];
     watch(['type', 'sendReminder', 'uploadImage', ...fieldsToWatch]);
-  }, [selectedChannel?.options, watch]);
+  }, [fieldsToWatch]);
 
   const currentFormValues = getValues();
 
@@ -103,7 +101,7 @@ export const NotificationChannelForm = ({
       <div className={styles.formButtons}>
         <HorizontalGroup>
           <Button type="submit">Save</Button>
-          <Button type="button" variant="secondary" onClick={() => onTestChannel(getValues())}>
+          <Button type="button" variant="secondary" onClick={() => onTestChannel(getValues({ nest: true }))}>
             Test
           </Button>
           <a href={`${config.appSubUrl}/alerting/notifications`}>
@@ -117,15 +115,15 @@ export const NotificationChannelForm = ({
   );
 };
 
-const getStyles = (theme: GrafanaTheme2) => {
+const getStyles = stylesFactory((theme: GrafanaTheme) => {
   return {
     formContainer: css``,
     formItem: css`
       flex-grow: 1;
-      padding-top: ${theme.spacing(2)};
+      padding-top: ${theme.spacing.md};
     `,
     formButtons: css`
-      padding-top: ${theme.spacing(4)};
+      padding-top: ${theme.spacing.xl};
     `,
   };
-};
+});

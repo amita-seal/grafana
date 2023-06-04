@@ -1,37 +1,10 @@
-import { PreferredVisualisationType } from './data';
-import { DataQuery } from './query';
-import { RawTimeRange, TimeRange } from './time';
-
-type AnyQuery = DataQuery & Record<string, any>;
+import { RawTimeRange } from './time';
 
 /** @internal */
-export interface ExploreUrlState<T extends DataQuery = AnyQuery> {
+export interface ExploreUrlState {
   datasource: string;
-  queries: T[];
+  queries: any[]; // Should be a DataQuery, but we're going to strip refIds, so typing makes less sense
   range: RawTimeRange;
+  originPanelId?: number;
   context?: string;
-  panelsState?: ExplorePanelsState;
-  isFromCompactUrl?: boolean;
 }
-
-export interface ExplorePanelsState extends Partial<Record<PreferredVisualisationType, {}>> {
-  trace?: ExploreTracePanelState;
-}
-
-export interface ExploreTracePanelState {
-  spanId?: string;
-}
-
-export interface SplitOpenOptions<T extends AnyQuery = AnyQuery> {
-  datasourceUid: string;
-  /** @deprecated Will be removed in a future version. Use queries instead. */
-  query?: T;
-  queries?: T[];
-  range?: TimeRange;
-  panelsState?: ExplorePanelsState;
-}
-
-/**
- * SplitOpen type is used in Explore and related components.
- */
-export type SplitOpen = (options?: SplitOpenOptions | undefined) => void;

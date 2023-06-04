@@ -1,72 +1,56 @@
-import { css } from '@emotion/css';
-import React, { useMemo } from 'react';
-
-import { GrafanaTheme2 } from '@grafana/data';
-
-import { useStyles2 } from '../../themes';
+import React, { FC } from 'react';
+import { css } from 'emotion';
 import { getTagColorsFromName } from '../../utils';
-import { IconButton } from '../IconButton/IconButton';
+import { stylesFactory, useTheme } from '../../themes';
+import { Icon } from '../Icon/Icon';
+import { GrafanaTheme } from '@grafana/data';
 
 interface Props {
   name: string;
-  disabled?: boolean;
+
   onRemove: (tag: string) => void;
 }
+
+const getStyles = stylesFactory(({ theme, name }: { theme: GrafanaTheme; name: string }) => {
+  const { color, borderColor } = getTagColorsFromName(name);
+  const height = theme.spacing.formInputHeight - 8;
+
+  return {
+    itemStyle: css`
+      display: flex;
+      align-items: center;
+      height: ${height}px;
+      line-height: ${height - 2}px;
+      background-color: ${color};
+      color: ${theme.palette.white};
+      border: 1px solid ${borderColor};
+      border-radius: 3px;
+      padding: 0 ${theme.spacing.xs};
+      margin-right: 3px;
+      white-space: nowrap;
+      text-shadow: none;
+      font-weight: 500;
+      font-size: ${theme.typography.size.sm};
+    `,
+
+    nameStyle: css`
+      margin-right: 3px;
+    `,
+  };
+});
 
 /**
  * @internal
  * Only used internally by TagsInput
  * */
-export const TagItem = ({ name, disabled, onRemove }: Props) => {
-  const { color, borderColor } = useMemo(() => getTagColorsFromName(name), [name]);
-  const styles = useStyles2(getStyles);
+export const TagItem: FC<Props> = ({ name, onRemove }) => {
+  const theme = useTheme();
+  const styles = getStyles({ theme, name });
 
   return (
-    <li className={styles.itemStyle} style={{ backgroundColor: color, borderColor }}>
+    <div className={styles.itemStyle}>
       <span className={styles.nameStyle}>{name}</span>
-      <IconButton
-        name="times"
-        size="lg"
-        disabled={disabled}
-        ariaLabel={`Remove "${name}" tag`}
-        onClick={() => onRemove(name)}
-        type="button"
-        className={styles.buttonStyles}
-      />
-    </li>
+      <Icon className="pointer" name="times" onClick={() => onRemove(name)} />
+    </div>
   );
-};
-
-const getStyles = (theme: GrafanaTheme2) => {
-  const height = theme.spacing.gridSize * 3;
-
-  return {
-    itemStyle: css({
-      display: 'flex',
-      gap: '3px',
-      alignItems: 'center',
-      height: `${height}px`,
-      lineHeight: `${height - 2}px`,
-      color: '#fff',
-      borderWidth: '1px',
-      borderStyle: 'solid',
-      borderRadius: theme.shape.radius.default,
-      padding: `0 ${theme.spacing(0.5)}`,
-      whiteSpace: 'nowrap',
-      textShadow: 'none',
-      fontWeight: 500,
-      fontSize: theme.typography.size.sm,
-    }),
-    nameStyle: css({
-      maxWidth: '25ch',
-      textOverflow: 'ellipsis',
-      overflow: 'hidden',
-    }),
-    buttonStyles: css({
-      margin: 0,
-      '&:hover::before': {
-        display: 'none',
-      },
-    }),
-  };
 };

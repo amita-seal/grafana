@@ -1,3 +1,5 @@
+// +build integration
+
 package alerting
 
 import (
@@ -9,64 +11,42 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/grafana/grafana/pkg/infra/localcache"
-	"github.com/grafana/grafana/pkg/infra/tracing"
-	"github.com/grafana/grafana/pkg/infra/usagestats"
-	"github.com/grafana/grafana/pkg/infra/usagestats/validator"
-	"github.com/grafana/grafana/pkg/services/annotations/annotationstest"
-	datasources "github.com/grafana/grafana/pkg/services/datasources/fakes"
-	encryptionprovider "github.com/grafana/grafana/pkg/services/encryption/provider"
-	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
 	"github.com/grafana/grafana/pkg/setting"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestIntegrationEngineTimeouts(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test")
-	}
+func TestEngineTimeouts(t *testing.T) {
+	Convey("Alerting engine timeout tests", t, func() {
+		engine := &AlertEngine{}
+		err := engine.Init()
+		So(err, ShouldBeNil)
+		setting.AlertingNotificationTimeout = 30 * time.Second
+		setting.AlertingMaxAttempts = 3
+		engine.resultHandler = &FakeResultHandler{}
+		job := &Job{running: true, Rule: &Rule{}}
 
-	usMock := &usagestats.UsageStatsMock{T: t}
-	usValidatorMock := &validator.FakeUsageStatsValidator{}
+		Convey("Should trigger as many retries as needed", func() {
+			Convey("pended alert for datasource -> result handler should be worked", func() {
+				// reduce alert timeout to test quickly
+				setting.AlertingEvaluationTimeout = 30 * time.Second
+				transportTimeoutInterval := 2 * time.Second
+				serverBusySleepDuration := 1 * time.Second
 
-	encProvider := encryptionprovider.ProvideEncryptionProvider()
-	cfg := setting.NewCfg()
-	settings := &setting.OSSImpl{Cfg: cfg}
+				evalHandler := NewFakeCommonTimeoutHandler(transportTimeoutInterval, serverBusySleepDuration)
+				resultHandler := NewFakeCommonTimeoutHandler(transportTimeoutInterval, serverBusySleepDuration)
+				engine.evalHandler = evalHandler
+				engine.resultHandler = resultHandler
 
-	encService, err := encryptionservice.ProvideEncryptionService(encProvider, usMock, settings)
-	require.NoError(t, err)
+				err := engine.processJobWithRetry(context.TODO(), job)
+				So(err, ShouldBeNil)
 
-	tracer := tracing.InitializeTracerForTest()
-	dsMock := &datasources.FakeDataSourceService{}
-	annotationsRepo := annotationstest.NewFakeAnnotationsRepo()
-	engine := ProvideAlertEngine(nil, nil, nil, usMock, usValidatorMock, encService, nil, tracer, nil, setting.NewCfg(), nil, nil, localcache.New(time.Minute, time.Minute), dsMock, annotationsRepo)
-	setting.AlertingNotificationTimeout = 30 * time.Second
-	setting.AlertingMaxAttempts = 3
-	engine.resultHandler = &FakeResultHandler{}
-	job := &Job{running: true, Rule: &Rule{}}
+				So(evalHandler.EvalSucceed, ShouldEqual, true)
+				So(resultHandler.ResultHandleSucceed, ShouldEqual, true)
 
-	t.Run("Should trigger as many retries as needed", func(t *testing.T) {
-		t.Run("pended alert for datasource -> result handler should be worked", func(t *testing.T) {
-			// reduce alert timeout to test quickly
-			setting.AlertingEvaluationTimeout = 30 * time.Second
-			transportTimeoutInterval := 2 * time.Second
-			serverBusySleepDuration := 1 * time.Second
-
-			evalHandler := NewFakeCommonTimeoutHandler(transportTimeoutInterval, serverBusySleepDuration)
-			resultHandler := NewFakeCommonTimeoutHandler(transportTimeoutInterval, serverBusySleepDuration)
-			engine.evalHandler = evalHandler
-			engine.resultHandler = resultHandler
-
-			err := engine.processJobWithRetry(context.Background(), job)
-			require.Nil(t, err)
-
-			require.Equal(t, true, evalHandler.EvalSucceed)
-			require.Equal(t, true, resultHandler.ResultHandleSucceed)
-
-			// initialize for other tests.
-			setting.AlertingEvaluationTimeout = 2 * time.Second
-			engine.resultHandler = &FakeResultHandler{}
+				// initialize for other tests.
+				setting.AlertingEvaluationTimeout = 2 * time.Second
+				engine.resultHandler = &FakeResultHandler{}
+			})
 		})
 	})
 }
@@ -97,11 +77,7 @@ func (handler *FakeCommonTimeoutHandler) Eval(evalContext *EvalContext) {
 	url := srv.URL + path
 	res, err := sendRequest(evalContext.Ctx, url, handler.TransportTimeoutDuration)
 	if res != nil {
-		defer func() {
-			if err := res.Body.Close(); err != nil {
-				logger.Warn("Error", "err", err)
-			}
-		}()
+		defer res.Body.Close()
 	}
 
 	if err != nil {
@@ -126,11 +102,7 @@ func (handler *FakeCommonTimeoutHandler) handle(evalContext *EvalContext) error 
 	url := srv.URL + path
 	res, err := sendRequest(evalContext.Ctx, url, handler.TransportTimeoutDuration)
 	if res != nil {
-		defer func() {
-			if err := res.Body.Close(); err != nil {
-				logger.Warn("Error", "err", err)
-			}
-		}()
+		defer res.Body.Close()
 	}
 
 	if err != nil {

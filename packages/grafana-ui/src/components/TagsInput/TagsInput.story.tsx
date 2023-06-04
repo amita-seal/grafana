@@ -1,14 +1,11 @@
-import { Meta, StoryFn } from '@storybook/react';
 import React, { useState } from 'react';
-
-import { StoryExample } from '../../utils/storybook/StoryExample';
 import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
+import { TagsInput } from '@grafana/ui';
+import mdx from './TagsInput.mdx';
+import { StoryExample } from '../../utils/storybook/StoryExample';
 import { VerticalGroup } from '../Layout/Layout';
 
-import { TagsInput } from './TagsInput';
-import mdx from './TagsInput.mdx';
-
-const meta: Meta<typeof TagsInput> = {
+export default {
   title: 'Forms/TagsInput',
   component: TagsInput,
   decorators: [withCenteredStory],
@@ -16,15 +13,12 @@ const meta: Meta<typeof TagsInput> = {
     docs: {
       page: mdx,
     },
-    controls: {
-      exclude: ['onChange', 'className', 'tags'],
-    },
   },
 };
 
-export const Basic: StoryFn<typeof TagsInput> = (props) => {
+export const Basic = () => {
   const [tags, setTags] = useState<string[]>([]);
-  return <TagsInput {...props} tags={tags} onChange={setTags} />;
+  return <TagsInput tags={tags} onChange={setTags} />;
 };
 
 export const WithManyTags = () => {
@@ -37,5 +31,3 @@ export const WithManyTags = () => {
     </VerticalGroup>
   );
 };
-
-export default meta;

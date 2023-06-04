@@ -1,15 +1,13 @@
-import { css } from '@emotion/css';
-import React, { MouseEvent } from 'react';
-
+import React, { MouseEvent, useContext } from 'react';
+import { css } from 'emotion';
+import { CallToActionCard, Icon, IconName, LinkButton, ThemeContext } from '@grafana/ui';
 import { selectors } from '@grafana/e2e-selectors';
-import { Button, CallToActionCard, Icon, IconName, LinkButton } from '@grafana/ui';
 
 export interface Props {
   title: string;
   buttonIcon: IconName;
   buttonLink?: string;
   buttonTitle: string;
-  buttonDisabled?: boolean;
   onClick?: (event: MouseEvent) => void;
   proTip?: string;
   proTipLink?: string;
@@ -28,12 +26,11 @@ const infoBoxStyles = css`
   margin: 0 auto;
 `;
 
-const EmptyListCTA = ({
+const EmptyListCTA: React.FunctionComponent<Props> = ({
   title,
   buttonIcon,
   buttonLink,
   buttonTitle,
-  buttonDisabled,
   onClick,
   proTip,
   proTipLink,
@@ -41,7 +38,9 @@ const EmptyListCTA = ({
   proTipTarget,
   infoBox,
   infoBoxTitle,
-}: Props) => {
+}) => {
+  const theme = useContext(ThemeContext);
+
   const footer = () => {
     return (
       <>
@@ -49,11 +48,9 @@ const EmptyListCTA = ({
           <span key="proTipFooter">
             <Icon name="rocket" />
             <> ProTip: {proTip} </>
-            {proTipLink && (
-              <a href={proTipLink} target={proTipTarget} className="text-link">
-                {proTipLinkTitle}
-              </a>
-            )}
+            <a href={proTipLink} target={proTipTarget} className="text-link">
+              {proTipLinkTitle}
+            </a>
           </span>
         ) : (
           ''
@@ -76,22 +73,28 @@ const EmptyListCTA = ({
       `
     : '';
 
-  const ButtonEl = buttonLink ? LinkButton : Button;
   const ctaElement = (
-    <ButtonEl
+    <LinkButton
       size="lg"
       onClick={onClick}
       href={buttonLink}
       icon={buttonIcon}
       className={ctaElementClassName}
-      data-testid={selectors.components.CallToActionCard.buttonV2(buttonTitle)}
-      disabled={buttonDisabled}
+      aria-label={selectors.components.CallToActionCard.button(buttonTitle)}
     >
       {buttonTitle}
-    </ButtonEl>
+    </LinkButton>
   );
 
-  return <CallToActionCard className={ctaStyle} message={title} footer={footer()} callToActionElement={ctaElement} />;
+  return (
+    <CallToActionCard
+      className={ctaStyle}
+      message={title}
+      footer={footer()}
+      callToActionElement={ctaElement}
+      theme={theme}
+    />
+  );
 };
 
 export default EmptyListCTA;

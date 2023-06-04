@@ -1,27 +1,25 @@
-import { filter, isArray, isNumber, isString } from 'lodash';
-
-import { getBackendSrv } from '@grafana/runtime';
-import config from 'app/core/config';
 import store from 'app/core/store';
+import _ from 'lodash';
+import config from 'app/core/config';
 
 export class ImpressionSrv {
   constructor() {}
 
-  addDashboardImpression(dashboardUID: string) {
+  addDashboardImpression(dashboardId: number) {
     const impressionsKey = this.impressionKey();
-    let impressions: string[] = [];
+    let impressions = [];
     if (store.exists(impressionsKey)) {
       impressions = JSON.parse(store.get(impressionsKey));
-      if (!isArray(impressions)) {
+      if (!_.isArray(impressions)) {
         impressions = [];
       }
     }
 
     impressions = impressions.filter((imp) => {
-      return dashboardUID !== imp;
+      return dashboardId !== imp;
     });
 
-    impressions.unshift(dashboardUID);
+    impressions.unshift(dashboardId);
 
     if (impressions.length > 50) {
       impressions.pop();
@@ -29,32 +27,16 @@ export class ImpressionSrv {
     store.set(impressionsKey, JSON.stringify(impressions));
   }
 
-  private async convertToUIDs() {
-    let impressions = this.getImpressions();
-    const ids = filter(impressions, (el) => isNumber(el));
-    if (!ids.length) {
-      return;
-    }
+  getDashboardOpened() {
+    let impressions = store.get(this.impressionKey()) || '[]';
 
-    const convertedUIDs = await getBackendSrv().get<string[]>(`/api/dashboards/ids/${ids.join(',')}`);
-    store.set(this.impressionKey(), JSON.stringify([...filter(impressions, (el) => isString(el)), ...convertedUIDs]));
-  }
+    impressions = JSON.parse(impressions);
 
-  private getImpressions() {
-    const impressions = store.get(this.impressionKey()) || '[]';
+    impressions = _.filter(impressions, (el) => {
+      return _.isNumber(el);
+    });
 
-    return JSON.parse(impressions);
-  }
-
-  /** Returns an array of internal (string) dashboard UIDs */
-  async getDashboardOpened(): Promise<string[]> {
-    // TODO should be removed after UID migration
-    try {
-      await this.convertToUIDs();
-    } catch (_) {}
-
-    const result = filter(this.getImpressions(), (el) => isString(el));
-    return result;
+    return impressions;
   }
 
   impressionKey() {

@@ -1,16 +1,9 @@
-import { css, cx } from '@emotion/css';
-import React, { FormEvent, useCallback, useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-
-import { GrafanaTheme2 } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-
-import { useStyles2 } from '../../themes';
-import { getFocusStyles } from '../../themes/mixins';
+import React, { FC, FormEvent, useCallback, useState } from 'react';
+import { GrafanaTheme } from '@grafana/data';
+import { css, cx } from 'emotion';
+import { getFormStyles, Icon } from '../index';
+import { stylesFactory, useTheme } from '../../themes';
 import { ComponentSize } from '../../types/size';
-import { trimFileName } from '../../utils/file';
-import { getButtonStyles } from '../Button';
-import { Icon } from '../index';
 
 export interface Props {
   /** Callback function to handle uploaded file  */
@@ -21,21 +14,31 @@ export interface Props {
   className?: string;
   /** Button size */
   size?: ComponentSize;
-  /** Show the file name */
-  showFileName?: boolean;
 }
 
-export const FileUpload = ({
+function trimFileName(fileName: string) {
+  const nameLength = 16;
+  const delimiter = fileName.lastIndexOf('.');
+  const extension = fileName.substring(delimiter);
+  const file = fileName.substring(0, delimiter);
+
+  if (file.length < nameLength) {
+    return fileName;
+  }
+
+  return `${file.substring(0, nameLength)}...${extension}`;
+}
+
+export const FileUpload: FC<Props> = ({
   onFileUpload,
   className,
   children = 'Upload file',
   accept = '*',
   size = 'md',
-  showFileName,
-}: React.PropsWithChildren<Props>) => {
-  const style = useStyles2(getStyles(size));
+}) => {
+  const theme = useTheme();
+  const style = getStyles(theme, size);
   const [fileName, setFileName] = useState('');
-  const id = uuidv4();
 
   const onChange = useCallback(
     (event: FormEvent<HTMLInputElement>) => {
@@ -50,26 +53,20 @@ export const FileUpload = ({
 
   return (
     <>
-      <input
-        type="file"
-        id={id}
-        className={style.fileUpload}
-        onChange={onChange}
-        multiple={false}
-        accept={accept}
-        data-testid={selectors.components.FileUpload.inputField}
-      />
-      <label htmlFor={id} className={cx(style.labelWrapper, className)}>
+      <label className={cx(style.button, className)}>
         <Icon name="upload" className={style.icon} />
         {children}
+        <input
+          type="file"
+          id="fileUpload"
+          className={style.fileUpload}
+          onChange={onChange}
+          multiple={false}
+          accept={accept}
+        />
       </label>
-
-      {showFileName && fileName && (
-        <span
-          aria-label="File name"
-          className={style.fileName}
-          data-testid={selectors.components.FileUpload.fileNameSpan}
-        >
+      {fileName && (
+        <span aria-label="File name" className={style.fileName}>
           {trimFileName(fileName)}
         </span>
       )}
@@ -77,25 +74,20 @@ export const FileUpload = ({
   );
 };
 
-const getStyles = (size: ComponentSize) => (theme: GrafanaTheme2) => {
-  const buttonStyles = getButtonStyles({ theme, variant: 'primary', size, iconOnly: false });
-  const focusStyle = getFocusStyles(theme);
-
+const getStyles = stylesFactory((theme: GrafanaTheme, size: ComponentSize) => {
+  const buttonFormStyle = getFormStyles(theme, { variant: 'primary', invalid: false, size }).button.button;
   return {
-    fileUpload: css({
-      height: '0.1px',
-      opacity: '0',
-      overflow: 'hidden',
-      position: 'absolute',
-      width: '0.1px',
-      zIndex: -1,
-      '&:focus + label': focusStyle,
-      '&:focus-visible + label': focusStyle,
-    }),
-    labelWrapper: buttonStyles.button,
-    icon: buttonStyles.icon,
-    fileName: css({
-      marginLeft: theme.spacing(0.5),
-    }),
+    fileUpload: css`
+      display: none;
+    `,
+    button: css`
+      ${buttonFormStyle}
+    `,
+    icon: css`
+      margin-right: ${theme.spacing.xs};
+    `,
+    fileName: css`
+      margin-left: ${theme.spacing.xs};
+    `,
   };
-};
+});

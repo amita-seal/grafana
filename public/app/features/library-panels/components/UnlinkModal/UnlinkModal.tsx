@@ -1,5 +1,4 @@
 import React from 'react';
-
 import { ConfirmModal } from '@grafana/ui';
 
 interface Props {
@@ -8,7 +7,7 @@ interface Props {
   onDismiss: () => void;
 }
 
-export const UnlinkModal = ({ isOpen, onConfirm, onDismiss }: Props) => {
+export const UnlinkModal: React.FC<Props> = ({ isOpen, onConfirm, onDismiss }) => {
   return (
     <ConfirmModal
       title="Do you really want to unlink this panel?"

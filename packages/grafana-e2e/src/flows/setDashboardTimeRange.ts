@@ -1,5 +1,7 @@
+import { e2e } from '../index';
 import { setTimeRange, TimeRangeConfig } from './setTimeRange';
 
-export type { TimeRangeConfig };
+export { TimeRangeConfig };
 
-export const setDashboardTimeRange = (config: TimeRangeConfig) => setTimeRange(config);
+export const setDashboardTimeRange = (config: TimeRangeConfig) =>
+  e2e.components.PageToolbar.container().within(() => setTimeRange(config));

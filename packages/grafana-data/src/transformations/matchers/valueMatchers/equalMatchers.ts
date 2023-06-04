@@ -1,7 +1,6 @@
 import { Field } from '../../../types/dataFrame';
 import { ValueMatcherInfo } from '../../../types/transformations';
 import { ValueMatcherID } from '../ids';
-
 import { BasicValueMatcherOptions } from './types';
 
 const isEqualValueMatcher: ValueMatcherInfo<BasicValueMatcherOptions> = {
@@ -10,7 +9,7 @@ const isEqualValueMatcher: ValueMatcherInfo<BasicValueMatcherOptions> = {
   description: 'Match where value for given field is equal to options value.',
   get: (options) => {
     return (valueIndex: number, field: Field) => {
-      const value = field.values[valueIndex];
+      const value = field.values.get(valueIndex);
       // eslint-disable-next-line eqeqeq
       return value == options.value;
     };
@@ -28,7 +27,7 @@ const isNotEqualValueMatcher: ValueMatcherInfo<BasicValueMatcherOptions> = {
   description: 'Match where value for given field is not equal to options value.',
   get: (options) => {
     return (valueIndex: number, field: Field) => {
-      const value = field.values[valueIndex];
+      const value = field.values.get(valueIndex);
       // eslint-disable-next-line eqeqeq
       return value != options.value;
     };

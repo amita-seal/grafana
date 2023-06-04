@@ -1,5 +1,4 @@
 // Package gcsifaces provides interfaces for Google Cloud Storage.
-//
 //go:generate mockgen -source $GOFILE -destination ../../mocks/mock_gcsifaces/mocks.go StorageClient
 package gcsifaces
 

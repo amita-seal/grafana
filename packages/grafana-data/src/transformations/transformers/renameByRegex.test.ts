@@ -1,10 +1,6 @@
-import { toDataFrame } from '../../dataframe';
-import { FieldType, DataTransformerConfig } from '../../types';
-import { mockTransformationsRegistry } from '../../utils/tests/mockTransformationsRegistry';
-import { transformDataFrame } from '../transformDataFrame';
-
-import { DataTransformerID } from './ids';
+import { DataTransformerConfig, DataTransformerID, FieldType, toDataFrame, transformDataFrame } from '@grafana/data';
 import { renameByRegexTransformer, RenameByRegexTransformerOptions } from './renameByRegex';
+import { mockTransformationsRegistry } from '../../utils/tests/mockTransformationsRegistry';
 
 describe('Rename By Regex Transformer', () => {
   beforeAll(() => {
@@ -42,88 +38,33 @@ describe('Rename By Regex Transformer', () => {
         const data = received[0];
         const frame = data[0];
         expect(frame.fields).toMatchInlineSnapshot(`
-          [
-            {
-              "config": {
+          Array [
+            Object {
+              "config": Object {
                 "name": "Time",
               },
               "name": "Time",
-              "state": {
+              "state": Object {
                 "displayName": "Time",
-                "multipleFrames": false,
               },
               "type": "time",
-              "values": [
+              "values": Array [
                 3000,
                 4000,
                 5000,
                 6000,
               ],
             },
-            {
-              "config": {
+            Object {
+              "config": Object {
                 "displayName": "web-01",
               },
               "name": "Value",
-              "state": {
+              "state": Object {
                 "displayName": "web-01",
-                "multipleFrames": false,
               },
               "type": "number",
-              "values": [
-                10000.3,
-                10000.4,
-                10000.5,
-                10000.6,
-              ],
-            },
-          ]
-        `);
-      });
-    });
-
-    it('should be able to replace globally', async () => {
-      const cfg: DataTransformerConfig<RenameByRegexTransformerOptions> = {
-        id: DataTransformerID.renameByRegex,
-        options: {
-          regex: '/e/g',
-          renamePattern: 'E',
-        },
-      };
-      await expect(transformDataFrame([cfg], [data])).toEmitValuesWith((received) => {
-        const data = received[0];
-        const frame = data[0];
-        expect(frame.fields).toMatchInlineSnapshot(`
-          [
-            {
-              "config": {
-                "displayName": "TimE",
-                "name": "Time",
-              },
-              "name": "Time",
-              "state": {
-                "displayName": "TimE",
-                "multipleFrames": false,
-              },
-              "type": "time",
-              "values": [
-                3000,
-                4000,
-                5000,
-                6000,
-              ],
-            },
-            {
-              "config": {
-                "displayName": "wEb-01.ExamplE.com",
-              },
-              "name": "Value",
-              "state": {
-                "displayName": "wEb-01.ExamplE.com",
-                "multipleFrames": false,
-              },
-              "type": "number",
-              "values": [
+              "values": Array [
                 10000.3,
                 10000.4,
                 10000.5,
@@ -147,35 +88,33 @@ describe('Rename By Regex Transformer', () => {
         const data = received[0];
         const frame = data[0];
         expect(frame.fields).toMatchInlineSnapshot(`
-          [
-            {
-              "config": {
+          Array [
+            Object {
+              "config": Object {
                 "name": "Time",
               },
               "name": "Time",
-              "state": {
+              "state": Object {
                 "displayName": "Time",
-                "multipleFrames": false,
               },
               "type": "time",
-              "values": [
+              "values": Array [
                 3000,
                 4000,
                 5000,
                 6000,
               ],
             },
-            {
-              "config": {
+            Object {
+              "config": Object {
                 "displayName": "web-01.example.com",
               },
               "name": "Value",
-              "state": {
+              "state": Object {
                 "displayName": "web-01.example.com",
-                "multipleFrames": false,
               },
               "type": "number",
-              "values": [
+              "values": Array [
                 10000.3,
                 10000.4,
                 10000.5,
@@ -199,35 +138,34 @@ describe('Rename By Regex Transformer', () => {
         const data = received[0];
         const frame = data[0];
         expect(frame.fields).toMatchInlineSnapshot(`
-          [
-            {
-              "config": {
+          Array [
+            Object {
+              "config": Object {
+                "displayName": "Time",
                 "name": "Time",
               },
               "name": "Time",
-              "state": {
+              "state": Object {
                 "displayName": "Time",
-                "multipleFrames": false,
               },
               "type": "time",
-              "values": [
+              "values": Array [
                 3000,
                 4000,
                 5000,
                 6000,
               ],
             },
-            {
-              "config": {
+            Object {
+              "config": Object {
                 "displayName": "web-01.example.com",
               },
               "name": "Value",
-              "state": {
+              "state": Object {
                 "displayName": "web-01.example.com",
-                "multipleFrames": false,
               },
               "type": "number",
-              "values": [
+              "values": Array [
                 10000.3,
                 10000.4,
                 10000.5,

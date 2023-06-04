@@ -1,11 +1,10 @@
 {
   "type": "panel",
-  "name": "Graph (old)",
+  "name": "Graph",
   "id": "graph",
-  "state": "deprecated",
 
   "info": {
-    "description": "The old default graph panel",
+    "description": "Graph Panel for Grafana",
     "author": {
       "name": "Grafana Labs",
       "url": "https://grafana.com"

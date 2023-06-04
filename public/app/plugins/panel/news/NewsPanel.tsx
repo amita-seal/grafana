@@ -1,62 +1,140 @@
-import React, { useEffect } from 'react';
+// Libraries
+import React, { PureComponent } from 'react';
 
-import { PanelProps } from '@grafana/data';
-import { RefreshEvent } from '@grafana/runtime';
-import { Alert, CustomScrollbar, Icon } from '@grafana/ui';
+// Utils & Services
+import { CustomScrollbar, stylesFactory } from '@grafana/ui';
 
-import { News } from './component/News';
-import { DEFAULT_FEED_URL } from './constants';
-import { Options } from './panelcfg.gen';
-import { useNewsFeed } from './useNewsFeed';
+import config from 'app/core/config';
+import { feedToDataFrame } from './utils';
+import { loadRSSFeed } from './rss';
 
-interface NewsPanelProps extends PanelProps<Options> {}
+// Types
+import { PanelProps, DataFrameView, dateTimeFormat, GrafanaTheme, textUtil } from '@grafana/data';
+import { NewsOptions, NewsItem } from './types';
+import { DEFAULT_FEED_URL, PROXY_PREFIX } from './constants';
+import { css } from 'emotion';
 
-export function NewsPanel(props: NewsPanelProps) {
-  const {
-    width,
-    options: { feedUrl = DEFAULT_FEED_URL, showImage },
-  } = props;
+interface Props extends PanelProps<NewsOptions> {}
 
-  const { state, getNews } = useNewsFeed(feedUrl);
+interface State {
+  news?: DataFrameView<NewsItem>;
+  isError?: boolean;
+}
 
-  useEffect(() => {
-    const sub = props.eventBus.subscribe(RefreshEvent, getNews);
+export class NewsPanel extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props);
 
-    return () => {
-      sub.unsubscribe();
-    };
-  }, [getNews, props.eventBus]);
+    this.state = {};
+  }
 
-  useEffect(() => {
-    getNews();
-  }, [getNews]);
+  componentDidMount(): void {
+    this.loadChannel();
+  }
 
-  if (state.error) {
+  componentDidUpdate(prevProps: Props): void {
+    if (this.props.options.feedUrl !== prevProps.options.feedUrl) {
+      this.loadChannel();
+    }
+  }
+
+  async loadChannel() {
+    const { options } = this.props;
+    try {
+      const url = options.feedUrl
+        ? options.useProxy
+          ? `${PROXY_PREFIX}${options.feedUrl}`
+          : options.feedUrl
+        : DEFAULT_FEED_URL;
+      const res = await loadRSSFeed(url);
+      const frame = feedToDataFrame(res);
+      this.setState({
+        news: new DataFrameView<NewsItem>(frame),
+        isError: false,
+      });
+    } catch (err) {
+      console.error('Error Loading News', err);
+      this.setState({
+        news: undefined,
+        isError: true,
+      });
+    }
+  }
+
+  render() {
+    const { isError, news } = this.state;
+    const styles = getStyles(config.theme);
+
+    if (isError) {
+      return <div>Error Loading News</div>;
+    }
+    if (!news) {
+      return <div>loading...</div>;
+    }
+
     return (
-      <Alert title="Error loading RSS feed">
-        Make sure that the feed URL is correct and that CORS is configured correctly on the server. See{' '}
-        <a
-          style={{ textDecoration: 'underline' }}
-          href="https://grafana.com/docs/grafana/latest/panels-visualizations/visualizations/news/"
-        >
-          News panel documentation. <Icon name="external-link-alt" />
-        </a>
-      </Alert>
+      <CustomScrollbar autoHeightMin="100%" autoHeightMax="100%">
+        {news.map((item, index) => {
+          return (
+            <div key={index} className={styles.item}>
+              <a
+                className={styles.link}
+                href={textUtil.sanitizeUrl(item.link)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <div className={styles.title}>{item.title}</div>
+                <div className={styles.date}>{dateTimeFormat(item.date, { format: 'MMM DD' })} </div>
+              </a>
+              <div className={styles.content} dangerouslySetInnerHTML={{ __html: textUtil.sanitize(item.content) }} />
+            </div>
+          );
+        })}
+      </CustomScrollbar>
     );
   }
-  if (state.loading) {
-    return <div>Loading...</div>;
-  }
-
-  if (!state.value) {
-    return null;
-  }
-
-  return (
-    <CustomScrollbar autoHeightMin="100%" autoHeightMax="100%">
-      {state.value.map((_, index) => {
-        return <News key={index} index={index} width={width} showImage={showImage} data={state.value} />;
-      })}
-    </CustomScrollbar>
-  );
 }
+
+const getStyles = stylesFactory((theme: GrafanaTheme) => ({
+  container: css`
+    height: 100%;
+  `,
+  item: css`
+    padding: ${theme.spacing.sm};
+    position: relative;
+    margin-bottom: 4px;
+    margin-right: ${theme.spacing.sm};
+    border-bottom: 2px solid ${theme.colors.border1};
+  `,
+  link: css`
+    color: ${theme.colors.linkExternal};
+
+    &:hover {
+      color: ${theme.colors.linkExternal};
+      text-decoration: underline;
+    }
+  `,
+  title: css`
+    max-width: calc(100% - 70px);
+    font-size: 16px;
+    margin-bottom: ${theme.spacing.sm};
+  `,
+  content: css`
+    p {
+      margin-bottom: 4px;
+      color: ${theme.colors.text};
+    }
+  `,
+  date: css`
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: ${theme.colors.panelBg};
+    width: 55px;
+    text-align: right;
+    padding: ${theme.spacing.xs};
+    font-weight: 500;
+    border-radius: 0 0 0 3px;
+    color: ${theme.colors.textWeak};
+  `,
+}));

@@ -1,39 +1,53 @@
-import { of } from 'rxjs';
-
-import { serializeStateToUrlParam } from '@grafana/data';
-import { setDataSourceSrv } from '@grafana/runtime';
-import { ExploreId, StoreState, ThunkDispatch } from 'app/types';
-
-import { configureStore } from '../../../store/configureStore';
-
+import { DataQuery, DefaultTimeZone, EventBusExtended, serializeStateToUrlParam, toUtc } from '@grafana/data';
+import { ExploreId } from 'app/types';
 import { refreshExplore } from './explorePane';
-import { createDefaultInitialState } from './helpers';
+import { setDataSourceSrv } from '@grafana/runtime';
+import { configureStore } from '../../../store/configureStore';
+import { of } from 'rxjs';
 
 jest.mock('../../dashboard/services/TimeSrv', () => ({
   getTimeSrv: jest.fn().mockReturnValue({
     init: jest.fn(),
-    timeRange: jest.fn().mockReturnValue({}),
   }),
 }));
 
-const { testRange, defaultInitialState } = createDefaultInitialState();
+const t = toUtc();
+const testRange = {
+  from: t,
+  to: t,
+  raw: {
+    from: t,
+    to: t,
+  },
+};
 
-jest.mock('@grafana/runtime', () => ({
-  ...jest.requireActual('@grafana/runtime'),
-  getTemplateSrv: () => ({
-    updateTimeRange: jest.fn(),
-  }),
-}));
+const defaultInitialState = {
+  user: {
+    orgId: '1',
+    timeZone: DefaultTimeZone,
+  },
+  explore: {
+    [ExploreId.left]: {
+      initialized: true,
+      containerWidth: 1920,
+      eventBridge: {} as EventBusExtended,
+      queries: [] as DataQuery[],
+      range: testRange,
+      refreshInterval: {
+        label: 'Off',
+        value: 0,
+      },
+    },
+  },
+};
 
 function setupStore(state?: any) {
   return configureStore({
     ...defaultInitialState,
     explore: {
-      panes: {
-        [ExploreId.left]: {
-          ...defaultInitialState.explore.panes.left,
-          ...(state || {}),
-        },
+      [ExploreId.left]: {
+        ...defaultInitialState.explore[ExploreId.left],
+        ...(state || {}),
       },
     },
   } as any);
@@ -47,7 +61,6 @@ function setup(state?: any) {
       query: jest.fn(),
       name: 'newDs',
       meta: { id: 'newDs' },
-      getRef: () => ({ uid: 'newDs' }),
     },
     someDs: {
       testDatasource: jest.fn(),
@@ -55,7 +68,6 @@ function setup(state?: any) {
       query: jest.fn(),
       name: 'someDs',
       meta: { id: 'someDs' },
-      getRef: () => ({ uid: 'someDs' }),
     },
   };
 
@@ -64,7 +76,7 @@ function setup(state?: any) {
       return Object.values(datasources).map((d) => ({ name: d.name }));
     },
     getInstanceSettings(name: string) {
-      return { name, getRef: () => ({ uid: name }) };
+      return { name: 'hello' };
     },
     get(name?: string) {
       return Promise.resolve(
@@ -74,62 +86,60 @@ function setup(state?: any) {
               testDatasource: jest.fn(),
               init: jest.fn(),
               name: 'default',
-              getRef() {
-                return { type: 'default', uid: 'default' };
-              },
             }
       );
     },
   } as any);
 
-  const { dispatch, getState }: { dispatch: ThunkDispatch; getState: () => StoreState } = setupStore({
+  const store = setupStore({
     datasourceInstance: datasources.someDs,
     ...(state || {}),
   });
 
   return {
-    dispatch,
-    getState,
+    store,
     datasources,
   };
 }
 
 describe('refreshExplore', () => {
   it('should change data source when datasource in url changes', async () => {
-    const { dispatch, getState } = setup();
-    await dispatch(
+    const { store } = setup();
+    await store.dispatch(
       refreshExplore(ExploreId.left, serializeStateToUrlParam({ datasource: 'newDs', queries: [], range: testRange }))
     );
-    expect(getState().explore.panes.left!.datasourceInstance?.name).toBe('newDs');
+    expect(store.getState().explore[ExploreId.left].datasourceInstance?.name).toBe('newDs');
   });
 
   it('should change and run new queries from the URL', async () => {
-    const { dispatch, getState, datasources } = setup();
+    const { store, datasources } = setup();
     datasources.someDs.query.mockReturnValueOnce(of({}));
-    await dispatch(
+    await store.dispatch(
       refreshExplore(
         ExploreId.left,
-        serializeStateToUrlParam({ datasource: 'someDs', queries: [{ expr: 'count()', refId: 'A' }], range: testRange })
+        serializeStateToUrlParam({ datasource: 'someDs', queries: [{ expr: 'count()' }], range: testRange })
       )
     );
     // same
-    const state = getState().explore.panes.left!;
+    const state = store.getState().explore[ExploreId.left];
     expect(state.datasourceInstance?.name).toBe('someDs');
     expect(state.queries.length).toBe(1);
     expect(state.queries).toMatchObject([{ expr: 'count()' }]);
     expect(datasources.someDs.query).toHaveBeenCalledTimes(1);
   });
 
-  it('should not do anything if pane is not present', async () => {
-    const { dispatch, getState } = setup({});
-    const state = getState();
-    await dispatch(
+  it('should not do anything if pane is not initialized', async () => {
+    const { store } = setup({
+      initialized: false,
+    });
+    const state = store.getState();
+    await store.dispatch(
       refreshExplore(
-        ExploreId.right,
-        serializeStateToUrlParam({ datasource: 'newDs', queries: [{ expr: 'count()', refId: 'A' }], range: testRange })
+        ExploreId.left,
+        serializeStateToUrlParam({ datasource: 'newDs', queries: [{ expr: 'count()' }], range: testRange })
       )
     );
 
-    expect(state).toEqual(getState());
+    expect(state).toEqual(store.getState());
   });
 });

@@ -1,20 +1,15 @@
 import { SelectableValue } from '@grafana/data';
-
 import { SelectableOptGroup } from './types';
 
 /**
  * Normalize the value format to SelectableValue[] | []. Only used for single select
  */
-export const cleanValue = (
-  value: unknown,
-  options: Array<SelectableValue | SelectableOptGroup | SelectableOptGroup[]>
-) => {
+export const cleanValue = (value: any, options: Array<SelectableValue | SelectableOptGroup | SelectableOptGroup[]>) => {
   if (Array.isArray(value)) {
     const filtered = value.filter(Boolean);
     return filtered?.length ? filtered : undefined;
   }
-  if (typeof value === 'object') {
-    // we want to allow null through into here, so the Select value can be unset
+  if (typeof value === 'object' && value !== null) {
     return [value];
   }
   if (typeof value === 'string' || typeof value === 'number') {
@@ -45,11 +40,4 @@ export const findSelectedValue = (
   }
 
   return null;
-};
-
-/**
- * Omit descriptions from an array of options
- */
-export const omitDescriptions = (options: SelectableValue[]): SelectableValue[] => {
-  return options.map(({ description, ...rest }) => rest);
 };

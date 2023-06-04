@@ -1,13 +1,8 @@
-import { renderHook } from '@testing-library/react';
-import React, { PropsWithChildren } from 'react';
-
-import { getDefaultTimeRange } from '@grafana/data';
-
+import React, { FunctionComponent } from 'react';
+import { renderHook } from '@testing-library/react-hooks';
 import { ElasticsearchProvider } from '../components/QueryEditor/ElasticsearchQueryContext';
-import { ElasticDatasource } from '../datasource';
-import { ElasticsearchQuery } from '../types';
-
 import { useNextId } from './useNextId';
+import { ElasticsearchQuery } from '../types';
 
 describe('useNextId', () => {
   it('Should return the next available id', () => {
@@ -17,15 +12,9 @@ describe('useNextId', () => {
       metrics: [{ id: '1', type: 'avg' }],
       bucketAggs: [{ id: '2', type: 'date_histogram' }],
     };
-    const wrapper = ({ children }: PropsWithChildren<{}>) => {
+    const wrapper: FunctionComponent = ({ children }) => {
       return (
-        <ElasticsearchProvider
-          query={query}
-          datasource={{} as ElasticDatasource}
-          onChange={() => {}}
-          onRunQuery={() => {}}
-          range={getDefaultTimeRange()}
-        >
+        <ElasticsearchProvider query={query} datasource={{} as any} onChange={() => {}} onRunQuery={() => {}}>
           {children}
         </ElasticsearchProvider>
       );

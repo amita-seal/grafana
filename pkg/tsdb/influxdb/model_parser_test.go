@@ -4,12 +4,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
+	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/stretchr/testify/require"
 )
 
 func TestInfluxdbQueryParser_Parse(t *testing.T) {
 	parser := &InfluxdbQueryParser{}
+	dsInfo := &models.DataSource{
+		JsonData: simplejson.New(),
+	}
 
 	t.Run("can parse influxdb json model", func(t *testing.T) {
 		json := `
@@ -36,9 +40,6 @@ func TestInfluxdbQueryParser_Parse(t *testing.T) {
         ],
         "measurement": "logins.count",
         "tz": "Europe/Paris",
-        "limit": "1",
-        "slimit": "1",
-        "orderByTime": "ASC",
         "policy": "default",
         "refId": "B",
         "resultFormat": "time_series",
@@ -104,21 +105,16 @@ func TestInfluxdbQueryParser_Parse(t *testing.T) {
         ]
       }
       `
+		dsInfo.JsonData.Set("timeInterval", ">20s")
+		modelJSON, err := simplejson.NewJson([]byte(json))
+		require.NoError(t, err)
 
-		query := backend.DataQuery{
-			JSON:     []byte(json),
-			Interval: time.Second * 20,
-		}
-
-		res, err := parser.Parse(query)
+		res, err := parser.Parse(modelJSON, dsInfo)
 		require.NoError(t, err)
 		require.Len(t, res.GroupBy, 3)
 		require.Len(t, res.Selects, 3)
 		require.Len(t, res.Tags, 2)
 		require.Equal(t, "Europe/Paris", res.Tz)
-		require.Equal(t, "1", res.Limit)
-		require.Equal(t, "1", res.Slimit)
-		require.Equal(t, "ASC", res.OrderByTime)
 		require.Equal(t, time.Second*20, res.Interval)
 		require.Equal(t, "series alias", res.Alias)
 	})
@@ -168,36 +164,15 @@ func TestInfluxdbQueryParser_Parse(t *testing.T) {
       }
       `
 
-		query := backend.DataQuery{
-			JSON:     []byte(json),
-			Interval: time.Second * 10,
-		}
+		modelJSON, err := simplejson.NewJson([]byte(json))
+		require.NoError(t, err)
 
-		res, err := parser.Parse(query)
+		res, err := parser.Parse(modelJSON, dsInfo)
 		require.NoError(t, err)
 		require.Equal(t, "RawDummyQuery", res.RawQuery)
 		require.Len(t, res.GroupBy, 2)
 		require.Len(t, res.Selects, 1)
 		require.Empty(t, res.Tags)
 		require.Equal(t, time.Second*10, res.Interval)
-	})
-
-	t.Run("will enforce a minInterval of 1 millisecond", func(t *testing.T) {
-		json := `
-      {
-        "query": "RawDummyQuery",
-        "rawQuery": true,
-        "resultFormat": "time_series"
-      }
-      `
-
-		query := backend.DataQuery{
-			JSON:     []byte(json),
-			Interval: time.Millisecond * 0,
-		}
-
-		res, err := parser.Parse(query)
-		require.NoError(t, err)
-		require.Equal(t, time.Millisecond*1, res.Interval)
 	})
 }

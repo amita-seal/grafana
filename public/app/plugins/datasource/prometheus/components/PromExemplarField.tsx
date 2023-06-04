@@ -1,60 +1,47 @@
-import { css, cx } from '@emotion/css';
+import { GrafanaTheme } from '@grafana/data';
+import { IconButton, InlineLabel, Tooltip, useStyles } from '@grafana/ui';
+import { css, cx } from 'emotion';
 import React, { useEffect, useState } from 'react';
-import { usePrevious } from 'react-use';
-
-import { GrafanaTheme2 } from '@grafana/data';
-import { IconButton, InlineLabel, Tooltip, useStyles2 } from '@grafana/ui';
-
 import { PrometheusDatasource } from '../datasource';
-import { PromQuery } from '../types';
 
 interface Props {
-  onChange: (exemplar: boolean) => void;
+  isEnabled: boolean;
+  onChange: (isEnabled: boolean) => void;
   datasource: PrometheusDatasource;
-  query: PromQuery;
-  'data-testid'?: string;
 }
 
-export function PromExemplarField({ datasource, onChange, query, ...rest }: Props) {
-  const [error, setError] = useState<string | null>(null);
-  const styles = useStyles2(getStyles);
-  const prevError = usePrevious(error);
+export function PromExemplarField({ datasource, onChange, isEnabled }: Props) {
+  const [error, setError] = useState<string>();
+  const styles = useStyles(getStyles);
 
   useEffect(() => {
-    if (!datasource.exemplarsAvailable) {
-      setError('Exemplars for this query are not available');
-      onChange(false);
-    } else if (query.instant && !query.range) {
-      setError('Exemplars are not available for instant queries');
-      onChange(false);
-    } else {
-      setError(null);
-      // If error is cleared, we want to change exemplar to true
-      if (prevError && !error) {
-        onChange(true);
-      }
-    }
-  }, [datasource.exemplarsAvailable, query.instant, query.range, onChange, prevError, error]);
+    const subscription = datasource.exemplarErrors.subscribe((err) => {
+      setError(err);
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [datasource]);
 
   const iconButtonStyles = cx(
     {
-      [styles.activeIcon]: !!query.exemplar,
+      [styles.activeIcon]: isEnabled,
     },
     styles.eyeIcon
   );
 
   return (
-    <InlineLabel width="auto" data-testid={rest['data-testid']}>
+    <InlineLabel width="auto">
       <Tooltip content={error ?? ''}>
         <div className={styles.iconWrapper}>
           Exemplars
           <IconButton
             name="eye"
-            tooltip={!!query.exemplar ? 'Disable query with exemplars' : 'Enable query with exemplars'}
+            tooltip={isEnabled ? 'Disable query with exemplars' : 'Enable query with exemplars'}
             disabled={!!error}
             className={iconButtonStyles}
             onClick={() => {
-              onChange(!query.exemplar);
+              onChange(!isEnabled);
             }}
           />
         </div>
@@ -63,13 +50,13 @@ export function PromExemplarField({ datasource, onChange, query, ...rest }: Prop
   );
 }
 
-function getStyles(theme: GrafanaTheme2) {
+function getStyles(theme: GrafanaTheme) {
   return {
     eyeIcon: css`
-      margin-left: ${theme.spacing(2)};
+      margin-left: ${theme.spacing.md};
     `,
     activeIcon: css`
-      color: ${theme.colors.primary.main};
+      color: ${theme.palette.blue95};
     `,
     iconWrapper: css`
       display: flex;

@@ -1,18 +1,9 @@
-# Stat panel - Native Plugin
+# Singlestat Panel -  Native Plugin
 
-The Stat panel is **included** with Grafana.
+The Singlestat Panel is **included** with Grafana.
 
-The Stat panel visualization shows one large statistic with an optional graph sparkline. The background or value color can be controlled using thresholds.
+The Singlestat Panel allows you to show the one main summary stat of a SINGLE series. It reduces the series into a single number (by looking at the max, min, average, or sum of values in the series). Singlestat also provides thresholds to color the stat or the Panel background. It can also translate the single number into a text value, and show a sparkline summary of the series.
 
-By default, the Stat panel displays one of the following:
+Read more about it here:
 
-- The value for a single series or field.
-- The value and name for multiple series or fields.
-
-The Text mode can be used to control whether the text is displayed or not.
-
-The Stat panel is a replacement for the Singlestat panel, which was deprecated in Grafana v7.0 and removed in Grafana v8.4.
-
-Read more about Stat panel on the docs page:
-
-[https://grafana.com/docs/grafana/latest/panels-visualizations/visualizations/stat/](https://grafana.com/docs/grafana/latest/panels-visualizations/visualizations/stat/)
+[http://docs.grafana.org/reference/singlestat/](http://docs.grafana.org/reference/singlestat/)

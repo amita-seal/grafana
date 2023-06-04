@@ -3,20 +3,17 @@ package influxdb
 import "time"
 
 type Query struct {
-	Measurement string
-	Policy      string
-	Tags        []*Tag
-	GroupBy     []*QueryPart
-	Selects     []*Select
-	RawQuery    string
-	UseRawQuery bool
-	Alias       string
-	Interval    time.Duration
-	Tz          string
-	Limit       string
-	Slimit      string
-	OrderByTime string
-	RefID       string
+	Measurement  string
+	Policy       string
+	ResultFormat string
+	Tags         []*Tag
+	GroupBy      []*QueryPart
+	Selects      []*Select
+	RawQuery     string
+	UseRawQuery  bool
+	Alias        string
+	Interval     time.Duration
+	Tz           string
 }
 
 type Tag struct {
@@ -30,13 +27,13 @@ type Select []QueryPart
 
 type Response struct {
 	Results []Result
-	Error   string
+	Err     error
 }
 
 type Result struct {
 	Series   []Row
 	Messages []*Message
-	Error    string
+	Err      error
 }
 
 type Message struct {

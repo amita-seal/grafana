@@ -1,13 +1,10 @@
-import { action } from '@storybook/addon-actions';
-import { Meta } from '@storybook/react';
 import React from 'react';
-
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
+import { action } from '@storybook/addon-actions';
 import { ClickOutsideWrapper } from './ClickOutsideWrapper';
+import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
 import mdx from './ClickOutsideWrapper.mdx';
 
-const meta: Meta<typeof ClickOutsideWrapper> = {
+export default {
   title: 'Layout/ClickOutsideWrapper',
   component: ClickOutsideWrapper,
   decorators: [withCenteredStory],
@@ -25,5 +22,3 @@ export const basic = () => {
     </ClickOutsideWrapper>
   );
 };
-
-export default meta;

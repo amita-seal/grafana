@@ -1,7 +1,6 @@
 import { EventBusSrv } from './EventBus';
-import { DataHoverEvent } from './common';
+import { BusEventWithPayload } from './types';
 import { eventFactory } from './eventFactory';
-import { BusEvent, BusEventWithPayload } from './types';
 
 interface LoginEventPayload {
   logins: number;
@@ -47,31 +46,10 @@ describe('EventBus', () => {
     expect(events.length).toBe(1);
   });
 
-  describe('EventBusWithSource', () => {
-    it('can add sources to the source path', () => {
-      const bus = new EventBusSrv();
-      const busWithSource = bus.newScopedBus('foo');
-      expect((busWithSource as any).path).toEqual(['foo']);
-    });
-
-    it('adds the source to the event payload', () => {
-      const bus = new EventBusSrv();
-      let events: BusEvent[] = [];
-
-      bus.subscribe(DataHoverEvent, (event) => events.push(event));
-
-      const busWithSource = bus.newScopedBus('foo');
-      busWithSource.publish({ type: DataHoverEvent.type });
-
-      expect(events.length).toEqual(1);
-      expect(events[0].origin).toEqual(busWithSource);
-    });
-  });
-
   describe('Legacy emitter behavior', () => {
     it('Supports legacy events', () => {
       const bus = new EventBusSrv();
-      const events: LegacyEventPayload[] = [];
+      const events: any = [];
       const handler = (event: LegacyEventPayload) => {
         events.push(event);
       };
@@ -88,8 +66,8 @@ describe('EventBus', () => {
 
     it('Interoperability with legacy events', () => {
       const bus = new EventBusSrv();
-      const legacyEvents: LegacyEventPayload[] = [];
-      const newEvents: AlertSuccessEvent[] = [];
+      const legacyEvents: any = [];
+      const newEvents: any = [];
 
       bus.on(legacyEvent, (event) => {
         legacyEvents.push(event);
@@ -181,18 +159,15 @@ describe('EventBus', () => {
     it('removeAllListeners should unsubscribe to all', () => {
       const bus = new EventBusSrv();
       const events: LoginEvent[] = [];
-      let completed = false;
 
-      bus.getStream(LoginEvent).subscribe({
-        next: (evt) => events.push(evt),
-        complete: () => (completed = true),
+      bus.subscribe(LoginEvent, (event) => {
+        events.push(event);
       });
 
       bus.removeAllListeners();
       bus.publish(new LoginEvent({ logins: 10 }));
 
       expect(events.length).toBe(0);
-      expect(completed).toBe(true);
     });
   });
 });

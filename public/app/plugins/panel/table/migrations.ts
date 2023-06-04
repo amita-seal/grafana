@@ -1,5 +1,3 @@
-import { omitBy, isNil, isNumber, defaultTo } from 'lodash';
-
 import {
   PanelModel,
   FieldMatcherID,
@@ -9,8 +7,11 @@ import {
   FieldConfig,
 } from '@grafana/data';
 import { ReduceTransformerOptions } from '@grafana/data/src/transformations/transformers/reduce';
-
-import { Options } from './panelcfg.gen';
+import omitBy from 'lodash/omitBy';
+import isNil from 'lodash/isNil';
+import isNumber from 'lodash/isNumber';
+import defaultTo from 'lodash/defaultTo';
+import { Options } from './types';
 
 /**
  * At 7.0, the `table` panel was swapped from an angular implementation to a react one.
@@ -39,7 +40,7 @@ const columnsMap = {
   min: 'min',
   max: 'max',
   total: 'sum',
-  current: 'lastNotNull',
+  current: 'last',
   count: 'count',
 };
 
@@ -163,10 +164,8 @@ const migrateTableStyleToOverride = (style: Style) => {
 
   if (style.colorMode) {
     override.properties.push({
-      id: 'custom.cellOptions',
-      value: {
-        type: colorModeMap[style.colorMode],
-      },
+      id: 'custom.displayMode',
+      value: colorModeMap[style.colorMode],
     });
   }
 
@@ -202,23 +201,17 @@ const migrateDefaults = (prevDefaults: Style) => {
         displayName: prevDefaults.alias,
         custom: {
           align: prevDefaults.align === 'auto' ? null : prevDefaults.align,
+          displayMode: colorModeMap[prevDefaults.colorMode],
         },
       },
       isNil
     );
-
     if (prevDefaults.thresholds.length) {
       const thresholds: ThresholdsConfig = {
         mode: ThresholdsMode.Absolute,
         steps: generateThresholds(prevDefaults.thresholds, prevDefaults.colors),
       };
       defaults.thresholds = thresholds;
-    }
-
-    if (prevDefaults.colorMode) {
-      defaults.custom.cellOptions = {
-        type: colorModeMap[prevDefaults.colorMode],
-      };
     }
   }
   return defaults;

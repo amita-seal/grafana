@@ -1,18 +1,16 @@
 package notifiers
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/components/simplejson"
 	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/notifications"
-	"github.com/grafana/grafana/pkg/setting"
 )
 
 func init() {
@@ -72,9 +70,9 @@ func init() {
 }
 
 // NewSensuGoNotifier is the constructor for the Sensu Go Notifier.
-func NewSensuGoNotifier(model *models.AlertNotification, fn alerting.GetDecryptedValueFn, ns notifications.Service) (alerting.Notifier, error) {
+func NewSensuGoNotifier(model *models.AlertNotification) (alerting.Notifier, error) {
 	url := model.Settings.Get("url").MustString()
-	apikey := fn(context.Background(), model.SecureSettings, "apikey", model.Settings.Get("apikey").MustString(), setting.SecretKey)
+	apikey := model.DecryptedValue("apikey", model.Settings.Get("apikey").MustString())
 
 	if url == "" {
 		return nil, alerting.ValidationError{Reason: "Could not find URL property in settings"}
@@ -84,7 +82,7 @@ func NewSensuGoNotifier(model *models.AlertNotification, fn alerting.GetDecrypte
 	}
 
 	return &SensuGoNotifier{
-		NotifierBase: NewNotifierBase(model, ns),
+		NotifierBase: NewNotifierBase(model),
 		URL:          url,
 		Entity:       model.Settings.Get("entity").MustString(),
 		Check:        model.Settings.Get("check").MustString(),
@@ -188,7 +186,7 @@ func (sn *SensuGoNotifier) Notify(evalContext *alerting.EvalContext) error {
 		return err
 	}
 
-	cmd := &notifications.SendWebhookSync{
+	cmd := &models.SendWebhookSync{
 		Url:        fmt.Sprintf("%s/api/core/v2/namespaces/%s/events", strings.TrimSuffix(sn.URL, "/"), namespace),
 		Body:       string(body),
 		HttpMethod: "POST",
@@ -197,7 +195,7 @@ func (sn *SensuGoNotifier) Notify(evalContext *alerting.EvalContext) error {
 			"Authorization": fmt.Sprintf("Key %s", sn.APIKey),
 		},
 	}
-	if err := sn.NotificationService.SendWebhookSync(evalContext.Ctx, cmd); err != nil {
+	if err := bus.DispatchCtx(evalContext.Ctx, cmd); err != nil {
 		sn.log.Error("Failed to send Sensu Go event", "error", err, "sensugo", sn.Name)
 		return err
 	}

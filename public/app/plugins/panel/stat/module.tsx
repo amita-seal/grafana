@@ -1,27 +1,18 @@
+import { BigValueTextMode, sharedSingleStatMigrationHandler } from '@grafana/ui';
 import { PanelPlugin } from '@grafana/data';
-import { BigValueColorMode, BigValueGraphMode, BigValueJustifyMode, BigValueTextMode } from '@grafana/schema';
-import { commonOptionsBuilder, sharedSingleStatMigrationHandler } from '@grafana/ui';
-
-import { statPanelChangedHandler } from './StatMigrations';
+import { addStandardDataReduceOptions, StatPanelOptions } from './types';
 import { StatPanel } from './StatPanel';
-import { addStandardDataReduceOptions, addOrientationOption } from './common';
-import { defaultOptions, Options } from './panelcfg.gen';
-import { StatSuggestionsSupplier } from './suggestions';
+import { statPanelChangedHandler } from './StatMigrations';
 
-export const plugin = new PanelPlugin<Options>(StatPanel)
+export const plugin = new PanelPlugin<StatPanelOptions>(StatPanel)
   .useFieldConfig()
   .setPanelOptions((builder) => {
-    const mainCategory = ['Stat styles'];
-
     addStandardDataReduceOptions(builder);
-    addOrientationOption(builder, mainCategory);
-    commonOptionsBuilder.addTextSizeOptions(builder);
 
     builder.addSelect({
       path: 'textMode',
       name: 'Text mode',
       description: 'Control if name and value is displayed or just name',
-      category: mainCategory,
       settings: {
         options: [
           { value: BigValueTextMode.Auto, label: 'Auto' },
@@ -31,21 +22,19 @@ export const plugin = new PanelPlugin<Options>(StatPanel)
           { value: BigValueTextMode.None, label: 'None' },
         ],
       },
-      defaultValue: defaultOptions.textMode,
+      defaultValue: 'auto',
     });
 
     builder
-      .addSelect({
+      .addRadio({
         path: 'colorMode',
         name: 'Color mode',
-        defaultValue: BigValueColorMode.Value,
-        category: mainCategory,
+        description: 'Color either the value or the background',
+        defaultValue: 'value',
         settings: {
           options: [
-            { value: BigValueColorMode.None, label: 'None' },
-            { value: BigValueColorMode.Value, label: 'Value' },
-            { value: BigValueColorMode.Background, label: 'Background Gradient' },
-            { value: BigValueColorMode.BackgroundSolid, label: 'Background Solid' },
+            { value: 'value', label: 'Value' },
+            { value: 'background', label: 'Background' },
           ],
         },
       })
@@ -53,29 +42,27 @@ export const plugin = new PanelPlugin<Options>(StatPanel)
         path: 'graphMode',
         name: 'Graph mode',
         description: 'Stat panel graph / sparkline mode',
-        category: mainCategory,
-        defaultValue: defaultOptions.graphMode,
+        defaultValue: 'area',
         settings: {
           options: [
-            { value: BigValueGraphMode.None, label: 'None' },
-            { value: BigValueGraphMode.Area, label: 'Area' },
+            { value: 'none', label: 'None' },
+            { value: 'area', label: 'Area' },
           ],
         },
       })
       .addRadio({
         path: 'justifyMode',
-        name: 'Text alignment',
-        defaultValue: defaultOptions.justifyMode,
-        category: mainCategory,
+        name: 'Alignment mode',
+        description: 'Value & title posititioning',
+        defaultValue: 'auto',
         settings: {
           options: [
-            { value: BigValueJustifyMode.Auto, label: 'Auto' },
-            { value: BigValueJustifyMode.Center, label: 'Center' },
+            { value: 'auto', label: 'Auto' },
+            { value: 'center', label: 'Center' },
           ],
         },
       });
   })
   .setNoPadding()
   .setPanelChangeHandler(statPanelChangedHandler)
-  .setSuggestionsSupplier(new StatSuggestionsSupplier())
   .setMigrationHandler(sharedSingleStatMigrationHandler);

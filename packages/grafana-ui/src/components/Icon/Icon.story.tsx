@@ -1,18 +1,14 @@
-import { css } from '@emotion/css';
-import { Meta } from '@storybook/react';
 import React, { ChangeEvent, useState } from 'react';
+import { css } from 'emotion';
 
-import { toIconName, IconName } from '@grafana/data';
 import { Input, Field, Icon } from '@grafana/ui';
-
-import { useTheme2 } from '../../themes';
-import { getAvailableIcons } from '../../types';
+import { getAvailableIcons, IconName } from '../../types';
 import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
+import { useTheme } from '../../themes';
 import mdx from './Icon.mdx';
 
-const meta: Meta<typeof Icon> = {
-  title: 'Docs overview/Icon',
+export default {
+  title: 'Docs Overview/Icon',
   component: Icon,
   decorators: [withCenteredStory],
   parameters: {
@@ -26,8 +22,8 @@ const meta: Meta<typeof Icon> = {
 };
 
 const IconWrapper = ({ name }: { name: IconName }) => {
-  const theme = useTheme2();
-  const borderColor = theme.colors.border.medium;
+  const theme = useTheme();
+  const borderColor = theme.colors.border2;
 
   return (
     <div
@@ -47,7 +43,7 @@ const IconWrapper = ({ name }: { name: IconName }) => {
         className={css`
           padding-top: 16px;
           word-break: break-all;
-          font-family: ${theme.typography.fontFamilyMonospace};
+          font-family: ${theme.typography.fontFamily.monospace};
           font-size: ${theme.typography.size.xs};
         `}
       >
@@ -57,8 +53,7 @@ const IconWrapper = ({ name }: { name: IconName }) => {
   );
 };
 
-const icons = [...getAvailableIcons()];
-icons.sort((a, b) => a.localeCompare(b));
+const icons = getAvailableIcons().sort((a, b) => a.localeCompare(b));
 
 export const IconsOverview = () => {
   const [filter, setFilter] = useState('');
@@ -72,8 +67,6 @@ export const IconsOverview = () => {
       className={css`
         display: flex;
         flex-direction: column;
-        height: 100%;
-        overflow: auto;
         width: 100%;
       `}
     >
@@ -93,11 +86,9 @@ export const IconsOverview = () => {
         {icons
           .filter((val) => val.includes(filter))
           .map((i) => {
-            return <IconWrapper name={toIconName(i)!} key={i} />;
+            return <IconWrapper name={i} key={i} />;
           })}
       </div>
     </div>
   );
 };
-
-export default meta;

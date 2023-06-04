@@ -1,19 +1,22 @@
-import React, { useCallback } from 'react';
-
-import { locationService } from '@grafana/runtime';
+import React, { FC, useCallback } from 'react';
+import { useDispatch } from 'react-redux';
+import { Dispatch } from 'redux';
 import { Button, VerticalGroup } from '@grafana/ui';
-import { Layout } from '@grafana/ui/src/components/Layout/Layout';
 
+import { Layout } from '@grafana/ui/src/components/Layout/Layout';
 import { PanelEditorTabId } from './types';
+import { updateLocation } from '../../../../core/actions';
 
 export interface Props {
   message: string;
+  dispatch?: Dispatch;
 }
 
-export function PanelNotSupported({ message }: Props): JSX.Element {
+export const PanelNotSupported: FC<Props> = ({ message, dispatch: propsDispatch }) => {
+  const dispatch = propsDispatch ? propsDispatch : useDispatch();
   const onBackToQueries = useCallback(() => {
-    locationService.partial({ tab: PanelEditorTabId.Query });
-  }, []);
+    dispatch(updateLocation({ query: { tab: PanelEditorTabId.Query }, partial: true }));
+  }, [dispatch]);
 
   return (
     <Layout justify="center" style={{ marginTop: '100px' }}>
@@ -27,4 +30,4 @@ export function PanelNotSupported({ message }: Props): JSX.Element {
       </VerticalGroup>
     </Layout>
   );
-}
+};

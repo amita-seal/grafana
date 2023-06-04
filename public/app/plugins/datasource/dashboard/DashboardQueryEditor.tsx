@@ -1,28 +1,17 @@
-import { css } from '@emotion/css';
-import { useId } from '@react-aria/utils';
-import pluralize from 'pluralize';
-import React, { useCallback, useMemo } from 'react';
-import { useAsync } from 'react-use';
+import React, { PureComponent } from 'react';
+import { LegacyForms, VerticalGroup } from '@grafana/ui';
+import { DataQuery, PanelData, SelectableValue } from '@grafana/data';
+import { css } from 'emotion';
 
-import { DataQuery, GrafanaTheme2, PanelData, SelectableValue, DataTopic } from '@grafana/data';
-import {
-  Card,
-  Field,
-  Select,
-  useStyles2,
-  VerticalGroup,
-  HorizontalGroup,
-  Spinner,
-  Switch,
-  RadioButtonGroup,
-} from '@grafana/ui';
+import { DashboardQuery, ResultInfo, SHARED_DASHBODARD_QUERY } from './types';
 import config from 'app/core/config';
-import { getDashboardSrv } from 'app/features/dashboard/services/DashboardSrv';
-import { PanelModel } from 'app/features/dashboard/state';
 import { getDatasourceSrv } from 'app/features/plugins/datasource_srv';
+import { PanelModel } from 'app/features/dashboard/state';
+import { getDashboardSrv } from 'app/features/dashboard/services/DashboardSrv';
 import { filterPanelDataToQuery } from 'app/features/query/components/QueryEditorRow';
+import { DashboardQueryRow } from './DashboardQueryRow';
 
-import { DashboardQuery, ResultInfo, SHARED_DASHBOARD_QUERY } from './types';
+const { Select } = LegacyForms;
 
 function getQueryDisplayText(query: DataQuery): string {
   return JSON.stringify(query);
@@ -35,186 +24,160 @@ interface Props {
   onRunQueries: () => void;
 }
 
-const topics = [
-  { label: 'All data', value: false },
-  { label: 'Annotations', value: true, description: 'Include annotations as regular data' },
-];
+type State = {
+  defaultDatasource: string;
+  results: ResultInfo[];
+};
 
-export function DashboardQueryEditor({ panelData, queries, onChange, onRunQueries }: Props) {
-  const { value: defaultDatasource } = useAsync(() => getDatasourceSrv().get());
-  const query = queries[0] as DashboardQuery;
+export class DashboardQueryEditor extends PureComponent<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      defaultDatasource: '',
+      results: [],
+    };
+  }
 
-  const panel = useMemo(() => {
-    const dashboard = getDashboardSrv().getCurrent();
-    return dashboard?.getPanelById(query.panelId ?? -124134);
-  }, [query.panelId]);
+  getQuery(): DashboardQuery {
+    return this.props.queries[0] as DashboardQuery;
+  }
 
-  const { value: results, loading: loadingResults } = useAsync(async (): Promise<ResultInfo[]> => {
-    if (!panel) {
-      return [];
+  async componentDidMount() {
+    await this.updateState();
+  }
+
+  async componentDidUpdate(prevProps: Props) {
+    const { panelData, queries } = this.props;
+
+    if (prevProps.panelData !== panelData || prevProps.queries !== queries) {
+      await this.updateState();
     }
+  }
+
+  async updateState() {
+    const { panelData, queries } = this.props;
+
+    const query = queries[0] as DashboardQuery;
+    const defaultDS = await getDatasourceSrv().get();
+    const dashboard = getDashboardSrv().getCurrent();
+    const panel = dashboard.getPanelById(query.panelId ?? -124134);
+
+    if (!panel) {
+      this.setState({ defaultDatasource: defaultDS.name });
+      return;
+    }
+
     const mainDS = await getDatasourceSrv().get(panel.datasource);
-    return Promise.all(
-      panel.targets.map(async (query) => {
-        const ds = query.datasource ? await getDatasourceSrv().get(query.datasource) : mainDS;
-        const fmt = ds.getQueryDisplayText || getQueryDisplayText;
-        const queryData = filterPanelDataToQuery(panelData, query.refId) ?? panelData;
-        return {
-          refId: query.refId,
-          query: fmt(query),
-          name: ds.name,
-          img: ds.meta.info.logos.small,
-          data: queryData.series,
-          error: queryData.error,
-        };
-      })
-    );
-  }, [panelData, panel]);
+    const info: ResultInfo[] = [];
 
-  const onUpdateQuery = useCallback(
-    (query: DashboardQuery) => {
-      onChange([query]);
-      onRunQueries();
-    },
-    [onChange, onRunQueries]
-  );
+    for (const query of panel.targets) {
+      const ds = query.datasource ? await getDatasourceSrv().get(query.datasource) : mainDS;
+      const fmt = ds.getQueryDisplayText ? ds.getQueryDisplayText : getQueryDisplayText;
 
-  const onPanelChanged = useCallback(
-    (id: number) => {
-      onUpdateQuery({
+      const qData = filterPanelDataToQuery(panelData, query.refId);
+      const queryData = qData ? qData : panelData;
+
+      info.push({
+        refId: query.refId,
+        query: fmt(query),
+        img: ds.meta.info.logos.small,
+        data: queryData.series,
+        error: queryData.error,
+      });
+    }
+
+    this.setState({ defaultDatasource: defaultDS.name, results: info });
+  }
+
+  onPanelChanged = (id: number) => {
+    const query = this.getQuery();
+
+    this.props.onChange([
+      {
         ...query,
         panelId: id,
-      });
-    },
-    [query, onUpdateQuery]
-  );
+      } as DashboardQuery,
+    ]);
+    this.props.onRunQueries();
+  };
 
-  const onTransformToggle = useCallback(() => {
-    onUpdateQuery({
-      ...query,
-      withTransforms: !query.withTransforms,
-    });
-  }, [query, onUpdateQuery]);
+  renderQueryData(editURL: string) {
+    const { results } = this.state;
 
-  const onTopicChanged = useCallback(
-    (t: boolean) => {
-      onUpdateQuery({
-        ...query,
-        topic: t ? DataTopic.Annotations : undefined,
-      });
-    },
-    [query, onUpdateQuery]
-  );
-
-  const getPanelDescription = useCallback(
-    (panel: PanelModel): string => {
-      const datasource = panel.datasource ?? defaultDatasource;
-      const dsname = getDatasourceSrv().getInstanceSettings(datasource)?.name;
-      const queryCount = panel.targets.length;
-      return `${queryCount} ${pluralize('query', queryCount)} to ${dsname}`;
-    },
-    [defaultDatasource]
-  );
-
-  const dashboard = getDashboardSrv().getCurrent();
-  const showTransforms = Boolean(query.withTransforms || panel?.transformations?.length);
-  const panels: Array<SelectableValue<number>> = useMemo(
-    () =>
-      dashboard?.panels
-        .filter(
-          (panel) =>
-            config.panels[panel.type] &&
-            panel.targets &&
-            panel.id !== dashboard.panelInEdit?.id &&
-            panel.datasource?.uid !== SHARED_DASHBOARD_QUERY
-        )
-        .map((panel) => ({
-          value: panel.id,
-          label: panel.title ?? 'Panel ' + panel.id,
-          description: getPanelDescription(panel),
-          imgUrl: config.panels[panel.type].info.logos.small,
-        })) ?? [],
-    [dashboard, getPanelDescription]
-  );
-
-  const styles = useStyles2(getStyles);
-  const selectId = useId();
-
-  if (!dashboard) {
-    return null;
-  }
-
-  if (panels.length < 1) {
     return (
-      <p className={styles.noQueriesText}>
-        This dashboard does not have any other panels. Add queries to other panels and try again.
-      </p>
+      <VerticalGroup spacing="sm">
+        {results.map((target, index) => {
+          return <DashboardQueryRow editURL={editURL} target={target} key={`DashboardQueryRow-${index}`} />;
+        })}
+      </VerticalGroup>
     );
   }
 
-  const selected = panels.find((panel) => panel.value === query.panelId);
+  getPanelDescription = (panel: PanelModel): string => {
+    const { defaultDatasource } = this.state;
+    const dsname = panel.datasource ? panel.datasource : defaultDatasource;
 
-  return (
-    <>
-      <Field label="Source" description="Use the same results as panel">
-        <Select
-          inputId={selectId}
-          placeholder="Choose panel"
-          isSearchable={true}
-          options={panels}
-          value={selected}
-          onChange={(item) => onPanelChanged(item.value!)}
-        />
-      </Field>
+    if (panel.targets.length === 1) {
+      return '1 query to ' + dsname;
+    }
 
-      <HorizontalGroup height="auto" wrap={true} align="flex-start">
-        <Field
-          label="Data Source"
-          description="Use data or annotations from the panel"
-          className={styles.horizontalField}
-        >
-          <RadioButtonGroup options={topics} value={query.topic === DataTopic.Annotations} onChange={onTopicChanged} />
-        </Field>
-
-        {showTransforms && (
-          <Field label="Transform" description="Apply panel transformations from the source panel">
-            <Switch value={Boolean(query.withTransforms)} onChange={onTransformToggle} />
-          </Field>
-        )}
-      </HorizontalGroup>
-
-      {loadingResults ? (
-        <Spinner />
-      ) : (
-        <>
-          {results && Boolean(results.length) && (
-            <Field label="Queries from panel">
-              <VerticalGroup spacing="sm">
-                {results.map((target, i) => (
-                  <Card key={`DashboardQueryRow-${i}`}>
-                    <Card.Heading>{target.refId}</Card.Heading>
-                    <Card.Figure>
-                      <img src={target.img} alt={target.name} title={target.name} width={40} />
-                    </Card.Figure>
-                    <Card.Meta>{target.query}</Card.Meta>
-                  </Card>
-                ))}
-              </VerticalGroup>
-            </Field>
-          )}
-        </>
-      )}
-    </>
-  );
-}
-
-function getStyles(theme: GrafanaTheme2) {
-  return {
-    horizontalField: css({
-      marginRight: theme.spacing(2),
-    }),
-    noQueriesText: css({
-      padding: theme.spacing(1.25),
-    }),
+    return panel.targets.length + ' queries to ' + dsname;
   };
+
+  render() {
+    const dashboard = getDashboardSrv().getCurrent();
+    const query = this.getQuery();
+
+    let selected: SelectableValue<number> | undefined;
+    const panels: Array<SelectableValue<number>> = [];
+
+    for (const panel of dashboard.panels) {
+      const plugin = config.panels[panel.type];
+      if (!plugin) {
+        continue;
+      }
+
+      if (panel.targets && panel.datasource !== SHARED_DASHBODARD_QUERY) {
+        const item = {
+          value: panel.id,
+          label: panel.title ? panel.title : 'Panel ' + panel.id,
+          description: this.getPanelDescription(panel),
+          imgUrl: plugin.info.logos.small,
+        };
+
+        panels.push(item);
+
+        if (query.panelId === panel.id) {
+          selected = item;
+        }
+      }
+    }
+
+    if (panels.length < 1) {
+      return (
+        <div className={css({ padding: '10px' })}>
+          This dashboard does not have other panels. Add queries to other panels and try again
+        </div>
+      );
+    }
+
+    // Same as current URL, but different panelId
+    const editURL = `d/${dashboard.uid}/${dashboard.title}?&editPanel=${query.panelId}`;
+
+    return (
+      <div>
+        <div className="gf-form">
+          <div className="gf-form-label">Use results from panel</div>
+          <Select
+            placeholder="Choose Panel"
+            isSearchable={true}
+            options={panels}
+            value={selected}
+            onChange={(item) => this.onPanelChanged(item.value!)}
+          />
+        </div>
+        <div className={css({ padding: '16px' })}>{query.panelId && this.renderQueryData(editURL)}</div>
+      </div>
+    );
+  }
 }

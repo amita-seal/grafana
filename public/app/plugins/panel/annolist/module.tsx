@@ -1,104 +1,80 @@
 import React from 'react';
-
 import { PanelModel, PanelPlugin } from '@grafana/data';
 import { TagsInput } from '@grafana/ui';
-
 import { AnnoListPanel } from './AnnoListPanel';
-import { defaultOptions, Options } from './panelcfg.gen';
+import { AnnoOptions } from './types';
 
-export const plugin = new PanelPlugin<Options>(AnnoListPanel)
+export const plugin = new PanelPlugin<AnnoOptions>(AnnoListPanel)
   .setPanelOptions((builder) => {
     builder
-      .addRadio({
-        category: ['Annotation query'],
-        path: 'onlyFromThisDashboard',
-        name: 'Query filter',
-        defaultValue: defaultOptions.onlyFromThisDashboard,
-        settings: {
-          options: [
-            { value: false, label: 'All dashboards' },
-            { value: true, label: 'This dashboard' },
-          ],
-        },
+      .addBooleanSwitch({
+        path: 'showUser',
+        name: 'Show user',
+        description: '',
+        defaultValue: true,
       })
-      .addRadio({
-        category: ['Annotation query'],
+      .addBooleanSwitch({
+        path: 'showTime',
+        name: 'Show time',
+        description: '',
+        defaultValue: true,
+      })
+      .addBooleanSwitch({
+        path: 'showTags',
+        name: 'Show tags',
+        description: '',
+        defaultValue: true,
+      })
+      .addTextInput({
+        path: 'navigateBefore',
+        name: 'Before',
+        defaultValue: '10m',
+        description: '',
+      })
+      .addTextInput({
+        path: 'navigateAfter',
+        name: 'After',
+        defaultValue: '10m',
+        description: '',
+      })
+      .addBooleanSwitch({
+        path: 'navigateToPanel',
+        name: 'To panel',
+        description: '',
+        defaultValue: true,
+      })
+      .addBooleanSwitch({
+        path: 'onlyFromThisDashboard',
+        name: 'Only this dashboard',
+        description: '',
+        defaultValue: false,
+      })
+      .addBooleanSwitch({
         path: 'onlyInTimeRange',
-        name: 'Time range',
-        defaultValue: defaultOptions.onlyInTimeRange,
-        settings: {
-          options: [
-            { value: false, label: 'None' },
-            { value: true, label: 'This dashboard' },
-          ],
-        },
+        name: 'Within Time Range',
+        description: '',
+        defaultValue: false,
       })
       .addCustomEditor({
-        category: ['Annotation query'],
         id: 'tags',
         path: 'tags',
         name: 'Tags',
-        description: 'Match annotation tags',
+        description: '',
         editor(props) {
           return <TagsInput tags={props.value} onChange={props.onChange} />;
         },
       })
       .addNumberInput({
-        category: ['Annotation query'],
         path: 'limit',
         name: 'Limit',
-        defaultValue: defaultOptions.limit,
-      })
-      .addBooleanSwitch({
-        category: ['Display'],
-        path: 'showUser',
-        name: 'Show user',
-        defaultValue: defaultOptions.showUser,
-      })
-      .addBooleanSwitch({
-        category: ['Display'],
-        path: 'showTime',
-        name: 'Show time',
-        defaultValue: defaultOptions.showTime,
-      })
-      .addBooleanSwitch({
-        category: ['Display'],
-        path: 'showTags',
-        name: 'Show tags',
-        defaultValue: defaultOptions.showTags,
-      })
-      .addRadio({
-        category: ['Link behavior'],
-        path: 'navigateToPanel',
-        name: 'Link target',
-        defaultValue: defaultOptions.navigateToPanel,
-        settings: {
-          options: [
-            { value: true, label: 'Panel' },
-            { value: false, label: 'Dashboard' },
-          ],
-        },
-      })
-      .addTextInput({
-        category: ['Link behavior'],
-        path: 'navigateBefore',
-        name: 'Time before',
-        defaultValue: defaultOptions.navigateBefore,
         description: '',
-      })
-      .addTextInput({
-        category: ['Link behavior'],
-        path: 'navigateAfter',
-        name: 'Time after',
-        defaultValue: defaultOptions.navigateAfter,
-        description: '',
+        defaultValue: 10,
       });
   })
   // TODO, we should support this directly in the plugin infrastructure
-  .setPanelChangeHandler((panel: PanelModel<Options>, prevPluginId: string, prevOptions: unknown) => {
+  .setPanelChangeHandler((panel: PanelModel<AnnoOptions>, prevPluginId: string, prevOptions: any) => {
     if (prevPluginId === 'ryantxu-annolist-panel') {
-      return prevOptions as Options;
+      return prevOptions as AnnoOptions;
     }
-
     return panel.options;
   });

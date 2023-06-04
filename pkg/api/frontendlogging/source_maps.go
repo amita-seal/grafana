@@ -1,7 +1,7 @@
 package frontendlogging
 
 import (
-	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -10,12 +10,11 @@ import (
 	"sync"
 
 	sourcemap "github.com/go-sourcemap/sourcemap"
-	"github.com/grafana/grafana/pkg/infra/log"
+
+	"github.com/getsentry/sentry-go"
 	"github.com/grafana/grafana/pkg/plugins"
 	"github.com/grafana/grafana/pkg/setting"
 )
-
-var logger = log.New("frontendlogging")
 
 type sourceMapLocation struct {
 	dir      string
@@ -40,22 +39,20 @@ func ReadSourceMapFromFS(dir string, path string) ([]byte, error) {
 			logger.Error("Failed to close source map file", "err", err)
 		}
 	}()
-	return io.ReadAll(file)
+	return ioutil.ReadAll(file)
 }
 
 type SourceMapStore struct {
-	sync.Mutex
 	cache         map[string]*sourceMap
 	cfg           *setting.Cfg
 	readSourceMap ReadSourceMapFn
-	routeResolver plugins.StaticRouteResolver
+	sync.Mutex
 }
 
-func NewSourceMapStore(cfg *setting.Cfg, routeResolver plugins.StaticRouteResolver, readSourceMap ReadSourceMapFn) *SourceMapStore {
+func NewSourceMapStore(cfg *setting.Cfg, readSourceMap ReadSourceMapFn) *SourceMapStore {
 	return &SourceMapStore{
 		cache:         make(map[string]*sourceMap),
 		cfg:           cfg,
-		routeResolver: routeResolver,
 		readSourceMap: readSourceMap,
 	}
 }
@@ -72,8 +69,7 @@ func (store *SourceMapStore) guessSourceMapLocation(sourceURL string) (*sourceMa
 	}
 
 	// determine if source comes from grafana core, locally or CDN, look in public build dir on fs
-	if strings.HasPrefix(u.Path, "/public/build/") || (store.cfg.CDNRootURL != nil &&
-		strings.HasPrefix(sourceURL, store.cfg.CDNRootURL.String()) && strings.Contains(u.Path, "/public/build/")) {
+	if strings.HasPrefix(u.Path, "/public/build/") || (store.cfg.CDNRootURL != nil && strings.HasPrefix(sourceURL, store.cfg.CDNRootURL.String()) && strings.Contains(u.Path, "/public/build/")) {
 		pathParts := strings.SplitN(u.Path, "/public/build/", 2)
 		if len(pathParts) == 2 {
 			return &sourceMapLocation{
@@ -84,13 +80,13 @@ func (store *SourceMapStore) guessSourceMapLocation(sourceURL string) (*sourceMa
 		}
 		// if source comes from a plugin, look in plugin dir
 	} else if strings.HasPrefix(u.Path, "/public/plugins/") {
-		for _, route := range store.routeResolver.Routes() {
-			pluginPrefix := filepath.Join("/public/plugins/", route.PluginID)
+		for _, route := range plugins.StaticRoutes {
+			pluginPrefix := filepath.Join("/public/plugins/", route.PluginId)
 			if strings.HasPrefix(u.Path, pluginPrefix) {
 				return &sourceMapLocation{
 					dir:      route.Directory,
 					path:     u.Path[len(pluginPrefix):] + ".map",
-					pluginID: route.PluginID,
+					pluginID: route.PluginId,
 				}, nil
 			}
 		}
@@ -115,7 +111,7 @@ func (store *SourceMapStore) getSourceMap(sourceURL string) (*sourceMap, error) 
 		return nil, nil
 	}
 	path := strings.ReplaceAll(sourceMapLocation.path, "../", "") // just in case
-	content, err := store.readSourceMap(sourceMapLocation.dir, path)
+	b, err := store.readSourceMap(sourceMapLocation.dir, path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Cache nil value for sourceURL, since we want to flag that it wasn't found in the filesystem and not try again
@@ -125,7 +121,7 @@ func (store *SourceMapStore) getSourceMap(sourceURL string) (*sourceMap, error) 
 		return nil, err
 	}
 
-	consumer, err := sourcemap.Parse(sourceURL+".map", content)
+	consumer, err := sourcemap.Parse(sourceURL+".map", b)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +133,7 @@ func (store *SourceMapStore) getSourceMap(sourceURL string) (*sourceMap, error) 
 	return smap, nil
 }
 
-func (store *SourceMapStore) resolveSourceLocation(frame Frame) (*Frame, error) {
+func (store *SourceMapStore) resolveSourceLocation(frame sentry.Frame) (*sentry.Frame, error) {
 	smap, err := store.getSourceMap(frame.Filename)
 	if err != nil {
 		return nil, err
@@ -158,7 +154,7 @@ func (store *SourceMapStore) resolveSourceLocation(frame Frame) (*Frame, error) 
 	if len(smap.pluginID) > 0 {
 		module = smap.pluginID
 	}
-	return &Frame{
+	return &sentry.Frame{
 		Filename: file,
 		Lineno:   line,
 		Colno:    col,

@@ -1,39 +1,44 @@
 import React, { useCallback, useState } from 'react';
+import { Button, HorizontalGroup, Icon, Input, Modal, useStyles } from '@grafana/ui';
 import { useAsync, useDebounce } from 'react-use';
-
-import { Button, Icon, Input, Modal, useStyles2 } from '@grafana/ui';
-
-import { getConnectedDashboards } from '../../state/api';
-import { getModalStyles } from '../../styles';
-import { PanelModelWithLibraryPanel } from '../../types';
+import { getBackendSrv } from 'app/core/services/backend_srv';
 import { usePanelSave } from '../../utils/usePanelSave';
+import { getLibraryPanelConnectedDashboards } from '../../state/api';
+import { PanelModelWithLibraryPanel } from '../../types';
+import { getModalStyles } from '../../styles';
 
 interface Props {
   panel: PanelModelWithLibraryPanel;
-  folderUid: string;
-  isUnsavedPrompt?: boolean;
+  folderId: number;
+  isOpen: boolean;
   onConfirm: () => void;
   onDismiss: () => void;
   onDiscard: () => void;
 }
 
-export const SaveLibraryPanelModal = ({
+export const SaveLibraryPanelModal: React.FC<Props> = ({
   panel,
-  folderUid,
-  isUnsavedPrompt,
+  folderId,
+  isOpen,
   onDismiss,
   onConfirm,
   onDiscard,
-}: Props) => {
+}) => {
   const [searchString, setSearchString] = useState('');
+  const connectedDashboardsState = useAsync(async () => {
+    const connectedDashboards = await getLibraryPanelConnectedDashboards(panel.libraryPanel.uid);
+    return connectedDashboards;
+  }, []);
+
   const dashState = useAsync(async () => {
-    const searchHits = await getConnectedDashboards(panel.libraryPanel.uid);
-    if (searchHits.length > 0) {
-      return searchHits.map((dash) => dash.title);
+    const connectedDashboards = connectedDashboardsState.value;
+    if (connectedDashboards && connectedDashboards.length > 0) {
+      const dashboardDTOs = await getBackendSrv().search({ dashboardIds: connectedDashboards });
+      return dashboardDTOs.map((dash) => dash.title);
     }
 
     return [];
-  }, [panel.libraryPanel.uid]);
+  }, [connectedDashboardsState.value]);
 
   const [filteredDashboards, setFilteredDashboards] = useState<string[]>([]);
   useDebounce(
@@ -51,21 +56,20 @@ export const SaveLibraryPanelModal = ({
   );
 
   const { saveLibraryPanel } = usePanelSave();
-  const styles = useStyles2(getModalStyles);
+  const styles = useStyles(getModalStyles);
   const discardAndClose = useCallback(() => {
     onDiscard();
-  }, [onDiscard]);
-
-  const title = isUnsavedPrompt ? 'Unsaved library panel changes' : 'Save library panel';
+    onDismiss();
+  }, []);
 
   return (
-    <Modal title={title} icon="save" onDismiss={onDismiss} isOpen={true}>
+    <Modal title="Update all panel instances" icon="save" onDismiss={onDismiss} isOpen={isOpen}>
       <div>
         <p className={styles.textInfo}>
           {'This update will affect '}
           <strong>
-            {panel.libraryPanel.meta?.connectedDashboards}{' '}
-            {panel.libraryPanel.meta?.connectedDashboards === 1 ? 'dashboard' : 'dashboards'}.
+            {panel.libraryPanel.meta.connectedDashboards}{' '}
+            {panel.libraryPanel.meta.connectedDashboards === 1 ? 'dashboard' : 'dashboards'}.
           </strong>
           The following dashboards using the panel will be affected:
         </p>
@@ -94,25 +98,24 @@ export const SaveLibraryPanelModal = ({
             </tbody>
           </table>
         )}
-        <Modal.ButtonRow>
-          <Button variant="secondary" onClick={onDismiss} fill="outline">
-            Cancel
-          </Button>
-          {isUnsavedPrompt && (
-            <Button variant="destructive" onClick={discardAndClose}>
-              Discard
-            </Button>
-          )}
+        <HorizontalGroup>
           <Button
             onClick={() => {
-              saveLibraryPanel(panel, folderUid).then(() => {
+              saveLibraryPanel(panel, folderId).then(() => {
                 onConfirm();
+                onDismiss();
               });
             }}
           >
             Update all
           </Button>
-        </Modal.ButtonRow>
+          <Button variant="secondary" onClick={onDismiss}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={discardAndClose}>
+            Discard
+          </Button>
+        </HorizontalGroup>
       </div>
     </Modal>
   );

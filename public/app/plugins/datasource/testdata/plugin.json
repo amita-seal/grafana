@@ -1,13 +1,12 @@
 {
   "type": "datasource",
-  "name": "TestData",
+  "name": "TestData DB",
   "id": "testdata",
 
   "metrics": true,
   "logs": true,
   "alerting": true,
   "annotations": true,
-  "backend": true,
 
   "queryOptions": {
     "minInterval": true,

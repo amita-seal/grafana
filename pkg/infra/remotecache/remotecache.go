@@ -1,14 +1,15 @@
 package remotecache
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"errors"
 	"time"
 
-	"github.com/grafana/grafana/pkg/infra/db"
-	"github.com/grafana/grafana/pkg/infra/usagestats"
+	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/registry"
-	"github.com/grafana/grafana/pkg/services/secrets"
+	"github.com/grafana/grafana/pkg/services/sqlstore"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
@@ -26,88 +27,66 @@ const (
 	ServiceName = "RemoteCache"
 )
 
-func ProvideService(cfg *setting.Cfg, sqlStore db.DB, usageStats usagestats.Service,
-	secretsService secrets.Service) (*RemoteCache, error) {
-	client, err := createClient(cfg.RemoteCacheOptions, sqlStore, secretsService)
-	if err != nil {
-		return nil, err
-	}
-	s := &RemoteCache{
-		SQLStore: sqlStore,
-		Cfg:      cfg,
-		client:   client,
-	}
-
-	usageStats.RegisterMetricsFunc(s.getUsageStats)
-
-	return s, nil
-}
-
-func (ds *RemoteCache) getUsageStats(ctx context.Context) (map[string]interface{}, error) {
-	stats := map[string]interface{}{}
-	stats["stats.remote_cache."+ds.Cfg.RemoteCacheOptions.Name+".count"] = 1
-	encryptVal := 0
-	if ds.Cfg.RemoteCacheOptions.Encryption {
-		encryptVal = 1
-	}
-
-	stats["stats.remote_cache.encrypt_enabled.count"] = encryptVal
-
-	return stats, nil
+func init() {
+	rc := &RemoteCache{}
+	registry.Register(&registry.Descriptor{
+		Name:         ServiceName,
+		Instance:     rc,
+		InitPriority: registry.Medium,
+	})
 }
 
 // CacheStorage allows the caller to set, get and delete items in the cache.
 // Cached items are stored as byte arrays and marshalled using "encoding/gob"
 // so any struct added to the cache needs to be registered with `remotecache.Register`
-// ex `remotecache.Register(CacheableStruct{})`
+// ex `remotecache.Register(CacheableStruct{})``
 type CacheStorage interface {
-	// Get gets the cache value as an byte array
-	Get(ctx context.Context, key string) ([]byte, error)
+	// Get reads object from Cache
+	Get(key string) (interface{}, error)
 
-	// Set saves the value as an byte array. if `expire` is set to zero it will default to 24h
-	Set(ctx context.Context, key string, value []byte, expire time.Duration) error
+	// Set sets an object into the cache. if `expire` is set to zero it will default to 24h
+	Set(key string, value interface{}, expire time.Duration) error
 
 	// Delete object from cache
-	Delete(ctx context.Context, key string) error
-
-	// Count returns the number of items in the cache.
-	// Optionaly a prefix can be provided to only count items with that prefix
-	// DO NOT USE. Not available for memcached.
-	Count(ctx context.Context, prefix string) (int64, error)
+	Delete(key string) error
 }
 
 // RemoteCache allows Grafana to cache data outside its own process
 type RemoteCache struct {
+	log      log.Logger
 	client   CacheStorage
-	SQLStore db.DB
-	Cfg      *setting.Cfg
+	SQLStore *sqlstore.SQLStore `inject:""`
+	Cfg      *setting.Cfg       `inject:""`
 }
 
-// Get returns the cached value as an byte array
-func (ds *RemoteCache) Get(ctx context.Context, key string) ([]byte, error) {
-	return ds.client.Get(ctx, key)
+// Get reads object from Cache
+func (ds *RemoteCache) Get(key string) (interface{}, error) {
+	return ds.client.Get(key)
 }
 
-// Set stored the byte array in the cache
-func (ds *RemoteCache) Set(ctx context.Context, key string, value []byte, expire time.Duration) error {
+// Set sets an object into the cache. if `expire` is set to zero it will default to 24h
+func (ds *RemoteCache) Set(key string, value interface{}, expire time.Duration) error {
 	if expire == 0 {
 		expire = defaultMaxCacheExpiration
 	}
 
-	return ds.client.Set(ctx, key, value, expire)
+	return ds.client.Set(key, value, expire)
 }
 
 // Delete object from cache
-func (ds *RemoteCache) Delete(ctx context.Context, key string) error {
-	return ds.client.Delete(ctx, key)
+func (ds *RemoteCache) Delete(key string) error {
+	return ds.client.Delete(key)
 }
 
-// Count returns the number of items in the cache.
-func (ds *RemoteCache) Count(ctx context.Context, prefix string) (int64, error) {
-	return ds.client.Count(ctx, prefix)
+// Init initializes the service
+func (ds *RemoteCache) Init() error {
+	ds.log = log.New("cache.remote")
+	var err error
+	ds.client, err = createClient(ds.Cfg.RemoteCacheOptions, ds.SQLStore)
+	return err
 }
 
-// Run starts the backend processes for cache clients.
+// Run start the backend processes for cache clients
 func (ds *RemoteCache) Run(ctx context.Context) error {
 	// create new interface if more clients need GC jobs
 	backgroundjob, ok := ds.client.(registry.BackgroundService)
@@ -119,79 +98,43 @@ func (ds *RemoteCache) Run(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func createClient(opts *setting.RemoteCacheOptions, sqlstore db.DB, secretsService secrets.Service) (cache CacheStorage, err error) {
-	switch opts.Name {
-	case redisCacheType:
-		cache, err = newRedisStorage(opts)
-	case memcachedCacheType:
-		cache = newMemcachedStorage(opts)
-	case databaseCacheType:
-		cache = newDatabaseCache(sqlstore)
-	default:
-		return nil, ErrInvalidCacheType
-	}
-	if err != nil {
-		return cache, err
-	}
-	if opts.Prefix != "" {
-		cache = &prefixCacheStorage{cache: cache, prefix: opts.Prefix}
+func createClient(opts *setting.RemoteCacheOptions, sqlstore *sqlstore.SQLStore) (CacheStorage, error) {
+	if opts.Name == redisCacheType {
+		return newRedisStorage(opts)
 	}
 
-	if opts.Encryption {
-		cache = &encryptedCacheStorage{cache: cache, secretsService: secretsService}
-	}
-	return cache, nil
-}
-
-type encryptedCacheStorage struct {
-	cache          CacheStorage
-	secretsService encryptionService
-}
-
-type encryptionService interface {
-	Encrypt(ctx context.Context, payload []byte, opt secrets.EncryptionOptions) ([]byte, error)
-	Decrypt(ctx context.Context, payload []byte) ([]byte, error)
-}
-
-func (pcs *encryptedCacheStorage) Get(ctx context.Context, key string) ([]byte, error) {
-	data, err := pcs.cache.Get(ctx, key)
-	if err != nil {
-		return nil, err
+	if opts.Name == memcachedCacheType {
+		return newMemcachedStorage(opts), nil
 	}
 
-	return pcs.secretsService.Decrypt(ctx, data)
-}
-func (pcs *encryptedCacheStorage) Set(ctx context.Context, key string, value []byte, expire time.Duration) error {
-	encrypted, err := pcs.secretsService.Encrypt(ctx, value, secrets.WithoutScope())
-	if err != nil {
-		return err
+	if opts.Name == databaseCacheType {
+		return newDatabaseCache(sqlstore), nil
 	}
 
-	return pcs.cache.Set(ctx, key, encrypted, expire)
-}
-func (pcs *encryptedCacheStorage) Delete(ctx context.Context, key string) error {
-	return pcs.cache.Delete(ctx, key)
+	return nil, ErrInvalidCacheType
 }
 
-func (pcs *encryptedCacheStorage) Count(ctx context.Context, prefix string) (int64, error) {
-	return pcs.cache.Count(ctx, prefix)
+// Register records a type, identified by a value for that type, under its
+// internal type name. That name will identify the concrete type of a value
+// sent or received as an interface variable. Only types that will be
+// transferred as implementations of interface values need to be registered.
+// Expecting to be used only during initialization, it panics if the mapping
+// between types and names is not a bijection.
+func Register(value interface{}) {
+	gob.Register(value)
 }
 
-type prefixCacheStorage struct {
-	cache  CacheStorage
-	prefix string
+type cachedItem struct {
+	Val interface{}
 }
 
-func (pcs *prefixCacheStorage) Get(ctx context.Context, key string) ([]byte, error) {
-	return pcs.cache.Get(ctx, pcs.prefix+key)
-}
-func (pcs *prefixCacheStorage) Set(ctx context.Context, key string, value []byte, expire time.Duration) error {
-	return pcs.cache.Set(ctx, pcs.prefix+key, value, expire)
-}
-func (pcs *prefixCacheStorage) Delete(ctx context.Context, key string) error {
-	return pcs.cache.Delete(ctx, pcs.prefix+key)
+func encodeGob(item *cachedItem) ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	err := gob.NewEncoder(buf).Encode(item)
+	return buf.Bytes(), err
 }
 
-func (pcs *prefixCacheStorage) Count(ctx context.Context, prefix string) (int64, error) {
-	return pcs.cache.Count(ctx, pcs.prefix+prefix)
+func decodeGob(data []byte, out *cachedItem) error {
+	buf := bytes.NewBuffer(data)
+	return gob.NewDecoder(buf).Decode(&out)
 }

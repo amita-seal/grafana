@@ -1,20 +1,26 @@
-import React, { useCallback } from 'react';
-
+import React, { FC, useCallback } from 'react';
 import { DataFrame, QueryResultMetaNotice } from '@grafana/data';
-import { locationService } from '@grafana/runtime';
-
 import { PanelHeaderNotice } from './PanelHeaderNotice';
+import { useDispatch } from 'react-redux';
+import { updateLocation } from '../../../../core/actions';
 
 interface Props {
   panelId: number;
   frames: DataFrame[];
 }
 
-export const PanelHeaderNotices = ({ frames, panelId }: Props) => {
+export const PanelHeaderNotices: FC<Props> = ({ frames, panelId }) => {
+  const dispatch = useDispatch();
   const openInspect = useCallback(
     (e: React.SyntheticEvent, tab: string) => {
       e.stopPropagation();
-      locationService.partial({ inspect: panelId, inspectTab: tab });
+
+      dispatch(
+        updateLocation({
+          query: { inspect: panelId, inspectTab: tab },
+          partial: true,
+        })
+      );
     },
     [panelId]
   );

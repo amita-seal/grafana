@@ -1,38 +1,27 @@
-import { Meta, Story } from '@storybook/react';
-import React, { useEffect, useState } from 'react';
-
+import React from 'react';
 import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
+import { number } from '@storybook/addon-knobs';
 import { VizLayout } from './VizLayout';
 
-const meta: Meta = {
+export default {
   title: 'Visualizations/VizLayout',
   component: VizLayout,
   decorators: [withCenteredStory],
   parameters: {
     docs: {},
-    controls: {
-      exclude: ['legend'],
-    },
-  },
-  argTypes: {
-    width: { control: { type: 'range', min: 100, max: 1000 } },
-    height: { control: { type: 'range', min: 100, max: 1000 } },
-    legendWidth: { control: { type: 'range', min: 100, max: 280 } },
-    legendItems: { control: { type: 'number', min: 1 } },
   },
 };
 
-const createArray = (legendItems: number) => {
-  const newArray = Array.from({ length: legendItems }, (_, i) => i + 1);
-  return newArray;
+const getKnobs = () => {
+  return {
+    legendWidth: number('legendWidth', 100),
+    legendItems: number('legendItems', 2),
+  };
 };
 
-export const BottomLegend: Story = ({ height, width, legendItems }) => {
-  const [items, setItems] = useState(createArray(legendItems));
-  useEffect(() => {
-    setItems(createArray(legendItems));
-  }, [legendItems]);
+export const BottomLegend = () => {
+  const { legendItems } = getKnobs();
+  const items = Array.from({ length: legendItems }, (_, i) => i + 1);
 
   const legend = (
     <VizLayout.Legend placement="bottom" maxHeight="30%">
@@ -45,24 +34,17 @@ export const BottomLegend: Story = ({ height, width, legendItems }) => {
   );
 
   return (
-    <VizLayout width={width} height={height} legend={legend}>
+    <VizLayout width={600} height={500} legend={legend}>
       {(vizWidth: number, vizHeight: number) => {
         return <div style={{ width: vizWidth, height: vizHeight, background: 'red' }} />;
       }}
     </VizLayout>
   );
 };
-BottomLegend.args = {
-  height: 600,
-  width: 500,
-  legendItems: 2,
-};
 
-export const RightLegend: Story = ({ height, width, legendItems, legendWidth }) => {
-  const [items, setItems] = useState(createArray(legendItems));
-  useEffect(() => {
-    setItems(createArray(legendItems));
-  }, [legendItems]);
+export const RightLegend = () => {
+  const { legendItems, legendWidth } = getKnobs();
+  const items = Array.from({ length: legendItems }, (_, i) => i + 1);
 
   const legend = (
     <VizLayout.Legend placement="right" maxWidth="50%">
@@ -75,18 +57,10 @@ export const RightLegend: Story = ({ height, width, legendItems, legendWidth }) 
   );
 
   return (
-    <VizLayout width={width} height={height} legend={legend}>
+    <VizLayout width={810} height={400} legend={legend}>
       {(vizWidth: number, vizHeight: number) => {
         return <div style={{ width: vizWidth, height: vizHeight, background: 'red' }} />;
       }}
     </VizLayout>
   );
 };
-RightLegend.args = {
-  height: 400,
-  width: 810,
-  legendWidth: 100,
-  legendItems: 2,
-};
-
-export default meta;

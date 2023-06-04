@@ -1,5 +1,5 @@
+import { DataFrame } from '../types/dataFrame';
 import { DisplayProcessor } from '../types';
-import { DataFrame, Field } from '../types/dataFrame';
 import { FunctionalVector } from '../vector/FunctionalVector';
 
 /**
@@ -16,23 +16,14 @@ import { FunctionalVector } from '../vector/FunctionalVector';
 export class DataFrameView<T = any> extends FunctionalVector<T> {
   private index = 0;
   private obj: T;
-  readonly fields: {
-    readonly [Property in keyof T]: Field<T[Property]>;
-  };
 
   constructor(private data: DataFrame) {
     super();
-    const obj = {} as unknown as T;
-    const fields = {} as any;
+    const obj = ({} as unknown) as T;
 
     for (let i = 0; i < data.fields.length; i++) {
       const field = data.fields[i];
-      if (!field.name) {
-        continue; // unsupported
-      }
-
-      fields[field.name] = field;
-      const getter = () => field.values.get(this.index); // .get() to support all Vector types
+      const getter = () => field.values.get(this.index);
 
       if (!(obj as any).hasOwnProperty(field.name)) {
         Object.defineProperty(obj, field.name, {
@@ -41,16 +32,13 @@ export class DataFrameView<T = any> extends FunctionalVector<T> {
         });
       }
 
-      if (!(obj as any).hasOwnProperty(i.toString())) {
-        Object.defineProperty(obj, i, {
-          enumerable: false, // Don't enumerate array index
-          get: getter,
-        });
-      }
+      Object.defineProperty(obj, i, {
+        enumerable: false, // Don't enumerate array index
+        get: getter,
+      });
     }
 
     this.obj = obj;
-    this.fields = fields;
   }
 
   get dataFrame() {

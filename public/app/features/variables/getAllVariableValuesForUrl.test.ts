@@ -1,12 +1,8 @@
 import { setTemplateSrv } from '@grafana/runtime';
-
-import { initTemplateSrv } from '../../../test/helpers/initTemplateSrv';
-
 import { variableAdapters } from './adapters';
-import { getVariablesUrlParams } from './getAllVariableValuesForUrl';
 import { createQueryVariableAdapter } from './query/adapter';
-
-const key = 'key';
+import { getAllVariableValuesForUrl } from './getAllVariableValuesForUrl';
+import { initTemplateSrv } from '../../../test/helpers/initTemplateSrv';
 
 describe('getAllVariableValuesForUrl', () => {
   beforeAll(() => {
@@ -16,11 +12,10 @@ describe('getAllVariableValuesForUrl', () => {
   describe('with multi value', () => {
     beforeEach(() => {
       setTemplateSrv(
-        initTemplateSrv(key, [
+        initTemplateSrv([
           {
             type: 'query',
             name: 'test',
-            rootStateKey: key,
             current: { value: ['val1', 'val2'] },
             getValueForUrl: function () {
               return this.current.value;
@@ -31,7 +26,7 @@ describe('getAllVariableValuesForUrl', () => {
     });
 
     it('should set multiple url params', () => {
-      const params = getVariablesUrlParams();
+      let params: any = getAllVariableValuesForUrl();
       expect(params['var-test']).toMatchObject(['val1', 'val2']);
     });
   });
@@ -39,10 +34,9 @@ describe('getAllVariableValuesForUrl', () => {
   describe('skip url sync', () => {
     beforeEach(() => {
       setTemplateSrv(
-        initTemplateSrv(key, [
+        initTemplateSrv([
           {
             name: 'test',
-            rootStateKey: key,
             skipUrlSync: true,
             current: { value: 'value' },
             getValueForUrl: function () {
@@ -54,7 +48,7 @@ describe('getAllVariableValuesForUrl', () => {
     });
 
     it('should not include template variable value in url', () => {
-      const params = getVariablesUrlParams();
+      const params = getAllVariableValuesForUrl();
       expect(params['var-test']).toBe(undefined);
     });
   });
@@ -62,11 +56,10 @@ describe('getAllVariableValuesForUrl', () => {
   describe('with multi value with skip url sync', () => {
     beforeEach(() => {
       setTemplateSrv(
-        initTemplateSrv(key, [
+        initTemplateSrv([
           {
             type: 'query',
             name: 'test',
-            rootStateKey: key,
             skipUrlSync: true,
             current: { value: ['val1', 'val2'] },
             getValueForUrl: function () {
@@ -78,20 +71,18 @@ describe('getAllVariableValuesForUrl', () => {
     });
 
     it('should not include template variable value in url', () => {
-      const params = getVariablesUrlParams();
+      const params = getAllVariableValuesForUrl();
       expect(params['var-test']).toBe(undefined);
     });
   });
 
   describe('fillVariableValuesForUrl with multi value and scopedVars', () => {
     beforeEach(() => {
-      setTemplateSrv(
-        initTemplateSrv(key, [{ type: 'query', name: 'test', rootStateKey: key, current: { value: ['val1', 'val2'] } }])
-      );
+      setTemplateSrv(initTemplateSrv([{ type: 'query', name: 'test', current: { value: ['val1', 'val2'] } }]));
     });
 
     it('should set scoped value as url params', () => {
-      const params = getVariablesUrlParams({
+      const params = getAllVariableValuesForUrl({
         test: { value: 'val1', text: 'val1text' },
       });
       expect(params['var-test']).toBe('val1');
@@ -100,16 +91,12 @@ describe('getAllVariableValuesForUrl', () => {
 
   describe('fillVariableValuesForUrl with multi value, scopedVars and skip url sync', () => {
     beforeEach(() => {
-      setTemplateSrv(
-        initTemplateSrv(key, [
-          { type: 'query', name: 'test', rootStateKey: key, current: { value: ['val1', 'val2'] }, skipUrlSync: true },
-        ])
-      );
+      setTemplateSrv(initTemplateSrv([{ type: 'query', name: 'test', current: { value: ['val1', 'val2'] } }]));
     });
 
     it('should not set scoped value as url params', () => {
-      const params = getVariablesUrlParams({
-        test: { value: 'val1', text: 'val1text' },
+      const params = getAllVariableValuesForUrl({
+        test: { name: 'test', value: 'val1', text: 'val1text', skipUrlSync: true },
       });
       expect(params['var-test']).toBe(undefined);
     });

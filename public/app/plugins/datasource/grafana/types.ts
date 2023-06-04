@@ -1,41 +1,19 @@
-import { DataFrameJSON } from '@grafana/data';
-import { LiveDataFilter } from '@grafana/runtime';
-import { DataQuery } from '@grafana/schema';
-import { TimeRegionConfig } from 'app/core/utils/timeRegions';
-import { SearchQuery } from 'app/features/search/service';
+import { AnnotationQuery, DataQuery } from '@grafana/data';
+import { MeasurementsQuery } from '@grafana/runtime';
 
 //----------------------------------------------
 // Query
 //----------------------------------------------
 
 export enum GrafanaQueryType {
-  LiveMeasurements = 'measurements',
-  Annotations = 'annotations',
-  Snapshot = 'snapshot',
-  TimeRegions = 'timeRegions',
-
-  // backend
   RandomWalk = 'randomWalk',
-  List = 'list',
-  Read = 'read',
-  Search = 'search',
+  LiveMeasurements = 'measurements',
 }
 
 export interface GrafanaQuery extends DataQuery {
   queryType: GrafanaQueryType; // RandomWalk by default
   channel?: string;
-  filter?: LiveDataFilter;
-  buffer?: number;
-  path?: string; // for list and read
-  search?: SearchQuery;
-  snapshot?: DataFrameJSON[];
-  timeRegion?: TimeRegionConfig;
-  file?: GrafanaQueryFile;
-}
-
-export interface GrafanaQueryFile {
-  name: string;
-  size: number;
+  measurements?: MeasurementsQuery;
 }
 
 export const defaultQuery: GrafanaQuery = {
@@ -52,7 +30,7 @@ export enum GrafanaAnnotationType {
   Tags = 'tags',
 }
 
-export interface GrafanaAnnotationQuery extends GrafanaQuery {
+export interface GrafanaAnnotationQuery extends AnnotationQuery<GrafanaQuery> {
   type: GrafanaAnnotationType; // tags
   limit: number; // 100
   tags?: string[];

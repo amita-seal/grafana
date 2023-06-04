@@ -13,365 +13,90 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/grafana/grafana/pkg/services/live"
+	"github.com/grafana/grafana/pkg/services/search"
+	"github.com/grafana/grafana/pkg/services/shorturls"
+	"github.com/grafana/grafana/pkg/services/sqlstore"
 
-	"github.com/grafana/grafana/pkg/api/avatar"
+	"github.com/grafana/grafana/pkg/plugins/backendplugin"
+
 	"github.com/grafana/grafana/pkg/api/routing"
 	httpstatic "github.com/grafana/grafana/pkg/api/static"
 	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/infra/db"
-	"github.com/grafana/grafana/pkg/infra/kvstore"
 	"github.com/grafana/grafana/pkg/infra/localcache"
 	"github.com/grafana/grafana/pkg/infra/log"
 	"github.com/grafana/grafana/pkg/infra/remotecache"
-	"github.com/grafana/grafana/pkg/infra/tracing"
-	loginpkg "github.com/grafana/grafana/pkg/login"
-	"github.com/grafana/grafana/pkg/login/social"
 	"github.com/grafana/grafana/pkg/middleware"
-	"github.com/grafana/grafana/pkg/middleware/csrf"
-	"github.com/grafana/grafana/pkg/middleware/loggermw"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/plugins"
-	"github.com/grafana/grafana/pkg/plugins/pluginscdn"
-	"github.com/grafana/grafana/pkg/registry/corekind"
-	"github.com/grafana/grafana/pkg/services/accesscontrol"
-	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/annotations"
-	"github.com/grafana/grafana/pkg/services/apikey"
-	"github.com/grafana/grafana/pkg/services/auth"
-	"github.com/grafana/grafana/pkg/services/authn"
-	"github.com/grafana/grafana/pkg/services/cleanup"
+	"github.com/grafana/grafana/pkg/registry"
 	"github.com/grafana/grafana/pkg/services/contexthandler"
-	"github.com/grafana/grafana/pkg/services/correlations"
-	"github.com/grafana/grafana/pkg/services/dashboards"
-	"github.com/grafana/grafana/pkg/services/dashboardsnapshots"
-	dashver "github.com/grafana/grafana/pkg/services/dashboardversion"
-	"github.com/grafana/grafana/pkg/services/datasourceproxy"
 	"github.com/grafana/grafana/pkg/services/datasources"
-	"github.com/grafana/grafana/pkg/services/datasources/permissions"
-	"github.com/grafana/grafana/pkg/services/encryption"
-	"github.com/grafana/grafana/pkg/services/featuremgmt"
-	"github.com/grafana/grafana/pkg/services/folder"
 	"github.com/grafana/grafana/pkg/services/hooks"
-	"github.com/grafana/grafana/pkg/services/libraryelements"
 	"github.com/grafana/grafana/pkg/services/librarypanels"
-	"github.com/grafana/grafana/pkg/services/licensing"
-	"github.com/grafana/grafana/pkg/services/live"
-	"github.com/grafana/grafana/pkg/services/live/pushhttp"
 	"github.com/grafana/grafana/pkg/services/login"
-	loginAttempt "github.com/grafana/grafana/pkg/services/loginattempt"
-	"github.com/grafana/grafana/pkg/services/navtree"
-	"github.com/grafana/grafana/pkg/services/ngalert"
-	"github.com/grafana/grafana/pkg/services/notifications"
-	"github.com/grafana/grafana/pkg/services/oauthtoken"
-	"github.com/grafana/grafana/pkg/services/org"
-	"github.com/grafana/grafana/pkg/services/playlist"
-	"github.com/grafana/grafana/pkg/services/plugindashboards"
-	"github.com/grafana/grafana/pkg/services/pluginsintegration/plugincontext"
-	pluginSettings "github.com/grafana/grafana/pkg/services/pluginsintegration/pluginsettings"
-	pref "github.com/grafana/grafana/pkg/services/preference"
 	"github.com/grafana/grafana/pkg/services/provisioning"
-	publicdashboardsApi "github.com/grafana/grafana/pkg/services/publicdashboards/api"
-	"github.com/grafana/grafana/pkg/services/query"
-	"github.com/grafana/grafana/pkg/services/queryhistory"
 	"github.com/grafana/grafana/pkg/services/quota"
 	"github.com/grafana/grafana/pkg/services/rendering"
-	"github.com/grafana/grafana/pkg/services/search"
-	"github.com/grafana/grafana/pkg/services/searchV2"
-	"github.com/grafana/grafana/pkg/services/searchusers"
-	"github.com/grafana/grafana/pkg/services/secrets"
-	secretsKV "github.com/grafana/grafana/pkg/services/secrets/kvstore"
-	spm "github.com/grafana/grafana/pkg/services/secrets/kvstore/migrations"
-	"github.com/grafana/grafana/pkg/services/serviceaccounts"
-	"github.com/grafana/grafana/pkg/services/shorturls"
-	"github.com/grafana/grafana/pkg/services/sqlstore"
-	"github.com/grafana/grafana/pkg/services/star"
-	starApi "github.com/grafana/grafana/pkg/services/star/api"
-	"github.com/grafana/grafana/pkg/services/stats"
-	"github.com/grafana/grafana/pkg/services/store"
-	"github.com/grafana/grafana/pkg/services/store/entity/httpentitystore"
-	"github.com/grafana/grafana/pkg/services/tag"
-	"github.com/grafana/grafana/pkg/services/team"
-	tempUser "github.com/grafana/grafana/pkg/services/temp_user"
-	"github.com/grafana/grafana/pkg/services/updatechecker"
-	"github.com/grafana/grafana/pkg/services/user"
-	"github.com/grafana/grafana/pkg/services/validations"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/util"
-	"github.com/grafana/grafana/pkg/web"
+	"github.com/grafana/grafana/pkg/util/errutil"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	macaron "gopkg.in/macaron.v1"
 )
 
+func init() {
+	registry.Register(&registry.Descriptor{
+		Name:         "HTTPServer",
+		Instance:     &HTTPServer{},
+		InitPriority: registry.High,
+	})
+}
+
 type HTTPServer struct {
-	log              log.Logger
-	web              *web.Mux
-	context          context.Context
-	httpSrv          *http.Server
-	middlewares      []web.Handler
-	namedMiddlewares []routing.RegisterNamedMiddleware
-	bus              bus.Bus
+	log         log.Logger
+	macaron     *macaron.Macaron
+	context     context.Context
+	httpSrv     *http.Server
+	middlewares []macaron.Handler
 
-	PluginContextProvider        *plugincontext.Provider
-	RouteRegister                routing.RouteRegister
-	RenderService                rendering.Service
-	Cfg                          *setting.Cfg
-	Features                     *featuremgmt.FeatureManager
-	SettingsProvider             setting.Provider
-	HooksService                 *hooks.HooksService
-	navTreeService               navtree.Service
-	CacheService                 *localcache.CacheService
-	DataSourceCache              datasources.CacheService
-	AuthTokenService             auth.UserTokenService
-	QuotaService                 quota.Service
-	RemoteCacheService           *remotecache.RemoteCache
-	ProvisioningService          provisioning.ProvisioningService
-	Login                        login.Service
-	License                      licensing.Licensing
-	AccessControl                accesscontrol.AccessControl
-	DataProxy                    *datasourceproxy.DataSourceProxyService
-	PluginRequestValidator       validations.PluginRequestValidator
-	pluginClient                 plugins.Client
-	pluginStore                  plugins.Store
-	pluginInstaller              plugins.Installer
-	pluginFileStore              plugins.FileStore
-	pluginDashboardService       plugindashboards.Service
-	pluginStaticRouteResolver    plugins.StaticRouteResolver
-	pluginErrorResolver          plugins.ErrorResolver
-	SearchService                search.Service
-	ShortURLService              shorturls.Service
-	QueryHistoryService          queryhistory.Service
-	CorrelationsService          correlations.Service
-	Live                         *live.GrafanaLive
-	LivePushGateway              *pushhttp.Gateway
-	StorageService               store.StorageService
-	httpEntityStore              httpentitystore.HTTPEntityStore
-	SearchV2HTTPService          searchV2.SearchHTTPService
-	ContextHandler               *contexthandler.ContextHandler
-	LoggerMiddleware             loggermw.Logger
-	SQLStore                     db.DB
-	AlertEngine                  *alerting.AlertEngine
-	AlertNG                      *ngalert.AlertNG
-	LibraryPanelService          librarypanels.Service
-	LibraryElementService        libraryelements.Service
-	SocialService                social.Service
-	Listener                     net.Listener
-	EncryptionService            encryption.Internal
-	SecretsService               secrets.Service
-	secretsPluginManager         plugins.SecretsPluginManager
-	secretsStore                 secretsKV.SecretsKVStore
-	secretsMigrator              secrets.Migrator
-	secretsPluginMigrator        spm.SecretMigrationProvider
-	DataSourcesService           datasources.DataSourceService
-	cleanUpService               *cleanup.CleanUpService
-	tracer                       tracing.Tracer
-	grafanaUpdateChecker         *updatechecker.GrafanaService
-	pluginsUpdateChecker         *updatechecker.PluginsService
-	searchUsersService           searchusers.Service
-	queryDataService             query.Service
-	serviceAccountsService       serviceaccounts.Service
-	authInfoService              login.AuthInfoService
-	authenticator                loginpkg.Authenticator
-	teamPermissionsService       accesscontrol.TeamPermissionsService
-	NotificationService          *notifications.NotificationService
-	DashboardService             dashboards.DashboardService
-	dashboardProvisioningService dashboards.DashboardProvisioningService
-	folderService                folder.Service
-	DatasourcePermissionsService permissions.DatasourcePermissionsService
-	AlertNotificationService     *alerting.AlertNotificationService
-	dashboardsnapshotsService    dashboardsnapshots.Service
-	PluginSettings               pluginSettings.Service
-	AvatarCacheServer            *avatar.AvatarCacheServer
-	preferenceService            pref.Service
-	Csrf                         csrf.Service
-	folderPermissionsService     accesscontrol.FolderPermissionsService
-	dashboardPermissionsService  accesscontrol.DashboardPermissionsService
-	dashboardVersionService      dashver.Service
-	PublicDashboardsApi          *publicdashboardsApi.Api
-	starService                  star.Service
-	Kinds                        *corekind.Base
-	playlistService              playlist.Service
-	apiKeyService                apikey.Service
-	kvStore                      kvstore.KVStore
-	pluginsCDNService            *pluginscdn.Service
-
-	userService          user.Service
-	tempUserService      tempUser.Service
-	loginAttemptService  loginAttempt.Service
-	orgService           org.Service
-	teamService          team.Service
-	accesscontrolService accesscontrol.Service
-	annotationsRepo      annotations.Repository
-	tagService           tag.Service
-	oauthTokenService    oauthtoken.OAuthTokenService
-	statsService         stats.Service
-	authnService         authn.Service
-	starApi              *starApi.API
+	RouteRegister          routing.RouteRegister              `inject:""`
+	Bus                    bus.Bus                            `inject:""`
+	RenderService          rendering.Service                  `inject:""`
+	Cfg                    *setting.Cfg                       `inject:""`
+	HooksService           *hooks.HooksService                `inject:""`
+	CacheService           *localcache.CacheService           `inject:""`
+	DatasourceCache        datasources.CacheService           `inject:""`
+	AuthTokenService       models.UserTokenService            `inject:""`
+	QuotaService           *quota.QuotaService                `inject:""`
+	RemoteCacheService     *remotecache.RemoteCache           `inject:""`
+	ProvisioningService    provisioning.ProvisioningService   `inject:""`
+	Login                  *login.LoginService                `inject:""`
+	License                models.Licensing                   `inject:""`
+	BackendPluginManager   backendplugin.Manager              `inject:""`
+	PluginRequestValidator models.PluginRequestValidator      `inject:""`
+	PluginManager          *plugins.PluginManager             `inject:""`
+	SearchService          *search.SearchService              `inject:""`
+	ShortURLService        *shorturls.ShortURLService         `inject:""`
+	Live                   *live.GrafanaLive                  `inject:""`
+	ContextHandler         *contexthandler.ContextHandler     `inject:""`
+	SQLStore               *sqlstore.SQLStore                 `inject:""`
+	LibraryPanelService    *librarypanels.LibraryPanelService `inject:""`
+	Listener               net.Listener
 }
 
-type ServerOptions struct {
-	Listener net.Listener
-}
+func (hs *HTTPServer) Init() error {
+	hs.log = log.New("http.server")
 
-func ProvideHTTPServer(opts ServerOptions, cfg *setting.Cfg, routeRegister routing.RouteRegister, bus bus.Bus,
-	renderService rendering.Service, licensing licensing.Licensing, hooksService *hooks.HooksService,
-	cacheService *localcache.CacheService, sqlStore *sqlstore.SQLStore, alertEngine *alerting.AlertEngine,
-	pluginRequestValidator validations.PluginRequestValidator, pluginStaticRouteResolver plugins.StaticRouteResolver,
-	pluginDashboardService plugindashboards.Service, pluginStore plugins.Store, pluginClient plugins.Client,
-	pluginErrorResolver plugins.ErrorResolver, pluginInstaller plugins.Installer, settingsProvider setting.Provider,
-	dataSourceCache datasources.CacheService, userTokenService auth.UserTokenService,
-	cleanUpService *cleanup.CleanUpService, shortURLService shorturls.Service, queryHistoryService queryhistory.Service, correlationsService correlations.Service, remoteCache *remotecache.RemoteCache, provisioningService provisioning.ProvisioningService,
-	loginService login.Service, authenticator loginpkg.Authenticator, accessControl accesscontrol.AccessControl,
-	dataSourceProxy *datasourceproxy.DataSourceProxyService, searchService *search.SearchService,
-	live *live.GrafanaLive, livePushGateway *pushhttp.Gateway, plugCtxProvider *plugincontext.Provider,
-	contextHandler *contexthandler.ContextHandler, loggerMiddleware loggermw.Logger, features *featuremgmt.FeatureManager,
-	alertNG *ngalert.AlertNG, libraryPanelService librarypanels.Service, libraryElementService libraryelements.Service,
-	quotaService quota.Service, socialService social.Service, tracer tracing.Tracer,
-	encryptionService encryption.Internal, grafanaUpdateChecker *updatechecker.GrafanaService,
-	pluginsUpdateChecker *updatechecker.PluginsService, searchUsersService searchusers.Service,
-	dataSourcesService datasources.DataSourceService, queryDataService query.Service, pluginFileStore plugins.FileStore,
-	serviceaccountsService serviceaccounts.Service,
-	authInfoService login.AuthInfoService, storageService store.StorageService, httpEntityStore httpentitystore.HTTPEntityStore,
-	notificationService *notifications.NotificationService, dashboardService dashboards.DashboardService,
-	dashboardProvisioningService dashboards.DashboardProvisioningService, folderService folder.Service,
-	datasourcePermissionsService permissions.DatasourcePermissionsService, alertNotificationService *alerting.AlertNotificationService,
-	dashboardsnapshotsService dashboardsnapshots.Service, pluginSettings pluginSettings.Service,
-	avatarCacheServer *avatar.AvatarCacheServer, preferenceService pref.Service,
-	teamsPermissionsService accesscontrol.TeamPermissionsService, folderPermissionsService accesscontrol.FolderPermissionsService,
-	dashboardPermissionsService accesscontrol.DashboardPermissionsService, dashboardVersionService dashver.Service,
-	starService star.Service, csrfService csrf.Service, basekinds *corekind.Base,
-	playlistService playlist.Service, apiKeyService apikey.Service, kvStore kvstore.KVStore,
-	secretsMigrator secrets.Migrator, secretsPluginManager plugins.SecretsPluginManager, secretsService secrets.Service,
-	secretsPluginMigrator spm.SecretMigrationProvider, secretsStore secretsKV.SecretsKVStore,
-	publicDashboardsApi *publicdashboardsApi.Api, userService user.Service, tempUserService tempUser.Service,
-	loginAttemptService loginAttempt.Service, orgService org.Service, teamService team.Service,
-	accesscontrolService accesscontrol.Service, navTreeService navtree.Service,
-	annotationRepo annotations.Repository, tagService tag.Service, searchv2HTTPService searchV2.SearchHTTPService, oauthTokenService oauthtoken.OAuthTokenService,
-	statsService stats.Service, authnService authn.Service, pluginsCDNService *pluginscdn.Service,
-	starApi *starApi.API,
-
-) (*HTTPServer, error) {
-	web.Env = cfg.Env
-	m := web.New()
-
-	hs := &HTTPServer{
-		Cfg:                          cfg,
-		RouteRegister:                routeRegister,
-		bus:                          bus,
-		RenderService:                renderService,
-		License:                      licensing,
-		HooksService:                 hooksService,
-		CacheService:                 cacheService,
-		SQLStore:                     sqlStore,
-		AlertEngine:                  alertEngine,
-		PluginRequestValidator:       pluginRequestValidator,
-		pluginInstaller:              pluginInstaller,
-		pluginClient:                 pluginClient,
-		pluginStore:                  pluginStore,
-		pluginStaticRouteResolver:    pluginStaticRouteResolver,
-		pluginDashboardService:       pluginDashboardService,
-		pluginErrorResolver:          pluginErrorResolver,
-		pluginFileStore:              pluginFileStore,
-		grafanaUpdateChecker:         grafanaUpdateChecker,
-		pluginsUpdateChecker:         pluginsUpdateChecker,
-		SettingsProvider:             settingsProvider,
-		DataSourceCache:              dataSourceCache,
-		AuthTokenService:             userTokenService,
-		cleanUpService:               cleanUpService,
-		ShortURLService:              shortURLService,
-		QueryHistoryService:          queryHistoryService,
-		CorrelationsService:          correlationsService,
-		Features:                     features,
-		StorageService:               storageService,
-		RemoteCacheService:           remoteCache,
-		ProvisioningService:          provisioningService,
-		Login:                        loginService,
-		AccessControl:                accessControl,
-		DataProxy:                    dataSourceProxy,
-		SearchV2HTTPService:          searchv2HTTPService,
-		SearchService:                searchService,
-		Live:                         live,
-		LivePushGateway:              livePushGateway,
-		PluginContextProvider:        plugCtxProvider,
-		ContextHandler:               contextHandler,
-		LoggerMiddleware:             loggerMiddleware,
-		AlertNG:                      alertNG,
-		LibraryPanelService:          libraryPanelService,
-		LibraryElementService:        libraryElementService,
-		QuotaService:                 quotaService,
-		tracer:                       tracer,
-		log:                          log.New("http.server"),
-		web:                          m,
-		Listener:                     opts.Listener,
-		SocialService:                socialService,
-		EncryptionService:            encryptionService,
-		SecretsService:               secretsService,
-		secretsPluginManager:         secretsPluginManager,
-		secretsMigrator:              secretsMigrator,
-		secretsPluginMigrator:        secretsPluginMigrator,
-		secretsStore:                 secretsStore,
-		httpEntityStore:              httpEntityStore,
-		DataSourcesService:           dataSourcesService,
-		searchUsersService:           searchUsersService,
-		queryDataService:             queryDataService,
-		serviceAccountsService:       serviceaccountsService,
-		authInfoService:              authInfoService,
-		authenticator:                authenticator,
-		NotificationService:          notificationService,
-		DashboardService:             dashboardService,
-		dashboardProvisioningService: dashboardProvisioningService,
-		folderService:                folderService,
-		DatasourcePermissionsService: datasourcePermissionsService,
-		teamPermissionsService:       teamsPermissionsService,
-		AlertNotificationService:     alertNotificationService,
-		dashboardsnapshotsService:    dashboardsnapshotsService,
-		PluginSettings:               pluginSettings,
-		AvatarCacheServer:            avatarCacheServer,
-		preferenceService:            preferenceService,
-		Csrf:                         csrfService,
-		folderPermissionsService:     folderPermissionsService,
-		dashboardPermissionsService:  dashboardPermissionsService,
-		dashboardVersionService:      dashboardVersionService,
-		starService:                  starService,
-		Kinds:                        basekinds,
-		playlistService:              playlistService,
-		apiKeyService:                apiKeyService,
-		kvStore:                      kvStore,
-		PublicDashboardsApi:          publicDashboardsApi,
-		userService:                  userService,
-		tempUserService:              tempUserService,
-		loginAttemptService:          loginAttemptService,
-		orgService:                   orgService,
-		teamService:                  teamService,
-		navTreeService:               navTreeService,
-		accesscontrolService:         accesscontrolService,
-		annotationsRepo:              annotationRepo,
-		tagService:                   tagService,
-		oauthTokenService:            oauthTokenService,
-		statsService:                 statsService,
-		authnService:                 authnService,
-		pluginsCDNService:            pluginsCDNService,
-		starApi:                      starApi,
-	}
-	if hs.Listener != nil {
-		hs.log.Debug("Using provided listener")
-	}
+	hs.macaron = hs.newMacaron()
 	hs.registerRoutes()
 
-	// Register access control scope resolver for annotations
-	hs.AccessControl.RegisterScopeAttributeResolver(AnnotationTypeScopeResolver(hs.annotationsRepo))
-
-	if err := hs.declareFixedRoles(); err != nil {
-		return nil, err
-	}
-	return hs, nil
+	return nil
 }
 
-func (hs *HTTPServer) AddMiddleware(middleware web.Handler) {
+func (hs *HTTPServer) AddMiddleware(middleware macaron.Handler) {
 	hs.middlewares = append(hs.middlewares, middleware)
-}
-
-func (hs *HTTPServer) AddNamedMiddleware(middleware routing.RegisterNamedMiddleware) {
-	hs.namedMiddlewares = append(hs.namedMiddlewares, middleware)
 }
 
 func (hs *HTTPServer) Run(ctx context.Context) error {
@@ -380,10 +105,10 @@ func (hs *HTTPServer) Run(ctx context.Context) error {
 	hs.applyRoutes()
 
 	// Remove any square brackets enclosing IPv6 addresses, a format we support for backwards compatibility
-	host := strings.TrimSuffix(strings.TrimPrefix(hs.Cfg.HTTPAddr, "["), "]")
+	host := strings.TrimSuffix(strings.TrimPrefix(setting.HttpAddr, "["), "]")
 	hs.httpSrv = &http.Server{
-		Addr:        net.JoinHostPort(host, hs.Cfg.HTTPPort),
-		Handler:     hs.web,
+		Addr:        net.JoinHostPort(host, setting.HttpPort),
+		Handler:     hs.macaron,
 		ReadTimeout: hs.Cfg.ReadTimeout,
 	}
 	switch hs.Cfg.Protocol {
@@ -429,7 +154,7 @@ func (hs *HTTPServer) Run(ctx context.Context) error {
 			return err
 		}
 	case setting.HTTP2Scheme, setting.HTTPSScheme:
-		if err := hs.httpSrv.ServeTLS(listener, hs.Cfg.CertFile, hs.Cfg.KeyFile); err != nil {
+		if err := hs.httpSrv.ServeTLS(listener, setting.CertFile, setting.KeyFile); err != nil {
 			if errors.Is(err, http.ErrServerClosed) {
 				hs.log.Debug("server was shutdown gracefully")
 				return nil
@@ -454,25 +179,19 @@ func (hs *HTTPServer) getListener() (net.Listener, error) {
 	case setting.HTTPScheme, setting.HTTPSScheme, setting.HTTP2Scheme:
 		listener, err := net.Listen("tcp", hs.httpSrv.Addr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to open listener on address %s: %w", hs.httpSrv.Addr, err)
+			return nil, errutil.Wrapf(err, "failed to open listener on address %s", hs.httpSrv.Addr)
 		}
 		return listener, nil
 	case setting.SocketScheme:
 		listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: hs.Cfg.SocketPath, Net: "unix"})
 		if err != nil {
-			return nil, fmt.Errorf("failed to open listener for socket %s: %w", hs.Cfg.SocketPath, err)
+			return nil, errutil.Wrapf(err, "failed to open listener for socket %s", hs.Cfg.SocketPath)
 		}
 
 		// Make socket writable by group
 		// nolint:gosec
-		if err := os.Chmod(hs.Cfg.SocketPath, os.FileMode(hs.Cfg.SocketMode)); err != nil {
-			return nil, fmt.Errorf("failed to change socket mode %d: %w", hs.Cfg.SocketMode, err)
-		}
-
-		// golang.org/pkg/os does not have chgrp
-		// Changing the gid of a file without privileges requires that the target group is in the group of the process and that the process is the file owner
-		if err := os.Chown(hs.Cfg.SocketPath, -1, hs.Cfg.SocketGid); err != nil {
-			return nil, fmt.Errorf("failed to change socket group id %d: %w", hs.Cfg.SocketGid, err)
+		if err := os.Chmod(hs.Cfg.SocketPath, 0660); err != nil {
+			return nil, errutil.Wrapf(err, "failed to change socket permissions")
 		}
 
 		return listener, nil
@@ -483,38 +202,38 @@ func (hs *HTTPServer) getListener() (net.Listener, error) {
 }
 
 func (hs *HTTPServer) configureHttps() error {
-	if hs.Cfg.CertFile == "" {
-		return errors.New("cert_file cannot be empty when using HTTPS")
+	if setting.CertFile == "" {
+		return fmt.Errorf("cert_file cannot be empty when using HTTPS")
 	}
 
-	if hs.Cfg.KeyFile == "" {
-		return errors.New("cert_key cannot be empty when using HTTPS")
+	if setting.KeyFile == "" {
+		return fmt.Errorf("cert_key cannot be empty when using HTTPS")
 	}
 
-	if _, err := os.Stat(hs.Cfg.CertFile); os.IsNotExist(err) {
-		return fmt.Errorf(`cannot find SSL cert_file at %q`, hs.Cfg.CertFile)
+	if _, err := os.Stat(setting.CertFile); os.IsNotExist(err) {
+		return fmt.Errorf(`cannot find SSL cert_file at %q`, setting.CertFile)
 	}
 
-	if _, err := os.Stat(hs.Cfg.KeyFile); os.IsNotExist(err) {
-		return fmt.Errorf(`cannot find SSL key_file at %q`, hs.Cfg.KeyFile)
+	if _, err := os.Stat(setting.KeyFile); os.IsNotExist(err) {
+		return fmt.Errorf(`cannot find SSL key_file at %q`, setting.KeyFile)
 	}
-
-	minTlsVersion, err := util.TlsNameToVersion(hs.Cfg.MinTLSVersion)
-	if err != nil {
-		return err
-	}
-
-	tlsCiphers := hs.getDefaultCiphers(minTlsVersion, string(setting.HTTPSScheme))
-	if err != nil {
-		return err
-	}
-
-	hs.log.Info("HTTP Server TLS settings", "Min TLS Version", hs.Cfg.MinTLSVersion,
-		"configured ciphers", util.TlsCipherIdsToString(tlsCiphers))
 
 	tlsCfg := &tls.Config{
-		MinVersion:   minTlsVersion,
-		CipherSuites: tlsCiphers,
+		MinVersion:               tls.VersionTLS12,
+		PreferServerCipherSuites: true,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		},
 	}
 
 	hs.httpSrv.TLSConfig = tlsCfg
@@ -524,36 +243,37 @@ func (hs *HTTPServer) configureHttps() error {
 }
 
 func (hs *HTTPServer) configureHttp2() error {
-	if hs.Cfg.CertFile == "" {
-		return errors.New("cert_file cannot be empty when using HTTP2")
+	if setting.CertFile == "" {
+		return fmt.Errorf("cert_file cannot be empty when using HTTP2")
 	}
 
-	if hs.Cfg.KeyFile == "" {
-		return errors.New("cert_key cannot be empty when using HTTP2")
+	if setting.KeyFile == "" {
+		return fmt.Errorf("cert_key cannot be empty when using HTTP2")
 	}
 
-	if _, err := os.Stat(hs.Cfg.CertFile); os.IsNotExist(err) {
-		return fmt.Errorf("cannot find SSL cert_file at %q", hs.Cfg.CertFile)
+	if _, err := os.Stat(setting.CertFile); os.IsNotExist(err) {
+		return fmt.Errorf(`cannot find SSL cert_file at %q`, setting.CertFile)
 	}
 
-	if _, err := os.Stat(hs.Cfg.KeyFile); os.IsNotExist(err) {
-		return fmt.Errorf("cannot find SSL key_file at %q", hs.Cfg.KeyFile)
+	if _, err := os.Stat(setting.KeyFile); os.IsNotExist(err) {
+		return fmt.Errorf(`cannot find SSL key_file at %q`, setting.KeyFile)
 	}
-
-	minTlsVersion, err := util.TlsNameToVersion(hs.Cfg.MinTLSVersion)
-	if err != nil {
-		return err
-	}
-
-	tlsCiphers := hs.getDefaultCiphers(minTlsVersion, string(setting.HTTP2Scheme))
-
-	hs.log.Info("HTTP Server TLS settings", "Min TLS Version", hs.Cfg.MinTLSVersion,
-		"configured ciphers", util.TlsCipherIdsToString(tlsCiphers))
 
 	tlsCfg := &tls.Config{
-		MinVersion:   minTlsVersion,
-		CipherSuites: tlsCiphers,
-		NextProtos:   []string{"h2", "http/1.1"},
+		MinVersion:               tls.VersionTLS12,
+		PreferServerCipherSuites: true,
+		CipherSuites: []uint16{
+			tls.TLS_CHACHA20_POLY1305_SHA256,
+			tls.TLS_AES_128_GCM_SHA256,
+			tls.TLS_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		},
+		NextProtos: []string{"h2", "http/1.1"},
 	}
 
 	hs.httpSrv.TLSConfig = tlsCfg
@@ -561,83 +281,88 @@ func (hs *HTTPServer) configureHttp2() error {
 	return nil
 }
 
+func (hs *HTTPServer) newMacaron() *macaron.Macaron {
+	macaron.Env = hs.Cfg.Env
+	m := macaron.New()
+
+	// automatically set HEAD for every GET
+	m.SetAutoHead(true)
+
+	return m
+}
+
 func (hs *HTTPServer) applyRoutes() {
 	// start with middlewares & static routes
 	hs.addMiddlewaresAndStaticRoutes()
 	// then add view routes & api routes
-	hs.RouteRegister.Register(hs.web, hs.namedMiddlewares...)
+	hs.RouteRegister.Register(hs.macaron)
+	// then custom app proxy routes
+	hs.initAppPluginRoutes(hs.macaron)
 	// lastly not found route
-	hs.web.NotFound(middleware.ProvideRouteOperationName("notfound"), middleware.ReqSignedIn, hs.NotFoundHandler)
+	hs.macaron.NotFound(middleware.ReqSignedIn, hs.NotFoundHandler)
 }
 
 func (hs *HTTPServer) addMiddlewaresAndStaticRoutes() {
-	m := hs.web
+	m := hs.macaron
 
-	m.Use(middleware.RequestTracing(hs.tracer))
-	m.Use(middleware.RequestMetrics(hs.Features))
+	m.Use(middleware.Logger(hs.Cfg))
 
-	m.UseMiddleware(hs.LoggerMiddleware.Middleware())
-
-	if hs.Cfg.EnableGzip {
-		m.UseMiddleware(middleware.Gziper())
+	if setting.EnableGzip {
+		m.Use(middleware.Gziper())
 	}
 
-	m.UseMiddleware(middleware.Recovery(hs.Cfg))
-	m.UseMiddleware(hs.Csrf.Middleware())
+	m.Use(middleware.Recovery(hs.Cfg))
+	m.Use(middleware.CSRF(hs.Cfg.LoginCookieName))
 
-	hs.mapStatic(m, hs.Cfg.StaticRootPath, "build", "public/build")
-	hs.mapStatic(m, hs.Cfg.StaticRootPath, "", "public", "/public/views/swagger.html")
-	hs.mapStatic(m, hs.Cfg.StaticRootPath, "robots.txt", "robots.txt")
+	for _, route := range plugins.StaticRoutes {
+		pluginRoute := path.Join("/public/plugins/", route.PluginId)
+		hs.log.Debug("Plugins: Adding route", "route", pluginRoute, "dir", route.Directory)
+		hs.mapStatic(m, route.Directory, "", pluginRoute)
+	}
 
-	if hs.Cfg.ImageUploadProvider == "local" {
+	hs.mapStatic(m, setting.StaticRootPath, "build", "public/build")
+	hs.mapStatic(m, setting.StaticRootPath, "", "public")
+	hs.mapStatic(m, setting.StaticRootPath, "robots.txt", "robots.txt")
+
+	if setting.ImageUploadProvider == "local" {
 		hs.mapStatic(m, hs.Cfg.ImagesDir, "", "/public/img/attachments")
-	}
-
-	if len(hs.Cfg.CustomResponseHeaders) > 0 {
-		m.Use(middleware.AddCustomResponseHeaders(hs.Cfg))
 	}
 
 	m.Use(middleware.AddDefaultResponseHeaders(hs.Cfg))
 
-	if hs.Cfg.ServeFromSubPath && hs.Cfg.AppSubURL != "" {
-		m.SetURLPrefix(hs.Cfg.AppSubURL)
-		m.UseMiddleware(middleware.SubPathRedirect(hs.Cfg))
+	if setting.ServeFromSubPath && setting.AppSubUrl != "" {
+		m.SetURLPrefix(setting.AppSubUrl)
 	}
 
-	m.UseMiddleware(web.Renderer(filepath.Join(hs.Cfg.StaticRootPath, "views"), "[[", "]]"))
+	m.Use(macaron.Renderer(macaron.RenderOptions{
+		Directory:  filepath.Join(setting.StaticRootPath, "views"),
+		IndentJSON: macaron.Env != macaron.PROD,
+		Delims:     macaron.Delims{Left: "[[", Right: "]]"},
+	}))
 
 	// These endpoints are used for monitoring the Grafana instance
 	// and should not be redirected or rejected.
 	m.Use(hs.healthzHandler)
 	m.Use(hs.apiHealthHandler)
 	m.Use(hs.metricsEndpoint)
-	m.Use(hs.pluginMetricsEndpoint)
-	m.Use(hs.frontendLogEndpoints())
 
-	m.UseMiddleware(hs.ContextHandler.Middleware)
-	m.Use(middleware.OrgRedirect(hs.Cfg, hs.userService))
-
-	if !hs.Features.IsEnabled(featuremgmt.FlagAuthnService) {
-		m.Use(accesscontrol.LoadPermissionsMiddleware(hs.accesscontrolService))
-	}
+	m.Use(hs.ContextHandler.Middleware)
+	m.Use(middleware.OrgRedirect(hs.Cfg))
 
 	// needs to be after context handler
-	if hs.Cfg.EnforceDomain {
+	if setting.EnforceDomain {
 		m.Use(middleware.ValidateHostHeader(hs.Cfg))
 	}
 
-	m.Use(middleware.HandleNoCacheHeaders)
-
-	if hs.Cfg.CSPEnabled || hs.Cfg.CSPReportOnlyEnabled {
-		m.UseMiddleware(middleware.ContentSecurityPolicy(hs.Cfg, hs.log))
-	}
+	m.Use(middleware.HandleNoCacheHeader)
+	m.Use(middleware.AddCSPHeader(hs.Cfg, hs.log))
 
 	for _, mw := range hs.middlewares {
 		m.Use(mw)
 	}
 }
 
-func (hs *HTTPServer) metricsEndpoint(ctx *web.Context) {
+func (hs *HTTPServer) metricsEndpoint(ctx *macaron.Context) {
 	if !hs.Cfg.MetricsEndpointEnabled {
 		return
 	}
@@ -653,18 +378,19 @@ func (hs *HTTPServer) metricsEndpoint(ctx *web.Context) {
 
 	promhttp.
 		HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{EnableOpenMetrics: true}).
-		ServeHTTP(ctx.Resp, ctx.Req)
+		ServeHTTP(ctx.Resp, ctx.Req.Request)
 }
 
 // healthzHandler always return 200 - Ok if Grafana's web server is running
-func (hs *HTTPServer) healthzHandler(ctx *web.Context) {
+func (hs *HTTPServer) healthzHandler(ctx *macaron.Context) {
 	notHeadOrGet := ctx.Req.Method != http.MethodGet && ctx.Req.Method != http.MethodHead
 	if notHeadOrGet || ctx.Req.URL.Path != "/healthz" {
 		return
 	}
 
-	ctx.Resp.WriteHeader(http.StatusOK)
-	if _, err := ctx.Resp.Write([]byte("Ok")); err != nil {
+	ctx.WriteHeader(200)
+	_, err := ctx.Resp.Write([]byte("Ok"))
+	if err != nil {
 		hs.log.Error("could not write to response", "err", err)
 	}
 }
@@ -672,7 +398,7 @@ func (hs *HTTPServer) healthzHandler(ctx *web.Context) {
 // apiHealthHandler will return ok if Grafana's web server is running and it
 // can access the database. If the database cannot be accessed it will return
 // http status code 503.
-func (hs *HTTPServer) apiHealthHandler(ctx *web.Context) {
+func (hs *HTTPServer) apiHealthHandler(ctx *macaron.Context) {
 	notHeadOrGet := ctx.Req.Method != http.MethodGet && ctx.Req.Method != http.MethodHead
 	if notHeadOrGet || ctx.Req.URL.Path != "/api/health" {
 		return
@@ -681,17 +407,17 @@ func (hs *HTTPServer) apiHealthHandler(ctx *web.Context) {
 	data := simplejson.New()
 	data.Set("database", "ok")
 	if !hs.Cfg.AnonymousHideVersion {
-		data.Set("version", hs.Cfg.BuildVersion)
-		data.Set("commit", hs.Cfg.BuildCommit)
+		data.Set("version", setting.BuildVersion)
+		data.Set("commit", setting.BuildCommit)
 	}
 
-	if !hs.databaseHealthy(ctx.Req.Context()) {
+	if !hs.databaseHealthy() {
 		data.Set("database", "failing")
 		ctx.Resp.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		ctx.Resp.WriteHeader(http.StatusServiceUnavailable)
+		ctx.Resp.WriteHeader(503)
 	} else {
 		ctx.Resp.Header().Set("Content-Type", "application/json; charset=UTF-8")
-		ctx.Resp.WriteHeader(http.StatusOK)
+		ctx.Resp.WriteHeader(200)
 	}
 
 	dataBytes, err := data.EncodePretty()
@@ -705,19 +431,19 @@ func (hs *HTTPServer) apiHealthHandler(ctx *web.Context) {
 	}
 }
 
-func (hs *HTTPServer) mapStatic(m *web.Mux, rootDir string, dir string, prefix string, exclude ...string) {
-	headers := func(c *web.Context) {
+func (hs *HTTPServer) mapStatic(m *macaron.Macaron, rootDir string, dir string, prefix string) {
+	headers := func(c *macaron.Context) {
 		c.Resp.Header().Set("Cache-Control", "public, max-age=3600")
 	}
 
 	if prefix == "public/build" {
-		headers = func(c *web.Context) {
+		headers = func(c *macaron.Context) {
 			c.Resp.Header().Set("Cache-Control", "public, max-age=31536000")
 		}
 	}
 
 	if hs.Cfg.Env == setting.Dev {
-		headers = func(c *web.Context) {
+		headers = func(c *macaron.Context) {
 			c.Resp.Header().Set("Cache-Control", "max-age=0, must-revalidate, no-cache")
 		}
 	}
@@ -728,46 +454,10 @@ func (hs *HTTPServer) mapStatic(m *web.Mux, rootDir string, dir string, prefix s
 			SkipLogging: true,
 			Prefix:      prefix,
 			AddHeaders:  headers,
-			Exclude:     exclude,
 		},
 	))
 }
 
 func (hs *HTTPServer) metricsEndpointBasicAuthEnabled() bool {
 	return hs.Cfg.MetricsEndpointBasicAuthUsername != "" && hs.Cfg.MetricsEndpointBasicAuthPassword != ""
-}
-
-func (hs *HTTPServer) getDefaultCiphers(tlsVersion uint16, protocol string) []uint16 {
-	if tlsVersion != tls.VersionTLS12 {
-		return nil
-	}
-	if protocol == "https" {
-		return []uint16{
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		}
-	}
-	if protocol == "h2" {
-		return []uint16{
-			tls.TLS_CHACHA20_POLY1305_SHA256,
-			tls.TLS_AES_128_GCM_SHA256,
-			tls.TLS_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
-		}
-	}
-	return nil
 }

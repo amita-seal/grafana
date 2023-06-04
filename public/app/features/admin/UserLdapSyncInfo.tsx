@@ -1,9 +1,7 @@
 import React, { PureComponent } from 'react';
-
 import { dateTimeFormat } from '@grafana/data';
+import { SyncInfo, UserDTO } from 'app/types';
 import { Button, LinkButton } from '@grafana/ui';
-import { contextSrv } from 'app/core/core';
-import { AccessControlAction, SyncInfo, UserDTO } from 'app/types';
 
 interface Props {
   ldapSyncInfo: SyncInfo;
@@ -26,8 +24,6 @@ export class UserLdapSyncInfo extends PureComponent<Props, State> {
     const nextSyncSuccessful = ldapSyncInfo && ldapSyncInfo.nextSync;
     const nextSyncTime = nextSyncSuccessful ? dateTimeFormat(ldapSyncInfo.nextSync, { format }) : '';
     const debugLDAPMappingURL = `${debugLDAPMappingBaseURL}?user=${user && user.login}`;
-    const canReadLDAPUser = contextSrv.hasPermission(AccessControlAction.LDAPUsersRead);
-    const canSyncLDAPUser = contextSrv.hasPermission(AccessControlAction.LDAPUsersSync);
 
     return (
       <>
@@ -38,7 +34,7 @@ export class UserLdapSyncInfo extends PureComponent<Props, State> {
               <tbody>
                 <tr>
                   <td>External sync</td>
-                  <td>User synced via LDAP. Some changes must be done in LDAP or mappings.</td>
+                  <td>User synced via LDAP – some changes must be done in LDAP or mappings.</td>
                   <td>
                     <span className="label label-tag">LDAP</span>
                   </td>
@@ -46,12 +42,12 @@ export class UserLdapSyncInfo extends PureComponent<Props, State> {
                 <tr>
                   {ldapSyncInfo.enabled ? (
                     <>
-                      <td>Next scheduled synchronization</td>
+                      <td>Next scheduled synchronisation</td>
                       <td colSpan={2}>{nextSyncTime}</td>
                     </>
                   ) : (
                     <>
-                      <td>Next scheduled synchronization</td>
+                      <td>Next scheduled synchronisation</td>
                       <td colSpan={2}>Not enabled</td>
                     </>
                   )}
@@ -60,16 +56,12 @@ export class UserLdapSyncInfo extends PureComponent<Props, State> {
             </table>
           </div>
           <div className="gf-form-button-row">
-            {canSyncLDAPUser && (
-              <Button variant="secondary" onClick={this.onUserSync}>
-                Sync user
-              </Button>
-            )}
-            {canReadLDAPUser && (
-              <LinkButton variant="secondary" href={debugLDAPMappingURL}>
-                Debug LDAP Mapping
-              </LinkButton>
-            )}
+            <Button variant="secondary" onClick={this.onUserSync}>
+              Sync user
+            </Button>
+            <LinkButton variant="secondary" href={debugLDAPMappingURL}>
+              Debug LDAP Mapping
+            </LinkButton>
           </div>
         </div>
       </>

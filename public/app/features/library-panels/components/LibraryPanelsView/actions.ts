@@ -1,38 +1,26 @@
-import { AnyAction } from '@reduxjs/toolkit';
 import { Dispatch } from 'react';
+import { AnyAction } from '@reduxjs/toolkit';
 import { from, merge, of, Subscription, timer } from 'rxjs';
 import { catchError, finalize, mapTo, mergeMap, share, takeUntil } from 'rxjs/operators';
 
 import { deleteLibraryPanel as apiDeleteLibraryPanel, getLibraryPanels } from '../../state/api';
+import { initialLibraryPanelsViewState, initSearch, LibraryPanelsViewState, searchCompleted } from './reducer';
+import { DispatchResult } from '../../types';
 
-import { initialLibraryPanelsViewState, initSearch, searchCompleted } from './reducer';
-
-type DispatchResult = (dispatch: Dispatch<AnyAction>) => void;
-interface SearchArgs {
-  perPage: number;
-  page: number;
-  searchString: string;
-  sortDirection?: string;
-  panelFilter?: string[];
-  folderFilterUIDs?: string[];
-  currentPanelId?: string;
-}
+type SearchArgs = Pick<LibraryPanelsViewState, 'searchString' | 'perPage' | 'page' | 'currentPanelId'>;
 
 export function searchForLibraryPanels(args: SearchArgs): DispatchResult {
   return function (dispatch) {
     const subscription = new Subscription();
     const dataObservable = from(
       getLibraryPanels({
-        searchString: args.searchString,
+        name: args.searchString,
         perPage: args.perPage,
         page: args.page,
         excludeUid: args.currentPanelId,
-        sortDirection: args.sortDirection,
-        typeFilter: args.panelFilter,
-        folderFilterUIDs: args.folderFilterUIDs,
       })
     ).pipe(
-      mergeMap(({ perPage, elements: libraryPanels, page, totalCount }) =>
+      mergeMap(({ perPage, libraryPanels, page, totalCount }) =>
         of(searchCompleted({ libraryPanels, page, perPage, totalCount }))
       ),
       catchError((err) => {

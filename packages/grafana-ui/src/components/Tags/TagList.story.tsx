@@ -1,13 +1,10 @@
-import { action } from '@storybook/addon-actions';
-import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
-
-import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
-
+import { action } from '@storybook/addon-actions';
 import { TagList } from './TagList';
+import { withCenteredStory } from '../../utils/storybook/withCenteredStory';
 import mdx from './TagList.mdx';
 
-const meta: Meta<typeof TagList> = {
+export default {
   title: 'Forms/Tags/TagList',
   component: TagList,
   decorators: [withCenteredStory],
@@ -15,23 +12,15 @@ const meta: Meta<typeof TagList> = {
     docs: {
       page: mdx,
     },
-    controls: {
-      exclude: ['className', 'onClick', 'getAriaLabel'],
-    },
-  },
-  args: {
-    displayMax: 3,
-    tags: ['datasource-test', 'gdev', 'mysql', 'mssql'],
-    onClick: action('Tag clicked'),
   },
 };
 
-export const List: StoryFn<typeof TagList> = (args) => {
+const tags = ['datasource-test', 'gdev', 'mysql', 'mssql'];
+
+export const list = () => {
   return (
     <div style={{ width: 300 }}>
-      <TagList tags={args.tags} onClick={args.onClick} displayMax={args.displayMax} icon={args.icon} />
+      <TagList tags={tags} onClick={action('Tag clicked')} />
     </div>
   );
 };
-
-export default meta;

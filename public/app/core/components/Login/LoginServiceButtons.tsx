@@ -1,100 +1,89 @@
-import { css, cx } from '@emotion/css';
-import { pickBy } from 'lodash';
 import React from 'react';
-
-import { GrafanaTheme2, DEFAULT_SAML_NAME } from '@grafana/data';
-import { Icon, IconName, LinkButton, useStyles2, useTheme2, VerticalGroup } from '@grafana/ui';
 import config from 'app/core/config';
-
-export interface LoginService {
-  bgColor: string;
-  enabled: boolean;
-  name: string;
-  hrefName?: string;
-  icon: IconName;
-}
-
-export interface LoginServices {
-  [key: string]: LoginService;
-}
+import { css, cx } from 'emotion';
+import { useStyles } from '@grafana/ui';
+import { GrafanaTheme } from '@grafana/data';
 
 const loginServices: () => LoginServices = () => {
   const oauthEnabled = !!config.oauth;
 
   return {
     saml: {
-      bgColor: '#464646',
       enabled: config.samlEnabled,
-      name: config.samlName || DEFAULT_SAML_NAME,
-      icon: 'key-skeleton-alt',
+      name: 'SAML',
+      className: 'github',
+      icon: 'key',
     },
     google: {
-      bgColor: '#e84d3c',
-      enabled: oauthEnabled && Boolean(config.oauth.google),
-      name: config.oauth?.google?.name || 'Google',
-      icon: config.oauth?.google?.icon || ('google' as const),
+      enabled: oauthEnabled && config.oauth.google,
+      name: 'Google',
     },
     azuread: {
-      bgColor: '#2f2f2f',
-      enabled: oauthEnabled && Boolean(config.oauth.azuread),
-      name: config.oauth?.azuread?.name || 'Microsoft',
-      icon: config.oauth?.azuread?.icon || ('microsoft' as const),
+      enabled: oauthEnabled && config.oauth.azuread,
+      name: 'Microsoft',
     },
     github: {
-      bgColor: '#464646',
-      enabled: oauthEnabled && Boolean(config.oauth.github),
-      name: config.oauth?.github?.name || 'GitHub',
-      icon: config.oauth?.github?.icon || ('github' as const),
+      enabled: oauthEnabled && config.oauth.github,
+      name: 'GitHub',
     },
     gitlab: {
-      bgColor: '#fc6d26',
-      enabled: oauthEnabled && Boolean(config.oauth.gitlab),
-      name: config.oauth?.gitlab?.name || 'GitLab',
-      icon: config.oauth?.gitlab?.icon || ('gitlab' as const),
+      enabled: oauthEnabled && config.oauth.gitlab,
+      name: 'GitLab',
     },
     grafanacom: {
-      bgColor: '#262628',
-      enabled: oauthEnabled && Boolean(config.oauth.grafana_com),
-      name: config.oauth?.grafana_com?.name || 'Grafana.com',
-      icon: config.oauth?.grafana_com?.icon || ('grafana' as const),
+      enabled: oauthEnabled && config.oauth.grafana_com,
+      name: 'Grafana.com',
       hrefName: 'grafana_com',
+      icon: 'grafana_com',
     },
     okta: {
-      bgColor: '#2f2f2f',
-      enabled: oauthEnabled && Boolean(config.oauth.okta),
-      name: config.oauth?.okta?.name || 'Okta',
-      icon: config.oauth?.okta?.icon || ('okta' as const),
+      enabled: oauthEnabled && config.oauth.okta,
+      name: 'Okta',
     },
     oauth: {
-      bgColor: '#262628',
-      enabled: oauthEnabled && Boolean(config.oauth.generic_oauth),
-      name: config.oauth?.generic_oauth?.name || 'OAuth',
-      icon: config.oauth?.generic_oauth?.icon || ('signin' as const),
+      enabled: oauthEnabled && config.oauth.generic_oauth,
+      name: oauthEnabled && config.oauth.generic_oauth ? config.oauth.generic_oauth.name : 'OAuth',
+      icon: 'sign-in',
       hrefName: 'generic_oauth',
     },
   };
 };
 
-const getServiceStyles = (theme: GrafanaTheme2) => {
+export interface LoginService {
+  enabled: boolean;
+  name: string;
+  hrefName?: string;
+  icon?: string;
+  className?: string;
+}
+
+export interface LoginServices {
+  [key: string]: LoginService;
+}
+
+const getServiceStyles = (theme: GrafanaTheme) => {
   return {
+    container: css`
+      width: 100%;
+      text-align: center;
+    `,
     button: css`
       color: #d8d9da;
-      position: relative;
-    `,
-    buttonIcon: css`
-      position: absolute;
-      left: ${theme.spacing(1)};
-      top: 50%;
-      transform: translateY(-50%);
+      margin: 0 0 ${theme.spacing.md};
+      width: 100%;
+      &:hover {
+        color: #fff;
+      }
     `,
     divider: {
       base: css`
-        color: ${theme.colors.text};
+        float: left;
+        width: 100%;
+        margin: 0 25% ${theme.spacing.md} 25%;
         display: flex;
-        margin-bottom: ${theme.spacing(1)};
         justify-content: space-between;
         text-align: center;
-        width: 100%;
+        color: ${theme.colors.text};
       `,
       line: css`
         width: 100px;
@@ -106,7 +95,7 @@ const getServiceStyles = (theme: GrafanaTheme2) => {
 };
 
 const LoginDivider = () => {
-  const styles = useStyles2(getServiceStyles);
+  const styles = useStyles(getServiceStyles);
   return (
     <>
       <div className={styles.divider.base}>
@@ -125,46 +114,38 @@ const LoginDivider = () => {
   );
 };
 
-function getButtonStyleFor(service: LoginService, styles: ReturnType<typeof getServiceStyles>, theme: GrafanaTheme2) {
-  return cx(
-    styles.button,
-    css`
-      background-color: ${service.bgColor};
-      color: ${theme.colors.getContrastText(service.bgColor)};
-
-      &:hover {
-        background-color: ${theme.colors.emphasize(service.bgColor, 0.15)};
-        box-shadow: ${theme.shadows.z1};
-      }
-    `
-  );
-}
-
 export const LoginServiceButtons = () => {
-  const enabledServices = pickBy(loginServices(), (service) => service.enabled);
-  const hasServices = Object.keys(enabledServices).length > 0;
-  const theme = useTheme2();
-  const styles = useStyles2(getServiceStyles);
+  const styles = useStyles(getServiceStyles);
+  const keyNames = Object.keys(loginServices());
+  const serviceElementsEnabled = keyNames.filter((key) => {
+    const service: LoginService = loginServices()[key];
+    return service.enabled;
+  });
 
-  if (hasServices) {
-    return (
-      <VerticalGroup>
-        <LoginDivider />
-        {Object.entries(enabledServices).map(([key, service]) => (
-          <LinkButton
-            key={key}
-            className={getButtonStyleFor(service, styles, theme)}
-            href={`login/${service.hrefName ? service.hrefName : key}`}
-            target="_self"
-            fullWidth
-          >
-            <Icon className={styles.buttonIcon} name={service.icon} />
-            Sign in with {service.name}
-          </LinkButton>
-        ))}
-      </VerticalGroup>
-    );
+  if (serviceElementsEnabled.length === 0) {
+    return null;
   }
 
-  return null;
+  const serviceElements = serviceElementsEnabled.map((key) => {
+    const service: LoginService = loginServices()[key];
+    return (
+      <a
+        key={key}
+        className={cx(`btn btn-medium btn-service btn-service--${service.className || key}`, styles.button)}
+        href={`login/${service.hrefName ? service.hrefName : key}`}
+        target="_self"
+      >
+        <i className={`btn-service-icon fa fa-${service.icon ? service.icon : key}`} />
+        Sign in with {service.name}
+      </a>
+    );
+  });
+
+  const divider = LoginDivider();
+  return (
+    <>
+      {divider}
+      <div className={styles.container}>{serviceElements}</div>
+    </>
+  );
 };

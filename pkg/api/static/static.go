@@ -16,17 +16,15 @@
 package httpstatic
 
 import (
-	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
-	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/web"
+	"gopkg.in/macaron.v1"
 )
 
 var Root string
@@ -39,7 +37,7 @@ func init() {
 	}
 }
 
-// StaticOptions is a struct for specifying configuration options for the web.Static middleware.
+// StaticOptions is a struct for specifying configuration options for the macaron.Static middleware.
 type StaticOptions struct {
 	// Prefix is the optional prefix used to serve the static directory content
 	Prefix string
@@ -49,11 +47,9 @@ type StaticOptions struct {
 	IndexFile string
 	// Expires defines which user-defined function to use for producing a HTTP Expires Header
 	// https://developers.google.com/speed/docs/insights/LeverageBrowserCaching
-	AddHeaders func(ctx *web.Context)
+	AddHeaders func(ctx *macaron.Context)
 	// FileSystem is the interface for supporting any implementation of file system.
 	FileSystem http.FileSystem
-	// Exclude paths from being served
-	Exclude []string
 }
 
 // FIXME: to be deleted.
@@ -117,18 +113,12 @@ func prepareStaticOptions(dir string, options []StaticOptions) StaticOptions {
 	return prepareStaticOption(dir, opt)
 }
 
-func staticHandler(ctx *web.Context, log log.Logger, opt StaticOptions) bool {
+func staticHandler(ctx *macaron.Context, log *log.Logger, opt StaticOptions) bool {
 	if ctx.Req.Method != "GET" && ctx.Req.Method != "HEAD" {
 		return false
 	}
 
 	file := ctx.Req.URL.Path
-	for _, p := range opt.Exclude {
-		if file == p {
-			return false
-		}
-	}
-
 	// if we have a prefix, filter requests by stripping the prefix
 	if opt.Prefix != "" {
 		if !strings.HasPrefix(file, opt.Prefix) {
@@ -146,7 +136,7 @@ func staticHandler(ctx *web.Context, log log.Logger, opt StaticOptions) bool {
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
-			log.Error("Failed to close file", "error", err)
+			log.Printf("Failed to close file: %s\n", err)
 		}
 	}()
 
@@ -159,27 +149,18 @@ func staticHandler(ctx *web.Context, log log.Logger, opt StaticOptions) bool {
 	if fi.IsDir() {
 		// Redirect if missing trailing slash.
 		if !strings.HasSuffix(ctx.Req.URL.Path, "/") {
-			path := fmt.Sprintf("%s/", ctx.Req.URL.Path)
-			if !strings.HasPrefix(path, "/") {
-				// Disambiguate that it's a path relative to this server
-				path = fmt.Sprintf("/%s", path)
-			} else {
-				// A string starting with // or /\ is interpreted by browsers as a URL, and not a server relative path
-				rePrefix := regexp.MustCompile(`^(?:/\\|/+)`)
-				path = rePrefix.ReplaceAllString(path, "/")
-			}
-			http.Redirect(ctx.Resp, ctx.Req, path, http.StatusFound)
+			http.Redirect(ctx.Resp, ctx.Req.Request, ctx.Req.URL.Path+"/", http.StatusFound)
 			return true
 		}
 
 		file = path.Join(file, opt.IndexFile)
-		indexFile, err := opt.FileSystem.Open(file)
+		f, err = opt.FileSystem.Open(file)
 		if err != nil {
 			return false // Discard error.
 		}
 		defer func() {
-			if err := indexFile.Close(); err != nil {
-				log.Error("Failed to close file", "error", err)
+			if err := f.Close(); err != nil {
+				log.Printf("Failed to close file: %s", err)
 			}
 		}()
 
@@ -190,7 +171,7 @@ func staticHandler(ctx *web.Context, log log.Logger, opt StaticOptions) bool {
 	}
 
 	if !opt.SkipLogging {
-		log.Info("[Static] Serving", "file", file)
+		log.Printf("[Static] Serving %s\n", file)
 	}
 
 	// Add an Expires header to the static content
@@ -198,16 +179,15 @@ func staticHandler(ctx *web.Context, log log.Logger, opt StaticOptions) bool {
 		opt.AddHeaders(ctx)
 	}
 
-	http.ServeContent(ctx.Resp, ctx.Req, file, fi.ModTime(), f)
+	http.ServeContent(ctx.Resp, ctx.Req.Request, file, fi.ModTime(), f)
 	return true
 }
 
 // Static returns a middleware handler that serves static files in the given directory.
-func Static(directory string, staticOpt ...StaticOptions) web.Handler {
+func Static(directory string, staticOpt ...StaticOptions) macaron.Handler {
 	opt := prepareStaticOptions(directory, staticOpt)
 
-	logger := log.New("static")
-	return func(ctx *web.Context) {
-		staticHandler(ctx, logger, opt)
+	return func(ctx *macaron.Context, log *log.Logger) {
+		staticHandler(ctx, log, opt)
 	}
 }

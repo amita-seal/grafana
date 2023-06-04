@@ -1,4 +1,5 @@
-# Bundled Plugins
+Bundled Plugins
+===============
 
 Bundled plugins are built as true plugins, and managed by the grafana install.
 

@@ -1,13 +1,9 @@
-import { css } from '@emotion/css';
-import React from 'react';
-
-import { Button, Field, Form, HorizontalGroup, LinkButton } from '@grafana/ui';
+import React, { FC } from 'react';
 import config from 'app/core/config';
 import { UserDTO } from 'app/types';
-
-import { PasswordField } from '../../core/components/PasswordField/PasswordField';
-
-import { ChangePasswordFields } from './types';
+import { Button, LinkButton, Form, Field, Input, HorizontalGroup } from '@grafana/ui';
+import { ChangePasswordFields } from 'app/core/utils/UserProvider';
+import { css } from 'emotion';
 
 export interface Props {
   user: UserDTO;
@@ -15,15 +11,15 @@ export interface Props {
   onChangePassword: (payload: ChangePasswordFields) => void;
 }
 
-export const ChangePasswordForm = ({ user, onChangePassword, isSaving }: Props) => {
-  const { disableLoginForm } = config;
+export const ChangePasswordForm: FC<Props> = ({ user, onChangePassword, isSaving }) => {
+  const { ldapEnabled, authProxyEnabled, disableLoginForm } = config;
   const authSource = user.authLabels?.length && user.authLabels[0];
 
-  if (authSource === 'LDAP' || authSource === 'Auth Proxy') {
-    return <p>You cannot change password when signed in with LDAP or auth proxy.</p>;
+  if (ldapEnabled || authProxyEnabled) {
+    return <p>You cannot change password when ldap or auth proxy authentication is enabled.</p>;
   }
   if (authSource && disableLoginForm) {
-    return <p>Password cannot be changed here.</p>;
+    return <p>Password cannot be changed here!</p>;
   }
 
   return (
@@ -37,18 +33,14 @@ export const ChangePasswordForm = ({ user, onChangePassword, isSaving }: Props) 
           return (
             <>
               <Field label="Old password" invalid={!!errors.oldPassword} error={errors?.oldPassword?.message}>
-                <PasswordField
-                  id="current-password"
-                  autoComplete="current-password"
-                  {...register('oldPassword', { required: 'Old password is required' })}
-                />
+                <Input type="password" name="oldPassword" ref={register({ required: 'Old password is required' })} />
               </Field>
 
               <Field label="New password" invalid={!!errors.newPassword} error={errors?.newPassword?.message}>
-                <PasswordField
-                  id="new-password"
-                  autoComplete="new-password"
-                  {...register('newPassword', {
+                <Input
+                  type="password"
+                  name="newPassword"
+                  ref={register({
                     required: 'New password is required',
                     validate: {
                       confirm: (v) => v === getValues().confirmNew || 'Passwords must match',
@@ -59,20 +51,20 @@ export const ChangePasswordForm = ({ user, onChangePassword, isSaving }: Props) 
               </Field>
 
               <Field label="Confirm password" invalid={!!errors.confirmNew} error={errors?.confirmNew?.message}>
-                <PasswordField
-                  id="confirm-new-password"
-                  autoComplete="new-password"
-                  {...register('confirmNew', {
+                <Input
+                  type="password"
+                  name="confirmNew"
+                  ref={register({
                     required: 'New password confirmation is required',
                     validate: (v) => v === getValues().newPassword || 'Passwords must match',
                   })}
                 />
               </Field>
               <HorizontalGroup>
-                <Button variant="primary" disabled={isSaving} type="submit">
+                <Button variant="primary" disabled={isSaving}>
                   Change Password
                 </Button>
-                <LinkButton variant="secondary" href={`${config.appSubUrl}/profile`} fill="outline">
+                <LinkButton variant="secondary" href={`${config.appSubUrl}/profile`}>
                   Cancel
                 </LinkButton>
               </HorizontalGroup>

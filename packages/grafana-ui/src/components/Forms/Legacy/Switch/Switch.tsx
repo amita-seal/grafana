@@ -1,14 +1,12 @@
-import { Placement } from '@popperjs/core';
-import { uniqueId } from 'lodash';
 import React, { PureComponent } from 'react';
-
-import { Icon } from '../../..';
+import uniqueId from 'lodash/uniqueId';
+import { Placement } from '@popperjs/core';
 import { Tooltip } from '../../../Tooltip/Tooltip';
+import { Icon } from '../../..';
 
 export interface Props {
   label: string;
   checked: boolean;
-  disabled?: boolean;
   className?: string;
   labelClass?: string;
   switchClass?: string;
@@ -38,7 +36,6 @@ export class Switch extends PureComponent<Props, State> {
       switchClass = '',
       label,
       checked,
-      disabled,
       transparent,
       className,
       tooltip,
@@ -65,13 +62,7 @@ export class Switch extends PureComponent<Props, State> {
             </div>
           )}
           <div className={switchClassName}>
-            <input
-              disabled={disabled}
-              id={labelId}
-              type="checkbox"
-              checked={checked}
-              onChange={this.internalOnChange}
-            />
+            <input id={labelId} type="checkbox" checked={checked} onChange={this.internalOnChange} />
             <span className="gf-form-switch__slider" />
           </div>
         </label>

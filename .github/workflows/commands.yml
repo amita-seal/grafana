@@ -1,17 +1,16 @@
 name: Run commands when issues are labeled or comments added
 on:
   issues:
-    types: [labeled, unlabeled]
+    types: [labeled]
   issue_comment:
     types: [created]
-concurrency:
-  group: issue-commands-${{ github.event.issue.number }}
+
 jobs:
   main:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v2
         with:
           repository: "grafana/grafana-github-actions"
           path: ./actions
@@ -22,5 +21,5 @@ jobs:
         uses: ./actions/commands
         with:
           metricsWriteAPIKey: ${{secrets.GRAFANA_MISC_STATS_API_KEY}}
-          token: ${{secrets.ISSUE_COMMANDS_TOKEN}}
+          token: ${{secrets.GH_BOT_ACCESS_TOKEN}}
           configPath: commands

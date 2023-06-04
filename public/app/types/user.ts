@@ -1,7 +1,7 @@
-import { SelectableValue, WithAccessControlMetadata } from '@grafana/data';
-
+import { TimeZone } from '@grafana/data';
 import { OrgRole } from '.';
-export interface OrgUser extends WithAccessControlMetadata {
+
+export interface OrgUser {
   avatarUrl: string;
   email: string;
   lastSeenAt: string;
@@ -11,9 +11,6 @@ export interface OrgUser extends WithAccessControlMetadata {
   orgId: number;
   role: OrgRole;
   userId: number;
-  isDisabled: boolean;
-  authLabels?: string[];
-  isExternallySynced?: boolean;
 }
 
 export interface User {
@@ -26,9 +23,7 @@ export interface User {
   orgId?: number;
 }
 
-export type Unit = { name: string; url: string };
-
-export interface UserDTO extends WithAccessControlMetadata {
+export interface UserDTO {
   id: number;
   login: string;
   email: string;
@@ -43,11 +38,6 @@ export interface UserDTO extends WithAccessControlMetadata {
   avatarUrl?: string;
   orgId?: number;
   lastSeenAtAge?: string;
-  licensedRole?: string;
-  permissions?: string[];
-  teams?: Unit[];
-  orgs?: Unit[];
-  isExternallySynced?: boolean;
 }
 
 export interface Invitee {
@@ -69,15 +59,19 @@ export interface Invitee {
 
 export interface UsersState {
   users: OrgUser[];
+  invitees: Invitee[];
   searchQuery: string;
+  searchPage: number;
   canInvite: boolean;
   externalUserMngLinkUrl: string;
   externalUserMngLinkName: string;
   externalUserMngInfo: string;
-  isLoading: boolean;
-  page: number;
-  perPage: number;
-  totalPages: number;
+  hasFetched: boolean;
+}
+
+export interface UserState {
+  orgId: number;
+  timeZone: TimeZone;
 }
 
 export interface UserSession {
@@ -100,11 +94,11 @@ export interface UserOrg {
 }
 
 export interface UserAdminState {
-  user?: UserDTO;
+  user: UserDTO | null;
   sessions: UserSession[];
   orgs: UserOrg[];
   isLoading: boolean;
-  error?: UserAdminError;
+  error?: UserAdminError | null;
 }
 
 export interface UserAdminError {
@@ -112,7 +106,6 @@ export interface UserAdminError {
   body: string;
 }
 
-export type UserFilter = Record<string, string | boolean | SelectableValue[]>;
 export interface UserListAdminState {
   users: UserDTO[];
   query: string;
@@ -120,6 +113,4 @@ export interface UserListAdminState {
   page: number;
   totalPages: number;
   showPaging: boolean;
-  filters: UserFilter[];
-  isLoading: boolean;
 }

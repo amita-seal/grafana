@@ -1,6 +1,5 @@
 import { Observable } from 'rxjs';
 import { take } from 'rxjs/operators';
-
 import { BackendSrvRequest } from '@grafana/runtime';
 
 import { FetchQueue, FetchQueueUpdate, FetchStatus } from './FetchQueue';

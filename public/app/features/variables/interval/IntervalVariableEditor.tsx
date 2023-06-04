@@ -1,119 +1,110 @@
-import { css } from '@emotion/css';
-import React, { ChangeEvent, FormEvent } from 'react';
+import React, { ChangeEvent, FormEvent, PureComponent } from 'react';
+import { InlineFieldRow, VerticalGroup } from '@grafana/ui';
 
-import { GrafanaTheme2, IntervalVariableModel, SelectableValue } from '@grafana/data';
-import { selectors } from '@grafana/e2e-selectors';
-import { useStyles2 } from '@grafana/ui';
-
-import { VariableCheckboxField } from '../editor/VariableCheckboxField';
-import { VariableLegend } from '../editor/VariableLegend';
-import { VariableSelectField } from '../editor/VariableSelectField';
-import { VariableTextField } from '../editor/VariableTextField';
+import { IntervalVariableModel } from '../types';
 import { VariableEditorProps } from '../editor/types';
-
-const STEP_OPTIONS = [1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500].map((count) => ({
-  label: `${count}`,
-  value: count,
-}));
+import { VariableSectionHeader } from '../editor/VariableSectionHeader';
+import { VariableTextField } from '../editor/VariableTextField';
+import { VariableSwitchField } from '../editor/VariableSwitchField';
+import { VariableSelectField } from '../editor/VariableSelectField';
+import { SelectableValue } from '@grafana/data';
 
 export interface Props extends VariableEditorProps<IntervalVariableModel> {}
 
-export const IntervalVariableEditor = React.memo(({ onPropChange, variable }: Props) => {
-  const onAutoChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onPropChange({
+export class IntervalVariableEditor extends PureComponent<Props> {
+  onAutoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    this.props.onPropChange({
       propName: 'auto',
       propValue: event.target.checked,
       updateOptions: true,
     });
   };
 
-  const onQueryChanged = (event: FormEvent<HTMLInputElement>) => {
-    onPropChange({
+  onQueryChanged = (event: FormEvent<HTMLInputElement>) => {
+    this.props.onPropChange({
       propName: 'query',
       propValue: event.currentTarget.value,
     });
   };
 
-  const onQueryBlur = (event: FormEvent<HTMLInputElement>) => {
-    onPropChange({
+  onQueryBlur = (event: FormEvent<HTMLInputElement>) => {
+    this.props.onPropChange({
       propName: 'query',
       propValue: event.currentTarget.value,
       updateOptions: true,
     });
   };
 
-  const onAutoCountChanged = (option: SelectableValue<number>) => {
-    onPropChange({
+  onAutoCountChanged = (option: SelectableValue<number>) => {
+    this.props.onPropChange({
       propName: 'auto_count',
       propValue: option.value,
       updateOptions: true,
     });
   };
 
-  const onAutoMinChanged = (event: FormEvent<HTMLInputElement>) => {
-    onPropChange({
+  onAutoMinChanged = (event: FormEvent<HTMLInputElement>) => {
+    this.props.onPropChange({
       propName: 'auto_min',
       propValue: event.currentTarget.value,
       updateOptions: true,
     });
   };
 
-  const stepValue = STEP_OPTIONS.find((o) => o.value === variable.auto_count) ?? STEP_OPTIONS[0];
+  render() {
+    const { variable } = this.props;
+    const stepOptions = [1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500].map((count) => ({
+      label: `${count}`,
+      value: count,
+    }));
+    const stepValue = stepOptions.find((o) => o.value === variable.auto_count) ?? stepOptions[0];
 
-  const styles = useStyles2(getStyles);
-
-  return (
-    <>
-      <VariableLegend>Interval options</VariableLegend>
-      <VariableTextField
-        value={variable.query}
-        name="Values"
-        placeholder="1m,10m,1h,6h,1d,7d"
-        onChange={onQueryChanged}
-        onBlur={onQueryBlur}
-        testId={selectors.pages.Dashboard.Settings.Variables.Edit.IntervalVariable.intervalsValueInput}
-        width={32}
-        required
-      />
-
-      <VariableCheckboxField
-        value={variable.auto}
-        name="Auto option"
-        description="Dynamically calculates interval by dividing time range by the count specified"
-        onChange={onAutoChange}
-      />
-      {variable.auto && (
-        <div className={styles.autoFields}>
-          <VariableSelectField
-            name="Step count"
-            description="How many times the current time range should be divided to calculate the value"
-            value={stepValue}
-            options={STEP_OPTIONS}
-            onChange={onAutoCountChanged}
-            width={9}
-          />
+    return (
+      <VerticalGroup spacing="xs">
+        <VariableSectionHeader name="Interval Options" />
+        <VerticalGroup spacing="none">
           <VariableTextField
-            value={variable.auto_min}
-            name="Min interval"
-            description="The calculated value will not go below this threshold"
-            placeholder="10s"
-            onChange={onAutoMinChanged}
-            width={11}
+            value={this.props.variable.query}
+            name="Values"
+            placeholder="1m,10m,1h,6h,1d,7d"
+            onChange={this.onQueryChanged}
+            onBlur={this.onQueryBlur}
+            labelWidth={20}
+            grow
+            required
           />
-        </div>
-      )}
-    </>
-  );
-});
-
-IntervalVariableEditor.displayName = 'IntervalVariableEditor';
-
-function getStyles(theme: GrafanaTheme2) {
-  return {
-    autoFields: css({
-      marginTop: theme.spacing(2),
-      display: 'flex',
-      flexDirection: 'column',
-    }),
-  };
+          <InlineFieldRow>
+            <VariableSwitchField
+              value={this.props.variable.auto}
+              name="Auto Option"
+              tooltip="Interval will be dynamically calculated by dividing time range by the count specified"
+              onChange={this.onAutoChange}
+            />
+            {this.props.variable.auto ? (
+              <>
+                <VariableSelectField
+                  name="Step count"
+                  value={stepValue}
+                  options={stepOptions}
+                  onChange={this.onAutoCountChanged}
+                  tooltip="How many times should the current time range be divided to calculate the value"
+                  labelWidth={7}
+                  width={9}
+                />
+                <VariableTextField
+                  value={this.props.variable.auto_min}
+                  name="Min interval"
+                  placeholder="10s"
+                  onChange={this.onAutoMinChanged}
+                  tooltip="The calculated value will not go below this threshold"
+                  labelWidth={13}
+                  width={11}
+                />
+              </>
+            ) : null}
+          </InlineFieldRow>
+        </VerticalGroup>
+      </VerticalGroup>
+    );
+  }
 }

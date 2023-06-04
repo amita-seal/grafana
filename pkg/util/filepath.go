@@ -3,6 +3,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -45,7 +46,7 @@ func Walk(path string, followSymlinks bool, detectSymlinkInfiniteLoop bool, walk
 // If symlinkPathsFollowed is not nil, then we need to detect infinite loop.
 func walk(path string, info os.FileInfo, resolvedPath string, symlinkPathsFollowed map[string]bool, walkFn WalkFunc) error {
 	if info == nil {
-		return errors.New("walk: Nil FileInfo passed")
+		return errors.New("Walk: Nil FileInfo passed")
 	}
 	err := walkFn(resolvedPath, info, nil)
 	if err != nil {
@@ -54,18 +55,8 @@ func walk(path string, info os.FileInfo, resolvedPath string, symlinkPathsFollow
 		}
 		return err
 	}
-
 	if resolvedPath != "" && info.Mode()&os.ModeSymlink == os.ModeSymlink {
-		// We only want to lstat on directories. If this entry is a symbolic link to a file, no need to recurse.
-		statInfo, err := os.Stat(resolvedPath)
-		if err != nil {
-			return err
-		}
-		if !statInfo.IsDir() {
-			return nil
-		}
-
-		path2, err := filepath.EvalSymlinks(resolvedPath)
+		path2, err := os.Readlink(resolvedPath)
 		if err != nil {
 			return err
 		}
@@ -82,23 +73,19 @@ func walk(path string, info os.FileInfo, resolvedPath string, symlinkPathsFollow
 			return err
 		}
 		return walk(path, info2, path2, symlinkPathsFollowed, walkFn)
-	} else if info.IsDir() {
-		list, err := os.ReadDir(path)
+	}
+	if info.IsDir() {
+		list, err := ioutil.ReadDir(path)
 		if err != nil {
 			return walkFn(resolvedPath, info, err)
 		}
 		var subFiles = make([]subFile, 0)
-		for _, file := range list {
-			path2 := filepath.Join(path, file.Name())
+		for _, fileInfo := range list {
+			path2 := filepath.Join(path, fileInfo.Name())
 			var resolvedPath2 string
 			if resolvedPath != "" {
-				resolvedPath2 = filepath.Join(resolvedPath, file.Name())
+				resolvedPath2 = filepath.Join(resolvedPath, fileInfo.Name())
 			}
-			fileInfo, err := file.Info()
-			if err != nil {
-				return fmt.Errorf("unable to read file info: %v, path: %v", file.Name(), path2)
-			}
-
 			subFiles = append(subFiles, subFile{path: path2, resolvedPath: resolvedPath2, fileInfo: fileInfo})
 		}
 
@@ -141,20 +128,4 @@ func containsDistFolder(subFiles []subFile) bool {
 	}
 
 	return false
-}
-
-// CleanRelativePath returns the shortest path name equivalent to path
-// by purely lexical processing. It make sure the provided path is rooted
-// and then uses filepath.Clean and filepath.Rel to make sure the path
-// doesn't include any separators or elements that shouldn't be there
-// like ., .., //.
-func CleanRelativePath(path string) (string, error) {
-	cleanPath := filepath.Clean(filepath.Join("/", path))
-	rel, err := filepath.Rel("/", cleanPath)
-	if err != nil {
-		// slash is prepended above therefore this is not expected to fail
-		return "", err
-	}
-
-	return rel, nil
 }

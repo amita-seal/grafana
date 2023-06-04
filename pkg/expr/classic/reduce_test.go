@@ -5,121 +5,112 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"github.com/stretchr/testify/require"
-
 	"github.com/grafana/grafana/pkg/expr/mathexp"
-	"github.com/grafana/grafana/pkg/util"
+	"github.com/stretchr/testify/require"
+	ptr "github.com/xorcare/pointer"
 )
 
 func TestReducer(t *testing.T) {
 	var tests = []struct {
 		name           string
-		reducer        reducer
+		reducer        classicReducer
 		inputSeries    mathexp.Series
 		expectedNumber mathexp.Number
 	}{
 		{
 			name:           "sum",
-			reducer:        reducer("sum"),
-			inputSeries:    newSeries(util.Pointer(1.0), util.Pointer(2.0), util.Pointer(3.0)),
-			expectedNumber: newNumber(util.Pointer(6.0)),
+			reducer:        classicReducer("sum"),
+			inputSeries:    valBasedSeries(ptr.Float64(1), ptr.Float64(2), ptr.Float64(3)),
+			expectedNumber: valBasedNumber(ptr.Float64(6)),
 		},
 		{
 			name:           "min",
-			reducer:        reducer("min"),
-			inputSeries:    newSeries(util.Pointer(3.0), util.Pointer(2.0), util.Pointer(1.0)),
-			expectedNumber: newNumber(util.Pointer(1.0)),
+			reducer:        classicReducer("min"),
+			inputSeries:    valBasedSeries(ptr.Float64(3), ptr.Float64(2), ptr.Float64(1)),
+			expectedNumber: valBasedNumber(ptr.Float64(1)),
 		},
 		{
 			name:           "min with NaNs only",
-			reducer:        reducer("min"),
-			inputSeries:    newSeries(util.Pointer(math.NaN()), util.Pointer(math.NaN()), util.Pointer(math.NaN())),
-			expectedNumber: newNumber(nil),
+			reducer:        classicReducer("min"),
+			inputSeries:    valBasedSeries(ptr.Float64(math.NaN()), ptr.Float64(math.NaN()), ptr.Float64(math.NaN())),
+			expectedNumber: valBasedNumber(nil),
 		},
 		{
 			name:           "max",
-			reducer:        reducer("max"),
-			inputSeries:    newSeries(util.Pointer(1.0), util.Pointer(2.0), util.Pointer(3.0)),
-			expectedNumber: newNumber(util.Pointer(3.0)),
+			reducer:        classicReducer("max"),
+			inputSeries:    valBasedSeries(ptr.Float64(1), ptr.Float64(2), ptr.Float64(3)),
+			expectedNumber: valBasedNumber(ptr.Float64(3)),
 		},
 		{
 			name:           "count",
-			reducer:        reducer("count"),
-			inputSeries:    newSeries(util.Pointer(1.0), util.Pointer(2.0), util.Pointer(3000.0)),
-			expectedNumber: newNumber(util.Pointer(3.0)),
+			reducer:        classicReducer("count"),
+			inputSeries:    valBasedSeries(ptr.Float64(1), ptr.Float64(2), ptr.Float64(3000)),
+			expectedNumber: valBasedNumber(ptr.Float64(3)),
 		},
 		{
 			name:           "last",
-			reducer:        reducer("last"),
-			inputSeries:    newSeries(util.Pointer(1.0), util.Pointer(2.0), util.Pointer(3000.0)),
-			expectedNumber: newNumber(util.Pointer(3000.0)),
+			reducer:        classicReducer("last"),
+			inputSeries:    valBasedSeries(ptr.Float64(1), ptr.Float64(2), ptr.Float64(3000)),
+			expectedNumber: valBasedNumber(ptr.Float64(3000)),
 		},
 		{
 			name:           "median with odd amount of numbers",
-			reducer:        reducer("median"),
-			inputSeries:    newSeries(util.Pointer(1.0), util.Pointer(2.0), util.Pointer(3000.0)),
-			expectedNumber: newNumber(util.Pointer(2.0)),
+			reducer:        classicReducer("median"),
+			inputSeries:    valBasedSeries(ptr.Float64(1), ptr.Float64(2), ptr.Float64(3000)),
+			expectedNumber: valBasedNumber(ptr.Float64(2)),
 		},
 		{
 			name:           "median with even amount of numbers",
-			reducer:        reducer("median"),
-			inputSeries:    newSeries(util.Pointer(1.0), util.Pointer(2.0), util.Pointer(4.0), util.Pointer(3000.0)),
-			expectedNumber: newNumber(util.Pointer(3.0)),
+			reducer:        classicReducer("median"),
+			inputSeries:    valBasedSeries(ptr.Float64(1), ptr.Float64(2), ptr.Float64(4), ptr.Float64(3000)),
+			expectedNumber: valBasedNumber(ptr.Float64(3)),
 		},
 		{
 			name:           "median with one value",
-			reducer:        reducer("median"),
-			inputSeries:    newSeries(util.Pointer(1.0)),
-			expectedNumber: newNumber(util.Pointer(1.0)),
+			reducer:        classicReducer("median"),
+			inputSeries:    valBasedSeries(ptr.Float64(1)),
+			expectedNumber: valBasedNumber(ptr.Float64(1)),
 		},
 		{
 			name:           "median should ignore null values",
-			reducer:        reducer("median"),
-			inputSeries:    newSeries(nil, nil, nil, util.Pointer(1.0), util.Pointer(2.0), util.Pointer(3.0)),
-			expectedNumber: newNumber(util.Pointer(2.0)),
+			reducer:        classicReducer("median"),
+			inputSeries:    valBasedSeries(nil, nil, nil, ptr.Float64(1), ptr.Float64(2), ptr.Float64(3)),
+			expectedNumber: valBasedNumber(ptr.Float64(2)),
 		},
 		{
 			name:           "avg",
-			reducer:        reducer("avg"),
-			inputSeries:    newSeries(util.Pointer(1.0), util.Pointer(2.0), util.Pointer(3.0)),
-			expectedNumber: newNumber(util.Pointer(2.0)),
+			reducer:        classicReducer("avg"),
+			inputSeries:    valBasedSeries(ptr.Float64(1), ptr.Float64(2), ptr.Float64(3)),
+			expectedNumber: valBasedNumber(ptr.Float64(2)),
 		},
 		{
 			name:           "avg with only nulls",
-			reducer:        reducer("avg"),
-			inputSeries:    newSeries(nil),
-			expectedNumber: newNumber(nil),
+			reducer:        classicReducer("avg"),
+			inputSeries:    valBasedSeries(nil),
+			expectedNumber: valBasedNumber(nil),
 		},
 		{
 			name:           "avg of number values and null values should ignore nulls",
-			reducer:        reducer("avg"),
-			inputSeries:    newSeries(util.Pointer(3.0), nil, nil, util.Pointer(3.0)),
-			expectedNumber: newNumber(util.Pointer(3.0)),
+			reducer:        classicReducer("avg"),
+			inputSeries:    valBasedSeries(ptr.Float64(3), nil, nil, ptr.Float64(3)),
+			expectedNumber: valBasedNumber(ptr.Float64(3)),
 		},
 		{
 			name:           "count_non_null with mixed null/real values",
-			reducer:        reducer("count_non_null"),
-			inputSeries:    newSeries(nil, nil, util.Pointer(3.0), util.Pointer(4.0)),
-			expectedNumber: newNumber(util.Pointer(2.0)),
-		},
-		{
-			name:           "count_non_null with mixed null/real values",
-			reducer:        reducer("count_non_null"),
-			inputSeries:    newSeries(nil, nil, util.Pointer(3.0), util.Pointer(4.0)),
-			expectedNumber: newNumber(util.Pointer(2.0)),
+			reducer:        classicReducer("count_non_null"),
+			inputSeries:    valBasedSeries(nil, nil, ptr.Float64(3), ptr.Float64(4)),
+			expectedNumber: valBasedNumber(ptr.Float64(2)),
 		},
 		{
 			name:           "count_non_null with no values",
-			reducer:        reducer("count_non_null"),
-			inputSeries:    newSeries(nil, nil),
-			expectedNumber: newNumber(nil),
+			reducer:        classicReducer("count_non_null"),
+			inputSeries:    valBasedSeries(nil, nil),
+			expectedNumber: valBasedNumber(nil),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, true, tt.reducer.ValidReduceFunc())
 			num := tt.reducer.Reduce(tt.inputSeries)
 			require.Equal(t, tt.expectedNumber, num)
 		})
@@ -134,63 +125,63 @@ func TestDiffReducer(t *testing.T) {
 	}{
 		{
 			name:           "diff of one positive point",
-			inputSeries:    newSeries(util.Pointer(30.0)),
-			expectedNumber: newNumber(util.Pointer(0.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30)),
+			expectedNumber: valBasedNumber(ptr.Float64(0)),
 		},
 		{
 			name:           "diff of one negative point",
-			inputSeries:    newSeries(util.Pointer(-30.0)),
-			expectedNumber: newNumber(util.Pointer(0.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30)),
+			expectedNumber: valBasedNumber(ptr.Float64(0)),
 		},
 		{
 			name:           "diff two positive points [1]",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(40.0)),
-			expectedNumber: newNumber(util.Pointer(10.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(40)),
+			expectedNumber: valBasedNumber(ptr.Float64(10)),
 		},
 		{
 			name:           "diff two positive points [2]",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(20.0)),
-			expectedNumber: newNumber(util.Pointer(-10.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(20)),
+			expectedNumber: valBasedNumber(ptr.Float64(-10)),
 		},
 		{
 			name:           "diff two negative points [1]",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-40.0)),
-			expectedNumber: newNumber(util.Pointer(-10.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-40)),
+			expectedNumber: valBasedNumber(ptr.Float64(-10)),
 		},
 		{
 			name:           "diff two negative points [2]",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-10.0)),
-			expectedNumber: newNumber(util.Pointer(20.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-10)),
+			expectedNumber: valBasedNumber(ptr.Float64(20)),
 		},
 		{
 			name:           "diff of one positive and one negative point",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(-40.0)),
-			expectedNumber: newNumber(util.Pointer(-70.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(-40)),
+			expectedNumber: valBasedNumber(ptr.Float64(-70)),
 		},
 		{
 			name:           "diff of one negative and one positive point",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(40.0)),
-			expectedNumber: newNumber(util.Pointer(70.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(40)),
+			expectedNumber: valBasedNumber(ptr.Float64(70)),
 		},
 		{
 			name:           "diff of three positive points",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(40.0), util.Pointer(50.0)),
-			expectedNumber: newNumber(util.Pointer(20.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(40), ptr.Float64(50)),
+			expectedNumber: valBasedNumber(ptr.Float64(20)),
 		},
 		{
 			name:           "diff of three negative points",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-40.0), util.Pointer(-50.0)),
-			expectedNumber: newNumber(util.Pointer(-20.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-40), ptr.Float64(-50)),
+			expectedNumber: valBasedNumber(ptr.Float64(-20)),
 		},
 		{
 			name:           "diff with only nulls",
-			inputSeries:    newSeries(nil, nil),
-			expectedNumber: newNumber(nil),
+			inputSeries:    valBasedSeries(nil, nil),
+			expectedNumber: valBasedNumber(nil),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			num := reducer("diff").Reduce(tt.inputSeries)
+			num := classicReducer("diff").Reduce(tt.inputSeries)
 			require.Equal(t, tt.expectedNumber, num)
 		})
 	}
@@ -204,63 +195,63 @@ func TestDiffAbsReducer(t *testing.T) {
 	}{
 		{
 			name:           "diff_abs of one positive point",
-			inputSeries:    newSeries(util.Pointer(30.0)),
-			expectedNumber: newNumber(util.Pointer(0.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30)),
+			expectedNumber: valBasedNumber(ptr.Float64(0)),
 		},
 		{
 			name:           "diff_abs of one negative point",
-			inputSeries:    newSeries(util.Pointer(-30.0)),
-			expectedNumber: newNumber(util.Pointer(0.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30)),
+			expectedNumber: valBasedNumber(ptr.Float64(0)),
 		},
 		{
 			name:           "diff_abs two positive points [1]",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(40.0)),
-			expectedNumber: newNumber(util.Pointer(10.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(40)),
+			expectedNumber: valBasedNumber(ptr.Float64(10)),
 		},
 		{
 			name:           "diff_abs two positive points [2]",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(20.0)),
-			expectedNumber: newNumber(util.Pointer(10.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(20)),
+			expectedNumber: valBasedNumber(ptr.Float64(10)),
 		},
 		{
 			name:           "diff_abs two negative points [1]",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-40.0)),
-			expectedNumber: newNumber(util.Pointer(10.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-40)),
+			expectedNumber: valBasedNumber(ptr.Float64(10)),
 		},
 		{
 			name:           "diff_abs two negative points [2]",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-10.0)),
-			expectedNumber: newNumber(util.Pointer(20.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-10)),
+			expectedNumber: valBasedNumber(ptr.Float64(20)),
 		},
 		{
 			name:           "diff_abs of one positive and one negative point",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(-40.0)),
-			expectedNumber: newNumber(util.Pointer(70.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(-40)),
+			expectedNumber: valBasedNumber(ptr.Float64(70)),
 		},
 		{
 			name:           "diff_abs of one negative and one positive point",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(40.0)),
-			expectedNumber: newNumber(util.Pointer(70.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(40)),
+			expectedNumber: valBasedNumber(ptr.Float64(70)),
 		},
 		{
 			name:           "diff_abs of three positive points",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(40.0), util.Pointer(50.0)),
-			expectedNumber: newNumber(util.Pointer(20.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(40), ptr.Float64(50)),
+			expectedNumber: valBasedNumber(ptr.Float64(20)),
 		},
 		{
 			name:           "diff_abs of three negative points",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-40.0), util.Pointer(-50.0)),
-			expectedNumber: newNumber(util.Pointer(20.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-40), ptr.Float64(-50)),
+			expectedNumber: valBasedNumber(ptr.Float64(20)),
 		},
 		{
 			name:           "diff_abs with only nulls",
-			inputSeries:    newSeries(nil, nil),
-			expectedNumber: newNumber(nil),
+			inputSeries:    valBasedSeries(nil, nil),
+			expectedNumber: valBasedNumber(nil),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			num := reducer("diff_abs").Reduce(tt.inputSeries)
+			num := classicReducer("diff_abs").Reduce(tt.inputSeries)
 			require.Equal(t, tt.expectedNumber, num)
 		})
 	}
@@ -274,63 +265,63 @@ func TestPercentDiffReducer(t *testing.T) {
 	}{
 		{
 			name:           "percent_diff of one positive point",
-			inputSeries:    newSeries(util.Pointer(30.0)),
-			expectedNumber: newNumber(util.Pointer(0.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30)),
+			expectedNumber: valBasedNumber(ptr.Float64(0)),
 		},
 		{
 			name:           "percent_diff of one negative point",
-			inputSeries:    newSeries(util.Pointer(-30.0)),
-			expectedNumber: newNumber(util.Pointer(0.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30)),
+			expectedNumber: valBasedNumber(ptr.Float64(0)),
 		},
 		{
 			name:           "percent_diff two positive points [1]",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(40.0)),
-			expectedNumber: newNumber(util.Pointer(33.33333333333333)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(40)),
+			expectedNumber: valBasedNumber(ptr.Float64(33.33333333333333)),
 		},
 		{
 			name:           "percent_diff two positive points [2]",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(20.0)),
-			expectedNumber: newNumber(util.Pointer(-33.33333333333333)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(20)),
+			expectedNumber: valBasedNumber(ptr.Float64(-33.33333333333333)),
 		},
 		{
 			name:           "percent_diff two negative points [1]",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-40.0)),
-			expectedNumber: newNumber(util.Pointer(-33.33333333333333)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-40)),
+			expectedNumber: valBasedNumber(ptr.Float64(-33.33333333333333)),
 		},
 		{
 			name:           "percent_diff two negative points [2]",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-10.0)),
-			expectedNumber: newNumber(util.Pointer(66.66666666666666)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-10)),
+			expectedNumber: valBasedNumber(ptr.Float64(66.66666666666666)),
 		},
 		{
 			name:           "percent_diff of one positive and one negative point",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(-40.0)),
-			expectedNumber: newNumber(util.Pointer(-233.33333333333334)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(-40)),
+			expectedNumber: valBasedNumber(ptr.Float64(-233.33333333333334)),
 		},
 		{
 			name:           "percent_diff of one negative and one positive point",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(40.0)),
-			expectedNumber: newNumber(util.Pointer(233.33333333333334)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(40)),
+			expectedNumber: valBasedNumber(ptr.Float64(233.33333333333334)),
 		},
 		{
 			name:           "percent_diff of three positive points",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(40.0), util.Pointer(50.0)),
-			expectedNumber: newNumber(util.Pointer(66.66666666666666)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(40), ptr.Float64(50)),
+			expectedNumber: valBasedNumber(ptr.Float64(66.66666666666666)),
 		},
 		{
 			name:           "percent_diff of three negative points",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-40.0), util.Pointer(-50.0)),
-			expectedNumber: newNumber(util.Pointer(-66.66666666666666)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-40), ptr.Float64(-50)),
+			expectedNumber: valBasedNumber(ptr.Float64(-66.66666666666666)),
 		},
 		{
 			name:           "percent_diff with only nulls",
-			inputSeries:    newSeries(nil, nil),
-			expectedNumber: newNumber(nil),
+			inputSeries:    valBasedSeries(nil, nil),
+			expectedNumber: valBasedNumber(nil),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			num := reducer("percent_diff").Reduce(tt.inputSeries)
+			num := classicReducer("percent_diff").Reduce(tt.inputSeries)
 			require.Equal(t, tt.expectedNumber, num)
 		})
 	}
@@ -344,90 +335,86 @@ func TestPercentDiffAbsReducer(t *testing.T) {
 	}{
 		{
 			name:           "percent_diff_abs of one positive point",
-			inputSeries:    newSeries(util.Pointer(30.0)),
-			expectedNumber: newNumber(util.Pointer(0.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(30)),
+			expectedNumber: valBasedNumber(ptr.Float64(0)),
 		},
 		{
 			name:           "percent_diff_abs of one negative point",
-			inputSeries:    newSeries(util.Pointer(-30.0)),
-			expectedNumber: newNumber(util.Pointer(0.0)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30)),
+			expectedNumber: valBasedNumber(ptr.Float64(0)),
 		},
 		{
 			name:           "percent_diff_abs two positive points [1]",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(40.0)),
-			expectedNumber: newNumber(util.Pointer(33.33333333333333)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(40)),
+			expectedNumber: valBasedNumber(ptr.Float64(33.33333333333333)),
 		},
 		{
 			name:           "percent_diff_abs two positive points [2]",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(20.0)),
-			expectedNumber: newNumber(util.Pointer(33.33333333333333)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(20)),
+			expectedNumber: valBasedNumber(ptr.Float64(33.33333333333333)),
 		},
 		{
 			name:           "percent_diff_abs two negative points [1]",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-40.0)),
-			expectedNumber: newNumber(util.Pointer(33.33333333333333)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-40)),
+			expectedNumber: valBasedNumber(ptr.Float64(33.33333333333333)),
 		},
 		{
 			name:           "percent_diff_abs two negative points [2]",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-10.0)),
-			expectedNumber: newNumber(util.Pointer(66.66666666666666)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-10)),
+			expectedNumber: valBasedNumber(ptr.Float64(66.66666666666666)),
 		},
 		{
 			name:           "percent_diff_abs of one positive and one negative point",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(-40.0)),
-			expectedNumber: newNumber(util.Pointer(233.33333333333334)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(-40)),
+			expectedNumber: valBasedNumber(ptr.Float64(233.33333333333334)),
 		},
 		{
 			name:           "percent_diff_abs of one negative and one positive point",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(40.0)),
-			expectedNumber: newNumber(util.Pointer(233.33333333333334)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(40)),
+			expectedNumber: valBasedNumber(ptr.Float64(233.33333333333334)),
 		},
 		{
 			name:           "percent_diff_abs of three positive points",
-			inputSeries:    newSeries(util.Pointer(30.0), util.Pointer(40.0), util.Pointer(50.0)),
-			expectedNumber: newNumber(util.Pointer(66.66666666666666)),
+			inputSeries:    valBasedSeries(ptr.Float64(30), ptr.Float64(40), ptr.Float64(50)),
+			expectedNumber: valBasedNumber(ptr.Float64(66.66666666666666)),
 		},
 		{
 			name:           "percent_diff_abs of three negative points",
-			inputSeries:    newSeries(util.Pointer(-30.0), util.Pointer(-40.0), util.Pointer(-50.0)),
-			expectedNumber: newNumber(util.Pointer(66.66666666666666)),
+			inputSeries:    valBasedSeries(ptr.Float64(-30), ptr.Float64(-40), ptr.Float64(-50)),
+			expectedNumber: valBasedNumber(ptr.Float64(66.66666666666666)),
 		},
 		{
 			name:           "percent_diff_abs with only nulls",
-			inputSeries:    newSeries(nil, nil),
-			expectedNumber: newNumber(nil),
+			inputSeries:    valBasedSeries(nil, nil),
+			expectedNumber: valBasedNumber(nil),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			num := reducer("percent_diff_abs").Reduce(tt.inputSeries)
+			num := classicReducer("percent_diff_abs").Reduce(tt.inputSeries)
 			require.Equal(t, tt.expectedNumber, num)
 		})
 	}
 }
 
-func newNumber(f *float64) mathexp.Number {
-	num := mathexp.NewNumber("", nil)
-	num.SetValue(f)
-	return num
-}
-
-func newSeries(points ...*float64) mathexp.Series {
-	series := mathexp.NewSeries("", nil, len(points))
-	for idx, point := range points {
-		series.SetPoint(idx, time.Unix(int64(idx), 0), point)
+func valBasedSeries(vals ...*float64) mathexp.Series {
+	newSeries := mathexp.NewSeries("", nil, 0, false, 1, true, len(vals))
+	for idx, f := range vals {
+		err := newSeries.SetPoint(idx, unixTimePointer(int64(idx)), f)
+		if err != nil {
+			panic(err)
+		}
 	}
-	return series
+	return newSeries
 }
 
-func newSeriesWithLabels(labels data.Labels, values ...*float64) mathexp.Series {
-	series := mathexp.NewSeries("", labels, len(values))
-	for idx, value := range values {
-		series.SetPoint(idx, time.Unix(int64(idx), 0), value)
-	}
-	return series
+func unixTimePointer(sec int64) *time.Time {
+	t := time.Unix(sec, 0)
+	return &t
 }
 
-func newResults(values ...mathexp.Value) mathexp.Results {
-	return mathexp.Results{Values: values}
+func valBasedNumber(f *float64) mathexp.Number {
+	newNumber := mathexp.NewNumber("", nil)
+	newNumber.SetValue(f)
+	return newNumber
 }

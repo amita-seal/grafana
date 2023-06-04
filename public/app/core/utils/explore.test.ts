@@ -1,15 +1,8 @@
-import { dateTime, ExploreUrlState, LogsSortOrder } from '@grafana/data';
-import { serializeStateToUrlParam } from '@grafana/data/src/utils/url';
-import { RefreshPicker } from '@grafana/ui';
-import store from 'app/core/store';
-import { ExploreId } from 'app/types';
-
-import { DatasourceSrvMock, MockDataSourceApi } from '../../../test/mocks/datasource_srv';
-
 import {
   buildQueryTransaction,
   clearHistory,
   DEFAULT_RANGE,
+  getFirstQueryErrorWithoutRefId,
   getRefIds,
   getValueWithRefId,
   hasNonEmptyQuery,
@@ -19,31 +12,18 @@ import {
   getExploreUrl,
   GetExploreUrlArguments,
   getTimeRangeFromUrl,
-  getTimeRange,
-  generateEmptyQuery,
 } from './explore';
+import store from 'app/core/store';
+import { DataQueryError, dateTime, ExploreUrlState, LogsSortOrder } from '@grafana/data';
+import { RefreshPicker } from '@grafana/ui';
+import { serializeStateToUrlParam } from '@grafana/data/src/utils/url';
 
 const DEFAULT_EXPLORE_STATE: ExploreUrlState = {
   datasource: '',
   queries: [],
   range: DEFAULT_RANGE,
+  originPanelId: undefined,
 };
-
-const defaultDs = new MockDataSourceApi('default datasource', { data: ['default data'] });
-
-const datasourceSrv = new DatasourceSrvMock(defaultDs, {
-  'generate empty query': new MockDataSourceApi('generateEmptyQuery'),
-  ds1: {
-    name: 'testDs',
-    type: 'loki',
-  } as MockDataSourceApi,
-});
-
-const getDataSourceSrvMock = jest.fn().mockReturnValue(datasourceSrv);
-jest.mock('@grafana/runtime', () => ({
-  ...jest.requireActual('@grafana/runtime'),
-  getDataSourceSrv: () => getDataSourceSrvMock(),
-}));
 
 describe('state functions', () => {
   describe('parseUrlState', () => {
@@ -115,11 +95,9 @@ describe('state functions', () => {
         queries: [
           {
             expr: 'metric{test="a/b"}',
-            refId: 'A',
           },
           {
             expr: 'super{foo="x/z"}',
-            refId: 'B',
           },
         ],
         range: {
@@ -129,8 +107,30 @@ describe('state functions', () => {
       };
 
       expect(serializeStateToUrlParam(state)).toBe(
-        '{"datasource":"foo","queries":[{"expr":"metric{test=\\"a/b\\"}","refId":"A"},' +
-          '{"expr":"super{foo=\\"x/z\\"}","refId":"B"}],"range":{"from":"now-5h","to":"now"}}'
+        '{"datasource":"foo","queries":[{"expr":"metric{test=\\"a/b\\"}"},' +
+          '{"expr":"super{foo=\\"x/z\\"}"}],"range":{"from":"now-5h","to":"now"}}'
+      );
+    });
+
+    it('returns url parameter value for a state object', () => {
+      const state = {
+        ...DEFAULT_EXPLORE_STATE,
+        datasource: 'foo',
+        queries: [
+          {
+            expr: 'metric{test="a/b"}',
+          },
+          {
+            expr: 'super{foo="x/z"}',
+          },
+        ],
+        range: {
+          from: 'now-5h',
+          to: 'now',
+        },
+      };
+      expect(serializeStateToUrlParam(state, true)).toBe(
+        '["now-5h","now","foo",{"expr":"metric{test=\\"a/b\\"}"},{"expr":"super{foo=\\"x/z\\"}"}]'
       );
     });
   });
@@ -140,15 +140,12 @@ describe('state functions', () => {
       const state = {
         ...DEFAULT_EXPLORE_STATE,
         datasource: 'foo',
-        isFromCompactUrl: false,
         queries: [
           {
             expr: 'metric{test="a/b"}',
-            refId: 'A',
           },
           {
             expr: 'super{foo="x/z"}',
-            refId: 'B',
           },
         ],
         range: {
@@ -161,32 +158,24 @@ describe('state functions', () => {
       expect(state).toMatchObject(parsed);
     });
 
-    it('can parse serialized panelsState into the original state', () => {
+    it('can parse the compact serialized state into the original state', () => {
       const state = {
         ...DEFAULT_EXPLORE_STATE,
         datasource: 'foo',
-        isFromCompactUrl: false,
         queries: [
           {
             expr: 'metric{test="a/b"}',
-            refId: 'A',
           },
           {
             expr: 'super{foo="x/z"}',
-            refId: 'B',
           },
         ],
         range: {
           from: 'now - 5h',
           to: 'now',
         },
-        panelsState: {
-          trace: {
-            spanId: 'abcdef',
-          },
-        },
       };
-      const serialized = serializeStateToUrlParam(state);
+      const serialized = serializeStateToUrlParam(state, true);
       const parsed = parseUrlState(serialized);
       expect(state).toMatchObject(parsed);
     });
@@ -194,32 +183,28 @@ describe('state functions', () => {
 });
 
 describe('getExploreUrl', () => {
-  const args = {
+  const args = ({
     panel: {
       getSavedId: () => 1,
-      targets: [
-        { refId: 'A', expr: 'query1', legendFormat: 'legendFormat1' },
-        { refId: 'B', expr: 'query2', datasource: { type: '__expr__', uid: '__expr__' } },
-      ],
+    },
+    panelTargets: [{ refId: 'A', expr: 'query1', legendFormat: 'legendFormat1' }],
+    panelDatasource: {
+      name: 'testDataSource',
+      meta: {
+        id: '1',
+      },
     },
     datasourceSrv: {
-      get() {
-        return {
-          getRef: jest.fn(),
-        };
-      },
+      get: jest.fn(),
       getDataSourceById: jest.fn(),
     },
     timeSrv: {
       timeRangeForUrl: () => '1',
     },
-  } as unknown as GetExploreUrlArguments;
+  } as unknown) as GetExploreUrlArguments;
 
   it('should omit legendFormat in explore url', () => {
     expect(getExploreUrl(args).then((data) => expect(data).not.toMatch(/legendFormat1/g)));
-  });
-  it('should omit expression target in explore url', () => {
-    expect(getExploreUrl(args).then((data) => expect(data).not.toMatch(/__expr__/g)));
   });
 });
 
@@ -250,7 +235,7 @@ describe('hasNonEmptyQuery', () => {
   });
 
   test('should return false if query is empty', () => {
-    expect(hasNonEmptyQuery([{ refId: '1', key: '2', context: 'panel', datasource: { uid: 'some-ds' } }])).toBeFalsy();
+    expect(hasNonEmptyQuery([{ refId: '1', key: '2', context: 'panel' }])).toBeFalsy();
   });
 
   test('should return false if no queries exist', () => {
@@ -261,7 +246,7 @@ describe('hasNonEmptyQuery', () => {
 describe('hasRefId', () => {
   describe('when called with a null value', () => {
     it('then it should return undefined', () => {
-      const input = null;
+      const input: any = null;
       const result = getValueWithRefId(input);
 
       expect(result).toBeUndefined();
@@ -297,11 +282,10 @@ describe('hasRefId', () => {
 
   describe('when called with an object that has refId somewhere in the object tree', () => {
     it('then it should return the object', () => {
-      const mockObject = { refId: 'A' };
-      const input = { data: [123, null, {}, { series: [123, null, {}, mockObject] }] };
+      const input: any = { data: [123, null, {}, { series: [123, null, {}, { refId: 'A' }] }] };
       const result = getValueWithRefId(input);
 
-      expect(result).toBe(mockObject);
+      expect(result).toBe(input.data[3].series[3]);
     });
   });
 });
@@ -310,7 +294,7 @@ describe('getTimeRangeFromUrl', () => {
   it('should parse moment date', () => {
     // convert date strings to moment object
     const range = { from: dateTime('2020-10-22T10:44:33.615Z'), to: dateTime('2020-10-22T10:49:33.615Z') };
-    const result = getTimeRangeFromUrl(range, 'browser', 0);
+    const result = getTimeRangeFromUrl(range, 'browser');
     expect(result.raw).toEqual(range);
   });
 
@@ -319,7 +303,7 @@ describe('getTimeRangeFromUrl', () => {
       from: dateTime('2020-10-22T10:00:00Z').valueOf().toString(),
       to: dateTime('2020-10-22T11:00:00Z').valueOf().toString(),
     };
-    const result = getTimeRangeFromUrl(range, 'browser', 0);
+    const result = getTimeRangeFromUrl(range, 'browser');
     expect(result.from.valueOf()).toEqual(dateTime('2020-10-22T10:00:00Z').valueOf());
     expect(result.to.valueOf()).toEqual(dateTime('2020-10-22T11:00:00Z').valueOf());
     expect(result.raw.from.valueOf()).toEqual(dateTime('2020-10-22T10:00:00Z').valueOf());
@@ -331,7 +315,7 @@ describe('getTimeRangeFromUrl', () => {
       from: dateTime('2020-10-22T10:00:00Z').toISOString(),
       to: dateTime('2020-10-22T11:00:00Z').toISOString(),
     };
-    const result = getTimeRangeFromUrl(range, 'browser', 0);
+    const result = getTimeRangeFromUrl(range, 'browser');
     expect(result.from.valueOf()).toEqual(dateTime('2020-10-22T10:00:00Z').valueOf());
     expect(result.to.valueOf()).toEqual(dateTime('2020-10-22T11:00:00Z').valueOf());
     expect(result.raw.from.valueOf()).toEqual(dateTime('2020-10-22T10:00:00Z').valueOf());
@@ -339,23 +323,44 @@ describe('getTimeRangeFromUrl', () => {
   });
 });
 
-describe('getTimeRange', () => {
-  describe('should flip from and to when from is after to', () => {
-    const rawRange = {
-      from: 'now',
-      to: 'now-6h',
-    };
+describe('getFirstQueryErrorWithoutRefId', () => {
+  describe('when called with a null value', () => {
+    it('then it should return undefined', () => {
+      const errors: DataQueryError[] | undefined = undefined;
+      const result = getFirstQueryErrorWithoutRefId(errors);
 
-    const range = getTimeRange('utc', rawRange, 0);
+      expect(result).toBeUndefined();
+    });
+  });
 
-    expect(range.from.isBefore(range.to)).toBe(true);
+  describe('when called with an array with only refIds', () => {
+    it('then it should return undefined', () => {
+      const errors: DataQueryError[] = [{ refId: 'A' }, { refId: 'B' }];
+      const result = getFirstQueryErrorWithoutRefId(errors);
+
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('when called with an array with and without refIds', () => {
+    it('then it should return undefined', () => {
+      const errors: DataQueryError[] = [
+        { refId: 'A' },
+        { message: 'A message' },
+        { refId: 'B' },
+        { message: 'B message' },
+      ];
+      const result = getFirstQueryErrorWithoutRefId(errors);
+
+      expect(result).toBe(errors[1]);
+    });
   });
 });
 
 describe('getRefIds', () => {
   describe('when called with a null value', () => {
     it('then it should return empty array', () => {
-      const input = null;
+      const input: any = null;
       const result = getRefIds(input);
 
       expect(result).toEqual([]);
@@ -391,7 +396,7 @@ describe('getRefIds', () => {
 
   describe('when called with an object that has refIds somewhere in the object tree', () => {
     it('then it should return return an array with unique refIds', () => {
-      const input = {
+      const input: any = {
         data: [
           123,
           null,
@@ -447,52 +452,21 @@ describe('when buildQueryTransaction', () => {
     const queries = [{ refId: 'A' }];
     const queryOptions = { maxDataPoints: 1000, minInterval: '15s' };
     const range = { from: dateTime().subtract(1, 'd'), to: dateTime(), raw: { from: '1h', to: '1h' } };
-    const transaction = buildQueryTransaction(ExploreId.left, queries, queryOptions, range, false);
+    const transaction = buildQueryTransaction(queries, queryOptions, range, false);
     expect(transaction.request.intervalMs).toEqual(60000);
   });
   it('it should calculate interval taking minInterval into account', () => {
     const queries = [{ refId: 'A' }];
     const queryOptions = { maxDataPoints: 1000, minInterval: '15s' };
     const range = { from: dateTime().subtract(1, 'm'), to: dateTime(), raw: { from: '1h', to: '1h' } };
-    const transaction = buildQueryTransaction(ExploreId.left, queries, queryOptions, range, false);
+    const transaction = buildQueryTransaction(queries, queryOptions, range, false);
     expect(transaction.request.intervalMs).toEqual(15000);
   });
   it('it should calculate interval taking maxDataPoints into account', () => {
     const queries = [{ refId: 'A' }];
     const queryOptions = { maxDataPoints: 10, minInterval: '15s' };
     const range = { from: dateTime().subtract(1, 'd'), to: dateTime(), raw: { from: '1h', to: '1h' } };
-    const transaction = buildQueryTransaction(ExploreId.left, queries, queryOptions, range, false);
+    const transaction = buildQueryTransaction(queries, queryOptions, range, false);
     expect(transaction.request.interval).toEqual('2h');
-  });
-});
-
-describe('generateEmptyQuery', () => {
-  it('should generate query with dataSourceOverride and without queries', async () => {
-    const query = await generateEmptyQuery([], 1, { type: 'loki', uid: 'ds1' });
-
-    expect(query.datasource?.uid).toBe('ds1');
-    expect(query.datasource?.type).toBe('loki');
-    expect(query.refId).toBe('A');
-  });
-  it('should generate query without dataSourceOverride and with queries', async () => {
-    const query = await generateEmptyQuery(
-      [
-        {
-          datasource: { type: 'loki', uid: 'ds1' },
-          refId: 'A',
-        },
-      ],
-      1
-    );
-
-    expect(query.datasource?.uid).toBe('ds1');
-    expect(query.datasource?.type).toBe('loki');
-    expect(query.refId).toBe('B');
-  });
-
-  it('should generate a query with a unique refId', async () => {
-    const query = await generateEmptyQuery([{ refId: 'A' }], 2);
-
-    expect(query.refId).not.toBe('A');
   });
 });

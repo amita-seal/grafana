@@ -1,11 +1,9 @@
 package alerting
 
 import (
-	"context"
 	"encoding/json"
 
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	"github.com/grafana/grafana/pkg/services/datasources"
+	"github.com/grafana/grafana/pkg/models"
 )
 
 // DatasourceAlertUsage is a hash where the key represents the
@@ -22,19 +20,19 @@ type UsageStats struct {
 // UsageStatsQuerier returns usage stats about alert rules
 // configured in Grafana.
 type UsageStatsQuerier interface {
-	QueryUsageStats(context.Context) (*UsageStats, error)
+	QueryUsageStats() (*UsageStats, error)
 }
 
 // QueryUsageStats returns usage stats about alert rules
 // configured in Grafana.
-func (e *AlertEngine) QueryUsageStats(ctx context.Context) (*UsageStats, error) {
+func (e *AlertEngine) QueryUsageStats() (*UsageStats, error) {
 	cmd := &models.GetAllAlertsQuery{}
-	res, err := e.AlertStore.GetAllAlertQueryHandler(ctx, cmd)
+	err := e.Bus.Dispatch(cmd)
 	if err != nil {
 		return nil, err
 	}
 
-	dsUsage, err := e.mapRulesToUsageStats(ctx, res)
+	dsUsage, err := e.mapRulesToUsageStats(cmd.Result)
 	if err != nil {
 		return nil, err
 	}
@@ -44,13 +42,13 @@ func (e *AlertEngine) QueryUsageStats(ctx context.Context) (*UsageStats, error) 
 	}, nil
 }
 
-func (e *AlertEngine) mapRulesToUsageStats(ctx context.Context, rules []*models.Alert) (DatasourceAlertUsage, error) {
+func (e *AlertEngine) mapRulesToUsageStats(rules []*models.Alert) (DatasourceAlertUsage, error) {
 	// map of datasourceId type and frequency
 	typeCount := map[int64]int{}
 	for _, a := range rules {
 		dss, err := e.parseAlertRuleModel(a.Settings)
 		if err != nil {
-			e.log.Debug("could not parse settings for alert rule", "id", a.ID)
+			e.log.Debug("could not parse settings for alert rule", "id", a.Id)
 			continue
 		}
 
@@ -63,14 +61,14 @@ func (e *AlertEngine) mapRulesToUsageStats(ctx context.Context, rules []*models.
 	// map of datsource types and frequency
 	result := map[string]int{}
 	for k, v := range typeCount {
-		query := &datasources.GetDataSourceQuery{ID: k}
-		dataSource, err := e.datasourceService.GetDataSource(ctx, query)
+		query := &models.GetDataSourceQuery{Id: k}
+		err := e.Bus.Dispatch(query)
 		if err != nil {
 			return map[string]int{}, nil
 		}
 
 		// aggregate datasource usages based on datasource type
-		result[dataSource.Type] += v
+		result[query.Result.Type] += v
 	}
 
 	return result, nil

@@ -4,123 +4,121 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/grafana/grafana/pkg/components/simplejson"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/services/alerting"
-	"github.com/grafana/grafana/pkg/services/alerting/models"
-	encryptionservice "github.com/grafana/grafana/pkg/services/encryption/service"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func TestThreemaNotifier(t *testing.T) {
-	encryptionService := encryptionservice.SetupTestService(t)
+	Convey("Threema notifier tests", t, func() {
+		Convey("Parsing alert notification from settings", func() {
+			Convey("empty settings should return error", func() {
+				json := `{ }`
 
-	t.Run("Parsing alert notification from settings", func(t *testing.T) {
-		t.Run("empty settings should return error", func(t *testing.T) {
-			json := `{ }`
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "threema_testing",
+					Type:     "threema",
+					Settings: settingsJSON,
+				}
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "threema_testing",
-				Type:     "threema",
-				Settings: settingsJSON,
-			}
+				_, err := NewThreemaNotifier(model)
+				So(err, ShouldNotBeNil)
+			})
 
-			_, err := NewThreemaNotifier(model, encryptionService.GetDecryptedValue, nil)
-			require.Error(t, err)
-		})
-
-		t.Run("valid settings should be parsed successfully", func(t *testing.T) {
-			json := `
+			Convey("valid settings should be parsed successfully", func() {
+				json := `
 				{
 					"gateway_id": "*3MAGWID",
 					"recipient_id": "ECHOECHO",
 					"api_secret": "1234"
 				}`
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "threema_testing",
-				Type:     "threema",
-				Settings: settingsJSON,
-			}
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "threema_testing",
+					Type:     "threema",
+					Settings: settingsJSON,
+				}
 
-			not, err := NewThreemaNotifier(model, encryptionService.GetDecryptedValue, nil)
-			require.Nil(t, err)
-			threemaNotifier := not.(*ThreemaNotifier)
+				not, err := NewThreemaNotifier(model)
+				So(err, ShouldBeNil)
+				threemaNotifier := not.(*ThreemaNotifier)
 
-			require.Nil(t, err)
-			require.Equal(t, "threema_testing", threemaNotifier.Name)
-			require.Equal(t, "threema", threemaNotifier.Type)
-			require.Equal(t, "*3MAGWID", threemaNotifier.GatewayID)
-			require.Equal(t, "ECHOECHO", threemaNotifier.RecipientID)
-			require.Equal(t, "1234", threemaNotifier.APISecret)
-		})
+				So(err, ShouldBeNil)
+				So(threemaNotifier.Name, ShouldEqual, "threema_testing")
+				So(threemaNotifier.Type, ShouldEqual, "threema")
+				So(threemaNotifier.GatewayID, ShouldEqual, "*3MAGWID")
+				So(threemaNotifier.RecipientID, ShouldEqual, "ECHOECHO")
+				So(threemaNotifier.APISecret, ShouldEqual, "1234")
+			})
 
-		t.Run("invalid Threema Gateway IDs should be rejected (prefix)", func(t *testing.T) {
-			json := `
+			Convey("invalid Threema Gateway IDs should be rejected (prefix)", func() {
+				json := `
 				{
 					"gateway_id": "ECHOECHO",
 					"recipient_id": "ECHOECHO",
 					"api_secret": "1234"
 				}`
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "threema_testing",
-				Type:     "threema",
-				Settings: settingsJSON,
-			}
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "threema_testing",
+					Type:     "threema",
+					Settings: settingsJSON,
+				}
 
-			not, err := NewThreemaNotifier(model, encryptionService.GetDecryptedValue, nil)
-			require.Nil(t, not)
-			var valErr alerting.ValidationError
-			require.True(t, errors.As(err, &valErr))
-			require.Equal(t, "Invalid Threema Gateway ID: Must start with a *", valErr.Reason)
-		})
+				not, err := NewThreemaNotifier(model)
+				So(not, ShouldBeNil)
+				var valErr alerting.ValidationError
+				So(errors.As(err, &valErr), ShouldBeTrue)
+				So(valErr.Reason, ShouldEqual, "Invalid Threema Gateway ID: Must start with a *")
+			})
 
-		t.Run("invalid Threema Gateway IDs should be rejected (length)", func(t *testing.T) {
-			json := `
+			Convey("invalid Threema Gateway IDs should be rejected (length)", func() {
+				json := `
 				{
 					"gateway_id": "*ECHOECHO",
 					"recipient_id": "ECHOECHO",
 					"api_secret": "1234"
 				}`
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "threema_testing",
-				Type:     "threema",
-				Settings: settingsJSON,
-			}
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "threema_testing",
+					Type:     "threema",
+					Settings: settingsJSON,
+				}
 
-			not, err := NewThreemaNotifier(model, encryptionService.GetDecryptedValue, nil)
-			require.Nil(t, not)
-			var valErr alerting.ValidationError
-			require.True(t, errors.As(err, &valErr))
-			require.Equal(t, "Invalid Threema Gateway ID: Must be 8 characters long", valErr.Reason)
-		})
+				not, err := NewThreemaNotifier(model)
+				So(not, ShouldBeNil)
+				var valErr alerting.ValidationError
+				So(errors.As(err, &valErr), ShouldBeTrue)
+				So(valErr.Reason, ShouldEqual, "Invalid Threema Gateway ID: Must be 8 characters long")
+			})
 
-		t.Run("invalid Threema Recipient IDs should be rejected (length)", func(t *testing.T) {
-			json := `
+			Convey("invalid Threema Recipient IDs should be rejected (length)", func() {
+				json := `
 				{
 					"gateway_id": "*3MAGWID",
 					"recipient_id": "ECHOECH",
 					"api_secret": "1234"
 				}`
 
-			settingsJSON, _ := simplejson.NewJson([]byte(json))
-			model := &models.AlertNotification{
-				Name:     "threema_testing",
-				Type:     "threema",
-				Settings: settingsJSON,
-			}
+				settingsJSON, _ := simplejson.NewJson([]byte(json))
+				model := &models.AlertNotification{
+					Name:     "threema_testing",
+					Type:     "threema",
+					Settings: settingsJSON,
+				}
 
-			not, err := NewThreemaNotifier(model, encryptionService.GetDecryptedValue, nil)
-			require.Nil(t, not)
-			var valErr alerting.ValidationError
-			require.True(t, errors.As(err, &valErr))
-			require.Equal(t, "Invalid Threema Recipient ID: Must be 8 characters long", valErr.Reason)
+				not, err := NewThreemaNotifier(model)
+				So(not, ShouldBeNil)
+				var valErr alerting.ValidationError
+				So(errors.As(err, &valErr), ShouldBeTrue)
+				So(valErr.Reason, ShouldEqual, "Invalid Threema Recipient ID: Must be 8 characters long")
+			})
 		})
 	})
 }

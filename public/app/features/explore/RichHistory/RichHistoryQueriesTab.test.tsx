@@ -1,64 +1,59 @@
-import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
+import { mount } from 'enzyme';
+import { ExploreId } from '../../../types/explore';
+import { SortOrder } from 'app/core/utils/richHistory';
+import { RichHistoryQueriesTab, Props } from './RichHistoryQueriesTab';
+import { RangeSlider } from '@grafana/ui';
 
-import { DataSourceSrv, setDataSourceSrv } from '@grafana/runtime';
-import { SortOrder } from 'app/core/utils/richHistoryTypes';
-import { ExploreId } from 'app/types';
+jest.mock('../state/selectors', () => ({ getExploreDatasources: jest.fn() }));
 
-import { RichHistoryQueriesTab, RichHistoryQueriesTabProps } from './RichHistoryQueriesTab';
-
-const setup = (propOverrides?: Partial<RichHistoryQueriesTabProps>) => {
-  const props: RichHistoryQueriesTabProps = {
+const setup = (propOverrides?: Partial<Props>) => {
+  const props: Props = {
     queries: [],
-    totalQueries: 0,
-    loading: false,
-    activeDatasourceInstance: 'test-ds',
-    updateFilters: jest.fn(),
-    clearRichHistoryResults: jest.fn(),
-    loadMoreRichHistory: jest.fn(),
-    richHistorySearchFilters: {
-      search: '',
-      sortOrder: SortOrder.Descending,
-      datasourceFilters: ['test-ds'],
-      from: 0,
-      to: 30,
-      starred: false,
-    },
-    richHistorySettings: {
-      retentionPeriod: 30,
-      activeDatasourceOnly: false,
-      lastUsedDatasourceFilters: [],
-      starredTabAsFirstTab: false,
-    },
-    exploreId: ExploreId.left,
+    sortOrder: SortOrder.Ascending,
+    activeDatasourceOnly: false,
+    datasourceFilters: null,
+    retentionPeriod: 14,
     height: 100,
+    exploreId: ExploreId.left,
+    onChangeSortOrder: jest.fn(),
+    onSelectDatasourceFilters: jest.fn(),
   };
 
   Object.assign(props, propOverrides);
 
-  return render(<RichHistoryQueriesTab {...props} />);
+  const wrapper = mount(<RichHistoryQueriesTab {...props} />);
+  return wrapper;
 };
 
 describe('RichHistoryQueriesTab', () => {
-  beforeAll(() => {
-    setDataSourceSrv({
-      getList() {
-        return [];
-      },
-    } as unknown as DataSourceSrv);
+  describe('slider', () => {
+    it('should render slider', () => {
+      const wrapper = setup();
+      expect(wrapper.find(RangeSlider)).toHaveLength(1);
+    });
+    it('should render slider with correct timerange', () => {
+      const wrapper = setup();
+      expect(wrapper.find('.label-slider').at(1).text()).toEqual('today');
+      expect(wrapper.find('.label-slider').at(2).text()).toEqual('two weeks ago');
+    });
   });
 
-  it('should render', () => {
-    setup();
-    expect(screen.queryByText('Filter history')).toBeInTheDocument();
+  describe('sort options', () => {
+    it('should render sorter', () => {
+      const wrapper = setup();
+      expect(wrapper.find({ 'aria-label': 'Sort queries' })).toHaveLength(1);
+    });
   });
 
-  it('should not regex escape filter input', () => {
-    const updateFiltersSpy = jest.fn();
-    setup({ updateFilters: updateFiltersSpy });
-    const input = screen.getByPlaceholderText(/search queries/i);
-    fireEvent.change(input, { target: { value: '|=' } });
-
-    expect(updateFiltersSpy).toHaveBeenCalledWith(expect.objectContaining({ search: '|=' }));
+  describe('select datasource', () => {
+    it('should render select datasource if activeDatasourceOnly is false', () => {
+      const wrapper = setup();
+      expect(wrapper.find({ 'aria-label': 'Filter datasources' })).toHaveLength(1);
+    });
+    it('should not render select datasource if activeDatasourceOnly is true', () => {
+      const wrapper = setup({ activeDatasourceOnly: true });
+      expect(wrapper.find({ 'aria-label': 'Filter datasources' })).toHaveLength(0);
+    });
   });
 });

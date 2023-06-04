@@ -1,13 +1,12 @@
-@import 'react-grid-layout/css/styles';
-@import 'react-resizable/css/styles';
+@import '~react-grid-layout/css/styles.css';
+@import '~react-resizable/css/styles.css';
 
 .react-resizable-handle {
   // this needs to use visibility and not display none in order not to cause resize flickering
   visibility: hidden;
 }
 
-.react-grid-item,
-#grafana-portal-container {
+.react-grid-item {
   touch-action: initial !important;
 
   &:hover {
@@ -19,8 +18,9 @@
 
 .panel-in-fullscreen {
   .react-grid-layout {
-    height: auto !important;
+    height: 90% !important;
   }
+
   .react-grid-item {
     display: none !important;
     transition-property: none !important;
@@ -28,6 +28,8 @@
     &--fullscreen {
       display: block !important;
       position: unset !important;
+      width: 100% !important;
+      height: 100% !important;
       transform: translate(0px, 0px) !important;
     }
   }
@@ -52,10 +54,15 @@
 }
 
 @include media-breakpoint-down(sm) {
+  .react-grid-layout {
+    height: 100% !important;
+  }
+
   .react-grid-item {
     display: block !important;
     transition-property: none !important;
     position: unset !important;
+    width: 100% !important;
     transform: translate(0px, 0px) !important;
     margin-bottom: $space-md;
   }
@@ -64,7 +71,7 @@
 .react-grid-item.react-grid-placeholder {
   box-shadow: $panel-grid-placeholder-shadow;
   background: $panel-grid-placeholder-bg;
-  z-index: -1;
+  z-index: 0;
   opacity: unset;
 }
 
@@ -94,8 +101,6 @@
   transition-property: none;
 }
 
-.react-grid-layout--enable-move-animations {
-  .react-grid-item.cssTransforms {
-    transition-property: transform;
-  }
+.animated .react-grid-item.cssTransforms {
+  transition-property: transform;
 }

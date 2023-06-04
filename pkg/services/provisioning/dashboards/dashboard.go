@@ -5,59 +5,51 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/grafana/grafana/pkg/bus"
 	"github.com/grafana/grafana/pkg/infra/log"
-	"github.com/grafana/grafana/pkg/services/dashboards"
-	"github.com/grafana/grafana/pkg/services/org"
-	"github.com/grafana/grafana/pkg/services/provisioning/utils"
+	"github.com/grafana/grafana/pkg/models"
+	"github.com/grafana/grafana/pkg/util/errutil"
 )
 
 // DashboardProvisioner is responsible for syncing dashboard from disk to
 // Grafana's database.
 type DashboardProvisioner interface {
-	HasDashboardSources() bool
-	Provision(ctx context.Context) error
+	Provision() error
 	PollChanges(ctx context.Context)
 	GetProvisionerResolvedPath(name string) string
 	GetAllowUIUpdatesFromConfig(name string) bool
-	CleanUpOrphanedDashboards(ctx context.Context)
+	CleanUpOrphanedDashboards()
 }
 
 // DashboardProvisionerFactory creates DashboardProvisioners based on input
-type DashboardProvisionerFactory func(context.Context, string, dashboards.DashboardProvisioningService, org.Service, utils.DashboardStore) (DashboardProvisioner, error)
+type DashboardProvisionerFactory func(string) (DashboardProvisioner, error)
 
 // Provisioner is responsible for syncing dashboard from disk to Grafana's database.
 type Provisioner struct {
-	log                log.Logger
-	fileReaders        []*FileReader
-	configs            []*config
-	duplicateValidator duplicateValidator
-	provisioner        dashboards.DashboardProvisioningService
-}
-
-func (provider *Provisioner) HasDashboardSources() bool {
-	return len(provider.fileReaders) > 0
+	log         log.Logger
+	fileReaders []*FileReader
+	configs     []*config
 }
 
 // New returns a new DashboardProvisioner
-func New(ctx context.Context, configDirectory string, provisioner dashboards.DashboardProvisioningService, orgService org.Service, dashboardStore utils.DashboardStore) (DashboardProvisioner, error) {
+func New(configDirectory string) (*Provisioner, error) {
 	logger := log.New("provisioning.dashboard")
-	cfgReader := &configReader{path: configDirectory, log: logger, orgService: orgService}
-	configs, err := cfgReader.readConfig(ctx)
+	cfgReader := &configReader{path: configDirectory, log: logger}
+	configs, err := cfgReader.readConfig()
+
 	if err != nil {
-		return nil, fmt.Errorf("%v: %w", "Failed to read dashboards config", err)
+		return nil, errutil.Wrap("Failed to read dashboards config", err)
 	}
 
-	fileReaders, err := getFileReaders(configs, logger, provisioner, dashboardStore)
+	fileReaders, err := getFileReaders(configs, logger)
 	if err != nil {
-		return nil, fmt.Errorf("%v: %w", "Failed to initialize file readers", err)
+		return nil, errutil.Wrap("Failed to initialize file readers", err)
 	}
 
 	d := &Provisioner{
-		log:                logger,
-		fileReaders:        fileReaders,
-		configs:            configs,
-		duplicateValidator: newDuplicateValidator(logger, fileReaders),
-		provisioner:        provisioner,
+		log:         logger,
+		fileReaders: fileReaders,
+		configs:     configs,
 	}
 
 	return d, nil
@@ -65,32 +57,31 @@ func New(ctx context.Context, configDirectory string, provisioner dashboards.Das
 
 // Provision scans the disk for dashboards and updates
 // the database with the latest versions of those dashboards.
-func (provider *Provisioner) Provision(ctx context.Context) error {
+func (provider *Provisioner) Provision() error {
 	for _, reader := range provider.fileReaders {
-		if err := reader.walkDisk(ctx); err != nil {
+		if err := reader.walkDisk(); err != nil {
 			if os.IsNotExist(err) {
 				// don't stop the provisioning service in case the folder is missing. The folder can appear after the startup
 				provider.log.Warn("Failed to provision config", "name", reader.Cfg.Name, "error", err)
 				return nil
 			}
 
-			return fmt.Errorf("failed to provision config %v: %w", reader.Cfg.Name, err)
+			return errutil.Wrapf(err, "Failed to provision config %v", reader.Cfg.Name)
 		}
 	}
 
-	provider.duplicateValidator.validate()
 	return nil
 }
 
 // CleanUpOrphanedDashboards deletes provisioned dashboards missing a linked reader.
-func (provider *Provisioner) CleanUpOrphanedDashboards(ctx context.Context) {
+func (provider *Provisioner) CleanUpOrphanedDashboards() {
 	currentReaders := make([]string, len(provider.fileReaders))
 
 	for index, reader := range provider.fileReaders {
 		currentReaders[index] = reader.Cfg.Name
 	}
 
-	if err := provider.provisioner.DeleteOrphanedProvisionedDashboards(ctx, &dashboards.DeleteOrphanedProvisionedDashboardsCommand{ReaderNames: currentReaders}); err != nil {
+	if err := bus.Dispatch(&models.DeleteOrphanedProvisionedDashboardsCommand{ReaderNames: currentReaders}); err != nil {
 		provider.log.Warn("Failed to delete orphaned provisioned dashboards", "err", err)
 	}
 }
@@ -101,12 +92,10 @@ func (provider *Provisioner) PollChanges(ctx context.Context) {
 	for _, reader := range provider.fileReaders {
 		go reader.pollChanges(ctx)
 	}
-
-	go provider.duplicateValidator.Run(ctx)
 }
 
 // GetProvisionerResolvedPath returns resolved path for the specified provisioner name. Can be used to generate
-// relative path to provisioning file from its external_id.
+// relative path to provisioning file from it's external_id.
 func (provider *Provisioner) GetProvisionerResolvedPath(name string) string {
 	for _, reader := range provider.fileReaders {
 		if reader.Cfg.Name == name {
@@ -126,17 +115,15 @@ func (provider *Provisioner) GetAllowUIUpdatesFromConfig(name string) bool {
 	return false
 }
 
-func getFileReaders(
-	configs []*config, logger log.Logger, service dashboards.DashboardProvisioningService, store utils.DashboardStore,
-) ([]*FileReader, error) {
+func getFileReaders(configs []*config, logger log.Logger) ([]*FileReader, error) {
 	var readers []*FileReader
 
 	for _, config := range configs {
 		switch config.Type {
 		case "file":
-			fileReader, err := NewDashboardFileReader(config, logger.New("type", config.Type, "name", config.Name), service, store)
+			fileReader, err := NewDashboardFileReader(config, logger.New("type", config.Type, "name", config.Name))
 			if err != nil {
-				return nil, fmt.Errorf("failed to create file reader for config %v: %w", config.Name, err)
+				return nil, errutil.Wrapf(err, "Failed to create file reader for config %v", config.Name)
 			}
 			readers = append(readers, fileReader)
 		default:

@@ -7,7 +7,7 @@ const isSelectLineHotkey = isKeyHotkey('mod+l');
 export function SelectionShortcutsPlugin(): Plugin {
   return {
     onKeyDown(event, editor, next) {
-      if (isSelectLineHotkey(event)) {
+      if (isSelectLineHotkey(event.nativeEvent)) {
         event.preventDefault();
         const { focusBlock, document } = editor.value;
 

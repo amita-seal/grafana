@@ -13,18 +13,14 @@ export function findHighlightChunksInText({
   searchWords,
   textToHighlight,
 }: {
-  searchWords: Array<string | RegExp>;
+  searchWords: string[];
   textToHighlight: string;
 }) {
-  const chunks: TextMatch[] = [];
-  for (const term of searchWords) {
-    chunks.push(...findMatchesInText(textToHighlight, term as string));
-  }
-  return chunks;
+  return searchWords.reduce((acc: any, term: string) => [...acc, ...findMatchesInText(textToHighlight, term)], []);
 }
 
 const cleanNeedle = (needle: string): string => {
-  return needle.replace(/[[{(][\w,.\/:;<=>?:*+]+$/, '');
+  return needle.replace(/[[{(][\w,.-?:*+]+$/, '');
 };
 
 /**
@@ -35,17 +31,14 @@ export function findMatchesInText(haystack: string, needle: string): TextMatch[]
   if (!haystack || !needle) {
     return [];
   }
-
   const matches: TextMatch[] = [];
   const { cleaned, flags } = parseFlags(cleanNeedle(needle));
   let regexp: RegExp;
-
   try {
     regexp = new RegExp(`(?:${cleaned})`, flags);
   } catch (error) {
     return matches;
   }
-
   haystack.replace(regexp, (substring, ...rest) => {
     if (substring) {
       const offset = rest[rest.length - 2];
@@ -58,7 +51,6 @@ export function findMatchesInText(haystack: string, needle: string): TextMatch[]
     }
     return '';
   });
-
   return matches;
 }
 

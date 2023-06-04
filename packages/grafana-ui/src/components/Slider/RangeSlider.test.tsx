@@ -1,8 +1,7 @@
-import { render } from '@testing-library/react';
 import React from 'react';
-
 import { RangeSlider } from './RangeSlider';
 import { RangeSliderProps } from './types';
+import { render } from '@testing-library/react';
 
 const sliderProps: RangeSliderProps = {
   min: 10,

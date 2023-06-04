@@ -1,7 +1,6 @@
-import { each, map, includes, flatten, keys } from 'lodash';
-
+import _ from 'lodash';
+import TableModel from 'app/core/table_model';
 import { FieldType, QueryResultMeta, TimeSeries, TableData } from '@grafana/data';
-import TableModel from 'app/core/TableModel';
 
 export default class InfluxSeries {
   refId?: string;
@@ -26,9 +25,9 @@ export default class InfluxSeries {
       return output;
     }
 
-    each(this.series, (series) => {
+    _.each(this.series, (series) => {
       const columns = series.columns.length;
-      const tags = map(series.tags, (value, key) => {
+      const tags = _.map(series.tags, (value, key) => {
         return key + ': ' + value;
       });
 
@@ -52,14 +51,7 @@ export default class InfluxSeries {
           }
         }
 
-        output.push({
-          title: seriesName,
-          target: seriesName,
-          datapoints: datapoints,
-          tags: series.tags,
-          meta: this.meta,
-          refId: this.refId,
-        });
+        output.push({ target: seriesName, datapoints: datapoints, meta: this.meta, refId: this.refId });
       }
     });
 
@@ -81,7 +73,7 @@ export default class InfluxSeries {
         return series.columns[index];
       }
       if (!isNaN(segIndex)) {
-        return segments[segIndex] ?? match;
+        return segments[segIndex];
       }
       if (group.indexOf('tag_') !== 0) {
         return match;
@@ -98,14 +90,13 @@ export default class InfluxSeries {
   getAnnotations() {
     const list: any[] = [];
 
-    each(this.series, (series) => {
+    _.each(this.series, (series) => {
       let titleCol: any = null;
       let timeCol: any = null;
-      let timeEndCol: any = null;
       const tagsCol: any = [];
       let textCol: any = null;
 
-      each(series.columns, (column, index) => {
+      _.each(series.columns, (column, index) => {
         if (column === 'time') {
           timeCol = index;
           return;
@@ -117,16 +108,12 @@ export default class InfluxSeries {
           titleCol = index;
           return;
         }
-        if (includes((this.annotation.tagsColumn || '').replace(' ', '').split(','), column)) {
+        if (_.includes((this.annotation.tagsColumn || '').replace(' ', '').split(','), column)) {
           tagsCol.push(index);
           return;
         }
         if (column === this.annotation.textColumn) {
           textCol = index;
-          return;
-        }
-        if (column === this.annotation.timeEndColumn) {
-          timeEndCol = index;
           return;
         }
         // legacy case
@@ -135,14 +122,13 @@ export default class InfluxSeries {
         }
       });
 
-      each(series.values, (value) => {
+      _.each(series.values, (value) => {
         const data = {
           annotation: this.annotation,
           time: +new Date(value[timeCol]),
           title: value[titleCol],
-          timeEnd: value[timeEndCol],
           // Remove empty values, then split in different tags for comma separated values
-          tags: flatten(
+          tags: _.flatten(
             tagsCol
               .filter((t: any) => {
                 return value[t];
@@ -172,24 +158,19 @@ export default class InfluxSeries {
       return table;
     }
 
-    // the order is:
-    // - first the first item from the value-array (this is often (always?) the timestamp)
-    // - then all the tag-values
-    // - then the rest of the value-array
-    //
-    // we have to keep this order both in table.columns and table.rows
-
-    each(this.series, (series: any, seriesIndex: number) => {
+    _.each(this.series, (series: any, seriesIndex: number) => {
       if (seriesIndex === 0) {
-        const firstCol = series.columns[0];
-        // Check the first column's name, if it is `time`, we
-        // mark it as having the type time
-        const firstTableCol = firstCol === 'time' ? { text: 'Time', type: FieldType.time } : { text: firstCol };
-        table.columns.push(firstTableCol);
-        each(keys(series.tags), (key) => {
+        j = 0;
+        // Check that the first column is indeed 'time'
+        if (series.columns[0] === 'time') {
+          // Push this now before the tags and with the right type
+          table.columns.push({ text: 'Time', type: FieldType.time });
+          j++;
+        }
+        _.each(_.keys(series.tags), (key) => {
           table.columns.push({ text: key });
         });
-        for (j = 1; j < series.columns.length; j++) {
+        for (; j < series.columns.length; j++) {
           table.columns.push({ text: series.columns[j] });
         }
       }

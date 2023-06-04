@@ -10,155 +10,126 @@ import (
 	"path"
 	"strings"
 
-	"github.com/grafana/grafana-plugin-sdk-go/backend"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/datasource"
-	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
-
-	"github.com/grafana/grafana/pkg/infra/httpclient"
 	"github.com/grafana/grafana/pkg/infra/log"
+	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/setting"
+	"github.com/grafana/grafana/pkg/tsdb"
 	"github.com/grafana/grafana/pkg/tsdb/influxdb/flux"
-	"github.com/grafana/grafana/pkg/tsdb/influxdb/models"
 )
 
-var logger log.Logger = log.New("tsdb.influxdb")
-
-type Service struct {
-	queryParser    *InfluxdbQueryParser
-	responseParser *ResponseParser
-
-	im instancemgmt.InstanceManager
+type InfluxDBExecutor struct {
+	// *models.DataSource
+	QueryParser    *InfluxdbQueryParser
+	ResponseParser *ResponseParser
 }
 
-var ErrInvalidHttpMode = errors.New("'httpMode' should be either 'GET' or 'POST'")
+func NewInfluxDBExecutor(datasource *models.DataSource) (tsdb.TsdbQueryEndpoint, error) {
+	return &InfluxDBExecutor{
+		QueryParser:    &InfluxdbQueryParser{},
+		ResponseParser: &ResponseParser{},
+	}, nil
+}
 
-func ProvideService(httpClient httpclient.Provider) *Service {
-	return &Service{
-		queryParser:    &InfluxdbQueryParser{},
-		responseParser: &ResponseParser{},
-		im:             datasource.NewInstanceManager(newInstanceSettings(httpClient)),
+var (
+	glog log.Logger
+)
+
+var ErrInvalidHttpMode error = errors.New("'httpMode' should be either 'GET' or 'POST'")
+
+func init() {
+	glog = log.New("tsdb.influxdb")
+	tsdb.RegisterTsdbQueryEndpoint("influxdb", NewInfluxDBExecutor)
+}
+
+func (e *InfluxDBExecutor) Query(ctx context.Context, dsInfo *models.DataSource, tsdbQuery *tsdb.TsdbQuery) (*tsdb.Response, error) {
+	glog.Debug("Received a query request", "numQueries", len(tsdbQuery.Queries))
+
+	version := dsInfo.JsonData.Get("version").MustString("")
+	if version == "Flux" {
+		return flux.Query(ctx, dsInfo, tsdbQuery)
 	}
-}
 
-func newInstanceSettings(httpClientProvider httpclient.Provider) datasource.InstanceFactoryFunc {
-	return func(settings backend.DataSourceInstanceSettings) (instancemgmt.Instance, error) {
-		opts, err := settings.HTTPClientOptions()
-		if err != nil {
-			return nil, err
-		}
+	glog.Debug("Making a non-Flux type query")
 
-		client, err := httpClientProvider.New(opts)
-		if err != nil {
-			return nil, err
-		}
+	// NOTE: the following path is currently only called from alerting queries
+	// In dashboards, the request runs through proxy and are managed in the frontend
 
-		jsonData := models.DatasourceInfo{}
-		err = json.Unmarshal(settings.JSONData, &jsonData)
-		if err != nil {
-			return nil, fmt.Errorf("error reading settings: %w", err)
-		}
-		httpMode := jsonData.HTTPMode
-		if httpMode == "" {
-			httpMode = "GET"
-		}
-		maxSeries := jsonData.MaxSeries
-		if maxSeries == 0 {
-			maxSeries = 1000
-		}
-		version := jsonData.Version
-		if version == "" {
-			version = influxVersionInfluxQL
-		}
-		database := jsonData.DbName
-		if database == "" {
-			database = settings.Database
-		}
-		model := &models.DatasourceInfo{
-			HTTPClient:    client,
-			URL:           settings.URL,
-			DbName:        database,
-			Version:       version,
-			HTTPMode:      httpMode,
-			TimeInterval:  jsonData.TimeInterval,
-			DefaultBucket: jsonData.DefaultBucket,
-			Organization:  jsonData.Organization,
-			MaxSeries:     maxSeries,
-			Token:         settings.DecryptedSecureJSONData["token"],
-		}
-		return model, nil
-	}
-}
-
-func (s *Service) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
-	logger := logger.FromContext(ctx)
-	logger.Debug("Received a query request", "numQueries", len(req.Queries))
-
-	dsInfo, err := s.getDSInfo(ctx, req.PluginContext)
+	query, err := e.getQuery(dsInfo, tsdbQuery.Queries, tsdbQuery)
 	if err != nil {
 		return nil, err
 	}
-	version := dsInfo.Version
-	if version == "Flux" {
-		return flux.Query(ctx, dsInfo, *req)
-	}
 
-	logger.Debug("Making a non-Flux type query")
-
-	var allRawQueries string
-	queries := make([]Query, 0, len(req.Queries))
-
-	for _, reqQuery := range req.Queries {
-		query, err := s.queryParser.Parse(reqQuery)
-		if err != nil {
-			return &backend.QueryDataResponse{}, err
-		}
-
-		rawQuery, err := query.Build(req)
-		if err != nil {
-			return &backend.QueryDataResponse{}, err
-		}
-
-		allRawQueries = allRawQueries + rawQuery + ";"
-		query.RefID = reqQuery.RefID
-		query.RawQuery = rawQuery
-		queries = append(queries, *query)
+	rawQuery, err := query.Build(tsdbQuery)
+	if err != nil {
+		return nil, err
 	}
 
 	if setting.Env == setting.Dev {
-		logger.Debug("Influxdb query", "raw query", allRawQueries)
+		glog.Debug("Influxdb query", "raw query", rawQuery)
 	}
 
-	request, err := s.createRequest(ctx, logger, dsInfo, allRawQueries)
+	req, err := e.createRequest(ctx, dsInfo, rawQuery)
 	if err != nil {
-		return &backend.QueryDataResponse{}, err
+		return nil, err
 	}
 
-	res, err := dsInfo.HTTPClient.Do(request)
+	httpClient, err := dsInfo.GetHttpClient()
 	if err != nil {
-		return &backend.QueryDataResponse{}, err
+		return nil, err
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
 	}
 	defer func() {
-		if err := res.Body.Close(); err != nil {
-			logger.Warn("Failed to close response body", "err", err)
+		if err := resp.Body.Close(); err != nil {
+			glog.Warn("Failed to close response body", "err", err)
 		}
 	}()
-	if res.StatusCode/100 != 2 {
-		return &backend.QueryDataResponse{}, fmt.Errorf("InfluxDB returned error status: %s", res.Status)
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("InfluxDB returned error status: %s", resp.Status)
 	}
 
-	resp := s.responseParser.Parse(res.Body, queries)
+	var response Response
+	dec := json.NewDecoder(resp.Body)
+	dec.UseNumber()
+	if err := dec.Decode(&response); err != nil {
+		return nil, err
+	}
+	if response.Err != nil {
+		return nil, response.Err
+	}
 
-	return resp, nil
+	result := &tsdb.Response{}
+	result.Results = make(map[string]*tsdb.QueryResult)
+	result.Results["A"] = e.ResponseParser.Parse(&response, query)
+
+	return result, nil
 }
 
-func (s *Service) createRequest(ctx context.Context, logger log.Logger, dsInfo *models.DatasourceInfo, query string) (*http.Request, error) {
-	u, err := url.Parse(dsInfo.URL)
+func (e *InfluxDBExecutor) getQuery(dsInfo *models.DataSource, queries []*tsdb.Query, context *tsdb.TsdbQuery) (*Query, error) {
+	if len(queries) == 0 {
+		return nil, fmt.Errorf("query request contains no queries")
+	}
+
+	// The model supports multiple queries, but right now this is only used from
+	// alerting so we only needed to support batch executing 1 query at a time.
+	query, err := e.QueryParser.Parse(queries[0].Model, dsInfo)
+	if err != nil {
+		return nil, err
+	}
+	return query, nil
+}
+
+func (e *InfluxDBExecutor) createRequest(ctx context.Context, dsInfo *models.DataSource, query string) (*http.Request, error) {
+	u, err := url.Parse(dsInfo.Url)
 	if err != nil {
 		return nil, err
 	}
 
 	u.Path = path.Join(u.Path, "query")
-	httpMode := dsInfo.HTTPMode
+	httpMode := dsInfo.JsonData.Get("httpMode").MustString("GET")
 
 	var req *http.Request
 	switch httpMode {
@@ -179,9 +150,11 @@ func (s *Service) createRequest(ctx context.Context, logger log.Logger, dsInfo *
 		return nil, ErrInvalidHttpMode
 	}
 
+	req.Header.Set("User-Agent", "Grafana")
+
 	params := req.URL.Query()
-	params.Set("db", dsInfo.DbName)
-	params.Set("epoch", "ms")
+	params.Set("db", dsInfo.Database)
+	params.Set("epoch", "s")
 
 	if httpMode == "GET" {
 		params.Set("q", query)
@@ -191,20 +164,14 @@ func (s *Service) createRequest(ctx context.Context, logger log.Logger, dsInfo *
 
 	req.URL.RawQuery = params.Encode()
 
-	logger.Debug("Influxdb request", "url", req.URL.String())
+	if dsInfo.BasicAuth {
+		req.SetBasicAuth(dsInfo.BasicAuthUser, dsInfo.DecryptedBasicAuthPassword())
+	}
+
+	if !dsInfo.BasicAuth && dsInfo.User != "" {
+		req.SetBasicAuth(dsInfo.User, dsInfo.DecryptedPassword())
+	}
+
+	glog.Debug("Influxdb request", "url", req.URL.String())
 	return req, nil
-}
-
-func (s *Service) getDSInfo(ctx context.Context, pluginCtx backend.PluginContext) (*models.DatasourceInfo, error) {
-	i, err := s.im.Get(ctx, pluginCtx)
-	if err != nil {
-		return nil, err
-	}
-
-	instance, ok := i.(*models.DatasourceInfo)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast datsource info")
-	}
-
-	return instance, nil
 }

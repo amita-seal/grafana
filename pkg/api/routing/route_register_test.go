@@ -5,38 +5,42 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/grafana/grafana/pkg/web"
+	"gopkg.in/macaron.v1"
 )
 
 type fakeRouter struct {
 	route []route
 }
 
-func (fr *fakeRouter) Handle(method, pattern string, handlers []web.Handler) {
+func (fr *fakeRouter) Handle(method, pattern string, handlers []macaron.Handler) *macaron.Route {
 	fr.route = append(fr.route, route{
 		pattern:  pattern,
 		method:   method,
 		handlers: handlers,
 	})
+
+	return &macaron.Route{}
 }
 
-func (fr *fakeRouter) Get(pattern string, handlers ...web.Handler) {
+func (fr *fakeRouter) Get(pattern string, handlers ...macaron.Handler) *macaron.Route {
 	fr.route = append(fr.route, route{
 		pattern:  pattern,
 		method:   http.MethodGet,
 		handlers: handlers,
 	})
+
+	return &macaron.Route{}
 }
 
-func emptyHandlers(n int) []web.Handler {
-	var res []web.Handler
+func emptyHandlers(n int) []macaron.Handler {
+	var res []macaron.Handler
 	for i := 1; n >= i; i++ {
 		res = append(res, emptyHandler(strconv.Itoa(i)))
 	}
 	return res
 }
 
-func emptyHandler(name string) web.Handler {
+func emptyHandler(name string) macaron.Handler {
 	return struct{ name string }{name: name}
 }
 
@@ -212,7 +216,7 @@ func TestNamedMiddlewareRouteRegister(t *testing.T) {
 
 	namedMiddlewares := map[string]bool{}
 	// Setup
-	rr := NewRouteRegister(func(name string) web.Handler {
+	rr := NewRouteRegister(func(name string) macaron.Handler {
 		namedMiddlewares[name] = true
 
 		return struct{ name string }{name: name}

@@ -1,6 +1,14 @@
 import { DataFrameFieldIndex, FieldMatcher } from '@grafana/data';
 
-import { SeriesVisibilityChangeMode } from '../PanelChrome';
+/**
+ * Mode to describe if a legend is isolated/selected or being appended to an existing
+ * series selection.
+ * @alpha
+ */
+export enum GraphNGLegendEventMode {
+  ToggleSelection = 'select',
+  AppendToSelection = 'append',
+}
 
 /**
  * Event being triggered when the user interact with the Graph legend.
@@ -8,10 +16,9 @@ import { SeriesVisibilityChangeMode } from '../PanelChrome';
  */
 export interface GraphNGLegendEvent {
   fieldIndex: DataFrameFieldIndex;
-  mode: SeriesVisibilityChangeMode;
+  mode: GraphNGLegendEventMode;
 }
 
-/** @alpha */
 export interface XYFieldMatchers {
   x: FieldMatcher; // first match
   y: FieldMatcher;

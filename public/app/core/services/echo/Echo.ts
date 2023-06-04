@@ -1,8 +1,5 @@
 import { EchoBackend, EchoMeta, EchoEvent, EchoSrv } from '@grafana/runtime';
-
 import { contextSrv } from '../context_srv';
-
-import { echoLog } from './utils';
 
 interface EchoConfig {
   // How often should metrics be reported
@@ -33,6 +30,13 @@ export class Echo implements EchoSrv {
     setInterval(this.flush, this.config.flushInterval);
   }
 
+  logDebug = (...msg: any) => {
+    if (this.config.debug) {
+      // eslint-disable-next-line
+      // console.debug('ECHO:', ...msg);
+    }
+  };
+
   flush = () => {
     for (const backend of this.backends) {
       backend.flush();
@@ -40,7 +44,7 @@ export class Echo implements EchoSrv {
   };
 
   addBackend = (backend: EchoBackend) => {
-    echoLog('Adding backend', false, backend);
+    this.logDebug('Adding backend', backend);
     this.backends.push(backend);
   };
 
@@ -59,7 +63,8 @@ export class Echo implements EchoSrv {
         backend.addEvent(_event);
       }
     }
-    echoLog('Reporting event', false, _event);
+
+    this.logDebug('Adding event', _event);
   };
 
   getMeta = (): EchoMeta => {
@@ -79,7 +84,6 @@ export class Echo implements EchoSrv {
       userAgent: window.navigator.userAgent,
       ts: new Date().getTime(),
       timeSinceNavigationStart: performance.now(),
-      path: window.location.pathname,
       url: window.location.href,
     };
   };
